@@ -84,6 +84,8 @@ Le minuteur est vérifié à chaque tour de `loop()` et a priorité sur tous les
   - Téléverser : `pio run -e test_xxx -t upload`.
   - Après un banc de test, **toujours re-téléverser le firmware** (`pio run -t upload`).
 - `native` : tests de `logic/` sur PC (nécessite g++, par exemple MinGW-w64 sous Windows).
+- `logic_esp32` : les mêmes tests, exécutés sur l'ESP32 branché en USB (`pio test -e logic_esp32`).
+  Utile quand g++ n'est pas installé.
 
 ## État d'avancement
 Coche une étape uniquement après un test réussi sur le vrai PAMI, consigné dans `docs/journal-tests.md`.
