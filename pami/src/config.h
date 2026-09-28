@@ -66,6 +66,14 @@ constexpr uint8_t LEDC_CHANNEL_MOTOR_LEFT_A = 0;
 constexpr uint8_t LEDC_CHANNEL_MOTOR_LEFT_B = 1;
 constexpr uint8_t LEDC_CHANNEL_MOTOR_RIGHT_A = 2;
 constexpr uint8_t LEDC_CHANNEL_MOTOR_RIGHT_B = 3;
+// true si la roue tourne à l'envers quand on lui demande d'avancer.
+// À mesurer à l'étape 2 (T002). On corrige ici plutôt que de recâbler.
+constexpr bool MOTOR_LEFT_INVERTED = false;
+constexpr bool MOTOR_RIGHT_INVERTED = false;
+// PWM maximale autorisée, appliquée par motor_driver, même dans les bancs de test.
+// Alimentation de labo à 6 V = tension nominale des FIT0450 : 100 %.
+// À revoir avec la batterie : avec 8,4 V, il faudra environ 70 % pour rester vers 6 V en moyenne.
+constexpr int MOTOR_MAX_PWM_PCT = 100;
 
 // ---------------------------------------------------------------------------
 // Minuteur de match
@@ -78,3 +86,13 @@ constexpr uint32_t MATCH_MOVE_ALLOWED_MS = 85300;
 // Un appui ou un relâchement doit durer au moins 50 ms pour compter :
 // les contacts d'un bouton rebondissent pendant quelques millisecondes.
 constexpr uint32_t START_BUTTON_DEBOUNCE_MS = 50;
+
+// ---------------------------------------------------------------------------
+// Bancs de test (test_bench/) : jamais utilisés en match
+// ---------------------------------------------------------------------------
+// Vitesse de départ prudente : la roue tourne lentement, ou pas du tout (zone morte).
+constexpr int TEST_BENCH_START_PWM_PCT = 20;
+constexpr int TEST_BENCH_PWM_STEP_PCT = 5;       // touches + et -
+constexpr int TEST_BENCH_PWM_FINE_STEP_PCT = 1;  // touches > et < : zone morte au pourcent près
+// Sécurité : les moteurs s'arrêtent seuls si personne n'a tapé de commande depuis 10 s.
+constexpr uint32_t TEST_BENCH_AUTO_STOP_MS = 10000;

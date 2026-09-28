@@ -12,4 +12,9 @@ void begin();
 // Freine les deux moteurs : A = B = 0 sur le MDD3A.
 void brake();
 
+// Commande des deux roues, en pourcentage de PWM :
+// +100 = pleine vitesse en avant, -100 = pleine vitesse en arrière, 0 = frein.
+// Les valeurs sont limitées à MOTOR_MAX_PWM_PCT, et le sens est corrigé par MOTOR_*_INVERTED.
+void setWheelPercent(float leftPct, float rightPct);
+
 }  // namespace motorDriver

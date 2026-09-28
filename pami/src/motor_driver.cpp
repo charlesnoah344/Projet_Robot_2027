@@ -25,6 +25,40 @@ void writeDuty(uint8_t index, uint32_t duty) {
   }
 }
 
+// Rapport cyclique maximal : 1023 pour 10 bits.
+constexpr uint32_t MAX_DUTY = (1UL << MOTOR_PWM_RESOLUTION_BITS) - 1;
+
+// Pilote un moteur à travers ses deux entrées A et B.
+// pct > 0 : avance (A = PWM, B = 0). pct < 0 : recule (A = 0, B = PWM). pct = 0 : frein.
+void setMotor(uint8_t indexA, uint8_t indexB, float pct, bool inverted) {
+  if (isnan(pct)) {
+    pct = 0.0f;  // valeur invalide : on freine
+  }
+  if (inverted) {
+    pct = -pct;
+  }
+  // Limite : protège les moteurs, même quand un banc de test demande plus.
+  if (pct > MOTOR_MAX_PWM_PCT) {
+    pct = MOTOR_MAX_PWM_PCT;
+  }
+  if (pct < -MOTOR_MAX_PWM_PCT) {
+    pct = -MOTOR_MAX_PWM_PCT;
+  }
+  const uint32_t duty = (uint32_t)(fabsf(pct) / 100.0f * MAX_DUTY + 0.5f);
+
+  // On coupe toujours l'entrée inactive AVANT d'alimenter l'autre.
+  if (pct > 0.0f) {
+    writeDuty(indexB, 0);
+    writeDuty(indexA, duty);
+  } else if (pct < 0.0f) {
+    writeDuty(indexA, 0);
+    writeDuty(indexB, duty);
+  } else {
+    writeDuty(indexA, 0);
+    writeDuty(indexB, 0);
+  }
+}
+
 }  // namespace
 
 void begin() {
@@ -47,6 +81,12 @@ void brake() {
   for (uint8_t i = 0; i < PIN_COUNT; i++) {
     writeDuty(i, 0);
   }
+}
+
+void setWheelPercent(float leftPct, float rightPct) {
+  // Indices dans pins[] : 0 et 1 = moteur gauche (M1A, M1B), 2 et 3 = moteur droit (M2A, M2B).
+  setMotor(0, 1, leftPct, MOTOR_LEFT_INVERTED);
+  setMotor(2, 3, rightPct, MOTOR_RIGHT_INVERTED);
 }
 
 }  // namespace motorDriver
