@@ -89,7 +89,7 @@ Le minuteur est vérifié à chaque tour de `loop()` et a priorité sur tous les
 
 ## État d'avancement
 Coche une étape uniquement après un test réussi sur le vrai PAMI, consigné dans `docs/journal-tests.md`.
-- [ ] 1. Projet PlatformIO + squelette des couches : compilation OK, minuteur et bouton BOOT
+- [x] 1. Projet PlatformIO + squelette des couches : compilation OK, minuteur et bouton BOOT (T001)
 - [ ] 2. Moteurs + driver : sens de rotation, vitesse minimale (zone morte), arrêt
 - [ ] 3. Encodeurs : comptage, ticks par tour de roue, mm par tick, table vitesse/PWM
 - [ ] 4. Ligne droite régulée sur 1 m (distance et écart latéral mesurés)

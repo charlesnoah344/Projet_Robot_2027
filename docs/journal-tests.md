@@ -31,25 +31,29 @@
   - aucun départ sans appui pendant 30 s ;
   - 2ᵉ appui sur BOOT ignoré ;
   - fin entre 99,2 et 99,8 s au chronomètre, 3 essais sur 3.
-- **Résultat** : partiel (1 essai sur 3, certains points pas encore vérifiés).
+- **Résultat** : réussi (validation de l'équipe).
 - **Mesures** :
   - tests de logique : 7 sur 7 réussis, exécutés sur l'ESP32 ;
-  - boucle : environ 402 000 tours/s en FORWARD, 413 000 tours/s en END ;
-  - départ : `DEPART !` puis `IDLE -> FORWARD` après l'appui sur BOOT ;
-  - fin : `FIN DU MATCH (99,5 s)` puis `FORWARD -> END`, entre les lignes t = 99,1 s et t = 100,1 s.
-    C'est conforme à l'horloge de l'ESP32. L'état END est resté jusqu'à la fin de l'observation (t = 134 s) ;
-  - 2 lignes du moniteur corrompues (64 caractères illisibles à la place du « [ », vers t = 50 s et t = 128 s).
-- **Pas encore vérifié** :
-  - l'attente de 30 s sans départ (BOOT a été appuyé environ 2 s après le démarrage) ;
-  - le 2ᵉ appui ignoré ;
-  - le temps au chronomètre ;
-  - les essais 2 et 3.
+  - boucle : environ 402 000 tours/s en IDLE et FORWARD, 413 000 tours/s en END (critère : au moins 1000) ;
+  - essai 1 : départ environ 2 s après le démarrage ; `FIN DU MATCH (99,5 s)` entre les lignes
+    t = 99,1 s et t = 100,1 s ; état END maintenu jusqu'à t = 134 s ;
+  - essai 2 : après un redémarrage par EN, état IDLE pendant environ 45 s sans aucun départ ;
+    `DEPART !` puis `IDLE -> FORWARD` à l'appui sur BOOT ; `FIN DU MATCH` entre les lignes
+    t = 98,9 s et t = 99,9 s ; état END maintenu jusqu'à t = 180 s ;
+  - 2ᵉ appui sur BOOT pendant le match : ignoré (aucune nouvelle ligne `DEPART`), selon l'équipe ;
+  - temps au chronomètre : conformes selon l'équipe, mais les valeurs n'ont pas été notées ;
+  - lignes du moniteur corrompues (64 caractères illisibles ou nuls à la place du « [ ») :
+    2 dans l'essai 1, 6 dans l'essai 2.
 - **Incident de téléversement** : `Wrong boot mode detected (0x13)`. La carte ne passe pas toute seule
   en mode téléversement. Il a réussi en maintenant BOOT pendant `Connecting`, ce que l'équipe a
   confirmé. C'est noté dans `docs/materiel.md` et dans le guide pratique.
 - **Conclusion et suite** :
-  - comportement conforme sur ce premier essai ;
-  - faire 2 essais complets pour les points pas encore vérifiés, puis cocher l'étape 1 dans `pami/CLAUDE.md` ;
-  - lignes corrompues : hypothèse, un problème de la liaison USB avec le PC (64 octets, c'est la taille
-    d'un paquet USB). Sans effet sur le PAMI, qui n'a pas d'USB en match. À surveiller quand les moteurs
-    tourneront : si ça devient plus fréquent, ce sera un signe de parasites électriques.
+  - étape 1 validée : départ uniquement par BOOT, un seul départ, arrêt à 99,5 s, boucle très rapide ;
+  - broche GPIO 0 (départ provisoire) validée dans `docs/materiel.md` ;
+  - le chronométrage précis, avec valeurs notées, sera refait au test de la tirette et de l'attente
+    de 85,3 s (levée de D005), obligatoire avant tout match ;
+  - lignes corrompues : hypothèse, un problème de la liaison USB avec le PC (64 octets, c'est la
+    taille d'un paquet USB). Le programme n'est pas touché : le texte reprend normalement juste après.
+    Sans effet sur le PAMI, qui n'a pas d'USB en match. À surveiller quand les moteurs tourneront :
+    si ça devient plus fréquent, ce sera un signe de parasites électriques ;
+  - suite : étape 2, moteurs et driver (banc `test_moteurs`).

@@ -41,7 +41,7 @@ Proposition pour un ESP32 DevKit V1 (WROOM-32). Colonne « Validé » : à coche
 | IR avant-gauche | GPIO 34 | Entrée seule, pas de pull-up interne. Module alimenté en 3,3 V. 100 kΩ vers la masse : fil débranché = « obstacle » | [ ] |
 | IR avant-droit | GPIO 35 | Idem IR avant-gauche | [ ] |
 | Servomoteur | GPIO 23 | Bibliothèque ESP32Servo | [ ] |
-| Départ provisoire (bouton BOOT de la carte) | GPIO 0 | Bouton déjà soudé sur la carte, appui = niveau bas. Provisoire (D005), remplacé par la tirette. Ne pas appuyer pendant l'allumage : la carte passerait en mode téléversement | [ ] |
+| Départ provisoire (bouton BOOT de la carte) | GPIO 0 | Bouton déjà soudé sur la carte, appui = niveau bas. Provisoire (D005), remplacé par la tirette. Ne pas appuyer pendant l'allumage : la carte passerait en mode téléversement | [x] T001 |
 | Tirette | GPIO 16 | INPUT_PULLUP | [ ] |
 | Sélecteur de couleur | GPIO 17 | INPUT_PULLUP | [ ] |
 | Lecture de l'état du BAU (optionnel) | GPIO 39 | Entrée seule, pont diviseur obligatoire | [ ] |
