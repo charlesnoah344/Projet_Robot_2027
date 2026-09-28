@@ -40,8 +40,8 @@ avant d'allumer.**
 
 ### Alimentation pendant les tests (en attendant la batterie)
 ```
-Alim de labo (+) 6 V ──> BAU ──> MDD3A, bornier d'alimentation (+)
-Alim de labo (−) ──────────────> MDD3A, bornier d'alimentation (−)
+Alim de labo (+) 6 V ──> BAU (contact NC) ──> MDD3A, borne VB+
+Alim de labo (−) ─────────────────────────> MDD3A, borne VB−
 PC ──USB──> ESP32 ──┬── broche 5V (ou VIN) ──> encodeurs + HC-SR04
                     └── broche 3V3 ─────────> capteurs IR
 Masse commune : GND ESP32 = GND MDD3A = (−) alim de labo = GND des capteurs
@@ -54,10 +54,13 @@ Masse commune : GND ESP32 = GND MDD3A = (−) alim de labo = GND des capteurs
 ### Tableau de câblage
 | Composant | Fil | Va sur | Attention |
 |---|---|---|---|
-| MDD3A | entrées M1A / M1B | GPIO 25 / 26 | moteur gauche |
-| MDD3A | entrées M2A / M2B | GPIO 33 / 32 | moteur droit |
-| MDD3A | GND (côté commande) | GND de l'ESP32 | masse commune obligatoire |
-| MDD3A | sorties moteur 1 / moteur 2 | moteur gauche / moteur droit | roue qui tourne à l'envers : on corrige dans `config.h` (étape 2), pas besoin de recâbler |
+| MDD3A, connecteur 6 broches | M1A / M1B | GPIO 25 / 26 | commande du moteur gauche |
+| MDD3A, connecteur 6 broches | M2A / M2B | GPIO 33 / 32 | commande du moteur droit |
+| MDD3A, connecteur 6 broches | GND | GND de l'ESP32 | masse commune obligatoire |
+| MDD3A, connecteur 6 broches | 5V0 | **rien** | c'est une sortie ; l'ESP32 est déjà alimenté par l'USB |
+| MDD3A, bornier à vis | M1A / M1B | moteur gauche (+ / −) | roue qui tourne à l'envers : on corrige dans `config.h` (étape 2), pas besoin de recâbler |
+| MDD3A, bornier à vis | M2A / M2B | moteur droit (+ / −) | idem |
+| MDD3A, bornier à vis | VB+ / VB− | alimentation de labo (+ via le BAU / −) | |
 | Encodeurs (×2) | + / GND | 5V / GND | 4,5 à 7,5 V : **jamais en 3,3 V** |
 | Encodeur gauche | A / B | GPIO 27 / 14 | **pas avant la mesure du § 4** |
 | Encodeur droit | A / B | GPIO 13 / 4 | **pas avant la mesure du § 4** |
@@ -66,9 +69,10 @@ Masse commune : GND ESP32 = GND MDD3A = (−) alim de labo = GND des capteurs
 | HC-SR04 | ECHO | GPIO 19 **via le pont diviseur** | jamais en direct |
 | IR avant-gauche | VCC / GND / OUT | 3V3 / GND / GPIO 34 | résistance de 100 kΩ entre GPIO 34 et GND |
 | IR avant-droit | VCC / GND / OUT | 3V3 / GND / GPIO 35 | résistance de 100 kΩ entre GPIO 35 et GND |
-| BAU | — | en série sur le (+) de l'alimentation du MDD3A | |
+| BAU | contact **NC** (fermé au repos) | en série entre le (+) de l'alimentation et VB+ | au multimètre : le courant passe au repos, plus rien quand on appuie |
 
-Les repères exacts des borniers sont écrits sur le MDD3A : suivez-les.
+**Attention aux noms en double sur le MDD3A** : M1A, M1B, M2A et M2B désignent à la fois les
+**entrées** du connecteur 6 broches (vers l'ESP32) et les **sorties** du bornier à vis (vers les moteurs).
 
 **Fils du moteur FIT0450.** D'après la fiche, il y a 6 fils : moteur +, moteur −, voie A, voie B,
 GND encodeur, + encodeur. Vérifiez au multimètre : la FAQ DFRobot signale des étiquettes inversées
