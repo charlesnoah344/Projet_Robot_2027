@@ -45,8 +45,8 @@
   - le temps au chronomètre ;
   - les essais 2 et 3.
 - **Incident de téléversement** : `Wrong boot mode detected (0x13)`. La carte ne passe pas toute seule
-  en mode téléversement. Le téléversement a réussi ensuite ; la manipulation (BOOT maintenu pendant
-  `Connecting`) reste à confirmer par l'équipe.
+  en mode téléversement. Il a réussi en maintenant BOOT pendant `Connecting`, ce que l'équipe a
+  confirmé. C'est noté dans `docs/materiel.md` et dans le guide pratique.
 - **Conclusion et suite** :
   - comportement conforme sur ce premier essai ;
   - faire 2 essais complets pour les points pas encore vérifiés, puis cocher l'étape 1 dans `pami/CLAUDE.md` ;

@@ -27,9 +27,12 @@ Toutes les commandes se lancent depuis le dossier `pami/`.
 - **Fermez le moniteur série avant de téléverser.** Sinon : « port busy » ou « Access denied ».
 - **Après un banc de test, re-téléversez toujours le firmware** (`pio run -t upload`).
   Un banc de test n'a pas forcément d'évitement.
-- Si le téléversement reste bloqué sur `Connecting........` : maintenez BOOT appuyé jusqu'à
-  l'apparition de « Writing », puis relâchez.
+- **Avec notre carte, il faut maintenir BOOT à chaque téléversement**, y compris avec `pio test` (T001).
+  Dès que `Connecting...` s'affiche, maintenez BOOT jusqu'à l'apparition de `Writing at 0x...`,
+  puis relâchez. Si vous oubliez, l'erreur est `Wrong boot mode detected (0x13)`.
+  Correction matérielle possible si ça devient pénible : un condensateur de 10 µF entre EN et GND.
 - Après le téléversement, appuyez sur EN (reset) pour voir les messages de démarrage.
+  Avec `pio test`, appuyez sur EN si aucun résultat ne s'affiche dans les 10 s.
 
 ## 3. Câbler
 **Règle n° 1 : on câble hors tension (USB débranché, alimentation de labo éteinte), et on vérifie
@@ -122,7 +125,7 @@ Notez ces mesures dans `docs/journal-tests.md`.
 | 7 | Machine à états complète | firmware (`esp32dev`) |
 
 **Test de l'étape 1** (ESP32 seul en USB, rien d'autre de branché) :
-- [ ] `pio test -e logic_esp32` affiche `7 Tests 0 Failures`.
+- [ ] `pio test -e logic_esp32` affiche `7 test cases: 7 succeeded`.
 - [ ] Au démarrage : avertissement « attente de 85 s DESACTIVEE », puis « Pret : appuyez sur BOOT ».
 - [ ] Pendant 30 s sans toucher à rien, l'état reste `IDLE`.
 - [ ] Un appui bref sur BOOT affiche `DEPART !`. Lancez le chronomètre en même temps.
