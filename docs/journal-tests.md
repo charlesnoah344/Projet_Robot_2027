@@ -57,3 +57,47 @@
     Sans effet sur le PAMI, qui n'a pas d'USB en match. À surveiller quand les moteurs tourneront :
     si ça devient plus fréquent, ce sera un signe de parasites électriques ;
   - suite : étape 2, moteurs et driver (banc `test_moteurs`).
+
+### T002 — Moteurs et driver MDD3A (étape 2)
+- **Date** : 28/09/2026
+- **Testeurs** : à compléter
+- **Programme utilisé** : `pami/test_bench/moteurs/main.cpp` (environnement `test_moteurs`, commit `f8477e6`)
+- **Montage** :
+  - ESP32 en USB sur COM5 ;
+  - MDD3A câblé selon `docs/guide-pratique-pami.md` (§ 3) : entrées M1A/M1B sur GPIO 25/26,
+    M2A/M2B sur GPIO 33/32, GND commun ;
+  - 2 moteurs FIT0450, encodeurs non branchés ;
+  - alimentation de labo. À confirmer : réglages (6 V, 2 A prévus), BAU câblé, PAMI sur cales.
+- **Protocole** : en-tête du banc de test (points 1 à 8).
+- **Critère de réussite** :
+  - `g`, `d`, `a`, `r` : la bonne roue, dans le bon sens ;
+  - aucun mouvement pendant 3 redémarrages ;
+  - zone morte mesurée (sur cales et au sol) ;
+  - arrêt net ;
+  - 0 redémarrage sur 10 départs à 100 % ;
+  - BAU : arrêt immédiat, l'ESP32 ne redémarre pas.
+- **Résultat** : partiel. Moteurs fonctionnels selon l'équipe ; plusieurs points du protocole ne sont
+  ni visibles dans le log, ni rapportés.
+- **Mesures** (log du moniteur et retour de l'équipe) :
+  - démarrage du banc correct, cause du redémarrage : « mise sous tension ou bouton EN »
+    (pas de chute de tension) ;
+  - `a` : les deux roues commandées en avant (+20 %) ;
+  - `g` : roue gauche seule (+20 %) ; `d` : roue droite seule (+20 %).
+    Bonne roue et bon sens selon l'équipe (« tout fonctionne bien niveau moteur ») ;
+  - `+` / `-` : vitesse changée par pas de 5 % entre 15 et 35 %, appliquée tout de suite ;
+  - arrêt automatique après 10 s sans commande : observé 3 fois ;
+  - aucun redémarrage de l'ESP32 pendant la séance (vitesse maximale utilisée : 35 %) ;
+  - aucune ligne corrompue dans le moniteur pendant que les moteurs tournaient.
+- **Pas encore vérifié** :
+  - `r` (marche arrière) : aucune commande négative dans le log ;
+  - broches flottantes : absence de mouvement pendant 3 redémarrages ;
+  - zone morte, gauche et droite sur cales et au sol : aucune valeur relevée ;
+  - arrêt net depuis 100 % ;
+  - 10 départs à 100 % sans redémarrage de l'ESP32 ;
+  - BAU.
+- **Conclusion et suite** :
+  - le câblage du MDD3A, les broches GPIO 25, 26, 33, 32 et la commande des roues fonctionnent ;
+  - sens des roues correct selon l'équipe : `MOTOR_LEFT_INVERTED` et `MOTOR_RIGHT_INVERTED`
+    restent à `false` ;
+  - à compléter avant l'étape 3 : les points ci-dessus. La zone morte servira au régulateur de
+    vitesse (étape 4) ; le test à 100 % et le BAU concernent la sécurité.
