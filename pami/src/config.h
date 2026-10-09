@@ -95,6 +95,30 @@ constexpr bool ENCODER_LEFT_INVERTED = false;
 constexpr bool ENCODER_RIGHT_INVERTED = false;
 
 // ---------------------------------------------------------------------------
+// Ultrason HC-SR04 et sécurité
+// ---------------------------------------------------------------------------
+// Au moins 60 ms entre deux mesures : l'écho de la mesure précédente doit avoir disparu.
+constexpr uint32_t US_PERIOD_MS = 60;
+// Impulsion de déclenchement demandée par la fiche du HC-SR04.
+constexpr uint32_t US_TRIGGER_PULSE_US = 10;
+// Écho plus long que 12 000 µs (environ 2 m) : « rien dans la portée ». C'est normal, pas une panne.
+constexpr uint32_t US_MAX_ECHO_US = 12000;
+// Distance renvoyée quand il n'y a rien dans la portée.
+constexpr uint16_t US_NO_OBSTACLE_MM = 2000;
+// Le son fait 343 m/s, soit 0,343 mm/µs. Il fait l'aller-retour : 0,1715 mm par µs d'écho.
+constexpr float US_MM_PER_ECHO_US = 0.1715f;
+// Aucune mesure valide pendant 1 s : le capteur est considéré en panne (fil débranché, ECHO bloqué).
+// Sécurité par défaut : panne = obstacle, le PAMI s'arrête.
+constexpr uint32_t SENSOR_FAULT_TIMEOUT_MS = 1000;
+
+// Obstacle plus proche que ce seuil devant : safety freine, quel que soit l'état.
+// PROVISOIRE, volontairement large : à régler d'après la distance de freinage mesurée (étape C).
+constexpr uint16_t OBSTACLE_STOP_DISTANCE_MM = 150;
+// L'obstacle n'est considéré parti qu'au-delà de seuil + 30 mm.
+// Sans cette marge, une mesure qui oscille autour du seuil ferait avancer et freiner en boucle.
+constexpr uint16_t OBSTACLE_CLEAR_MARGIN_MM = 30;
+
+// ---------------------------------------------------------------------------
 // Minuteur de match
 // ---------------------------------------------------------------------------
 // Profil labo (D007, grille du Mechatronics Lab) : départ après 5 s, arrêt après 15 s.

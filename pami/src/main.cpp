@@ -36,9 +36,10 @@ void logStatus(uint32_t nowMs) {
     int32_t leftTicks = 0;
     int32_t rightTicks = 0;
     encoders::read(leftTicks, rightTicks);
-    Serial.printf("[MAIN] %lu tours/s | etat %s | t = %.1f s | ticks G %ld D %ld\n",
+    Serial.printf("[MAIN] %lu tours/s | etat %s | t = %.1f s | US %u mm | ticks G %ld D %ld\n",
                   (unsigned long)loopsPerSecond, stateName(stateMachine::state()),
-                  matchTimer::elapsedMs(nowMs) / 1000.0f, (long)leftTicks, (long)rightTicks);
+                  matchTimer::elapsedMs(nowMs) / 1000.0f, sensors::frontDistanceMm(),
+                  (long)leftTicks, (long)rightTicks);
   }
   loopCount = 0;
   lastLogMs = nowMs;
