@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "match_timer.h"
+#include "mission.h"
 #include "motion.h"
 #include "sensors.h"
 
@@ -55,12 +56,14 @@ void update(uint32_t nowMs) {
     case PamiState::WAIT_DELAY:
       // Immobile tant que les 5 s ne sont pas écoulées.
       if (matchTimer::isMoveAllowed()) {
+        mission::start(TeamColor::BLUE);  // étape G : couleur lue sur le sélecteur
         enter(PamiState::MISSION);
       }
       break;
 
     case PamiState::MISSION:
-      // Étape E : déroulement de la mission.
+      // Si un obstacle apparaît, safety freine tout seul et motion reprend quand la voie se libère.
+      mission::update();
       break;
 
     default:

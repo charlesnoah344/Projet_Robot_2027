@@ -37,6 +37,8 @@ WheelCommand requested;  // {0, 0} : arrêt
 
 uint32_t stallStartMs = 0;  // début d'une suspicion de roue bloquée (0 = aucune)
 
+Odometry odometry;
+
 void resetRegulation() {
   profileSpeedMmS = 0.0f;
   leftController.reset();
@@ -89,6 +91,7 @@ void checkStall(float leftMeasuredMmS, float rightMeasuredMmS, uint32_t nowMs) {
 
 void begin() {
   encoders::read(lastLeftTicks, lastRightTicks);
+  odometry.update(lastLeftTicks, lastRightTicks);  // point de départ : (0, 0), cap 0
   lastUpdateMs = millis();
 }
 
@@ -107,6 +110,8 @@ void update(uint32_t nowMs) {
   const float rightMeasuredMmS = (rightTicks - lastRightTicks) * MM_PER_TICK / dtS;
   lastLeftTicks = leftTicks;
   lastRightTicks = rightTicks;
+  // Même à l'arrêt : si on pousse le PAMI, sa position change.
+  odometry.update(leftTicks, rightTicks);
 
   if (mode == Mode::IDLE || faulty) {
     requested = WheelCommand();
@@ -190,6 +195,18 @@ bool isDone() {
 
 bool isFaulty() {
   return faulty;
+}
+
+Pose pose() {
+  return odometry.pose();
+}
+
+void resetPose() {
+  int32_t leftTicks = 0;
+  int32_t rightTicks = 0;
+  encoders::read(leftTicks, rightTicks);
+  odometry = Odometry();
+  odometry.update(leftTicks, rightTicks);
 }
 
 WheelCommand command() {

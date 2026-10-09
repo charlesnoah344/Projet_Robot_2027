@@ -4,12 +4,14 @@
 // - vitesse de chaque roue régulée (logic/speed_controller.h) ;
 // - ligne droite : l'écart entre les distances des deux roues est corrigé en permanence ;
 // - accélération et freinage progressifs (logic/speed_profile.h) ;
-// - roue bloquée ou encodeur inversé : FAULT.
+// - roue bloquée ou encodeur inversé : FAULT ;
+// - position (x, y, cap) suivie en permanence par l'odométrie.
 // Pas de marche arrière : on avance, ou on tourne sur place (safety refuse le reste).
 #pragma once
 
 #include <stdint.h>
 
+#include "logic/odometry.h"
 #include "logic/wheel_command.h"
 
 namespace motion {
@@ -33,6 +35,13 @@ bool isDone();
 
 // Vrai si une roue est bloquée ou tourne à l'envers. Le reste jusqu'au redémarrage.
 bool isFaulty();
+
+// Position et cap mesurés par les encodeurs (logic/odometry.h).
+Pose pose();
+
+// Remet la position à (0, 0), cap 0 : le point de départ de la mission.
+// Sans ça, les déplacements à la main pendant la mise en place fausseraient la position.
+void resetPose();
 
 // Commande demandée pour les roues. Elle passe ensuite par safety, qui a le dernier mot.
 WheelCommand command();

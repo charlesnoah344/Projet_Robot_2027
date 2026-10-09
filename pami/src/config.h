@@ -135,6 +135,36 @@ constexpr float STALL_MAX_SPEED_MM_S = 15.0f;
 constexpr uint32_t STALL_TIME_MS = 600;
 
 // ---------------------------------------------------------------------------
+// Missions (logic/missions.h)
+// ---------------------------------------------------------------------------
+// Une mission par démonstration de la grille du labo.
+enum class MissionId {
+  STRAIGHT_LINE,  // ligne droite de STRAIGHT_LINE_LENGTH_MM
+  ROTATION,       // un tour complet sur place, par quarts de tour
+  SQUARE,         // carré de SQUARE_SIDE_MM de côté, retour au départ
+  DEFENDER        // va dans la zone, puis défend avec le bras
+};
+// La mission jouée. Pour en changer : modifier cette ligne, puis recompiler et téléverser.
+// Ordre conseillé pour les tests : STRAIGHT_LINE, ROTATION, SQUARE, puis DEFENDER.
+constexpr MissionId ACTIVE_MISSION = MissionId::STRAIGHT_LINE;
+
+// Il n'y a que 9,5 s de mouvement (de 5 s à 14,5 s) : chaque mission doit tenir dedans,
+// avec de la marge pour un détour. PROVISOIRE : à ajuster d'après les vitesses réelles.
+constexpr float STRAIGHT_LINE_LENGTH_MM = 1000.0f;
+constexpr float SQUARE_SIDE_MM = 250.0f;
+// Zone du défenseur, dans le repère de départ (x devant, y à gauche), pour le bleu.
+// PROVISOIRE : à fixer quand on connaîtra la table et la zone de l'évaluation.
+constexpr float DEFENDER_ZONE_X_MM = 700.0f;
+constexpr float DEFENDER_ZONE_Y_MM = 300.0f;
+// Cap à prendre une fois dans la zone, pour que l'ultrason et le bras regardent vers l'adversaire.
+constexpr float DEFENDER_FACING_DEG = 0.0f;
+
+// Point atteint à moins de 30 mm. Cap atteint à moins de 3°.
+// Si le PAMI est mal orienté, il se retourne vers le point avant d'avancer.
+constexpr float GOTO_REACHED_TOLERANCE_MM = 30.0f;
+constexpr float HEADING_TOLERANCE_DEG = 3.0f;
+
+// ---------------------------------------------------------------------------
 // Ultrason HC-SR04 et sécurité
 // ---------------------------------------------------------------------------
 // Au moins 60 ms entre deux mesures : l'écho de la mesure précédente doit avoir disparu.
