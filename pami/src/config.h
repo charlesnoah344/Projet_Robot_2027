@@ -76,6 +76,25 @@ constexpr bool MOTOR_RIGHT_INVERTED = false;
 constexpr int MOTOR_MAX_PWM_PCT = 100;
 
 // ---------------------------------------------------------------------------
+// Encodeurs à effet Hall des FIT0450 (D004)
+// ---------------------------------------------------------------------------
+// 960 impulsions par tour de roue et par voie (fiche DFRobot). On compte les 2 fronts de la voie A :
+// 1920 ticks par tour. PROVISOIRE : à vérifier en tournant une roue 10 tours à la main.
+constexpr int32_t ENCODER_TICKS_PER_WHEEL_TURN = 1920;
+// PROVISOIRE : à mesurer au pied à coulisse, puis à corriger avec le test du carré (étape E).
+constexpr float WHEEL_DIAMETER_MM = 65.0f;
+// Distance parcourue par la roue pour un tick : périmètre de la roue / ticks par tour.
+constexpr float MM_PER_TICK = 3.14159265f * WHEEL_DIAMETER_MM / ENCODER_TICKS_PER_WHEEL_TURN;
+// true si les voies A et B ont besoin du pull-up interne : à la mesure du guide (§ 4), le signal
+// reste à 0 V (sortie « collecteur ouvert »). false si elles passent par un pont diviseur.
+// PROVISOIRE : à régler après la mesure, AVANT de brancher les encodeurs sur l'ESP32.
+constexpr bool ENCODER_USE_INTERNAL_PULLUP = false;
+// true si le compteur diminue quand on pousse le PAMI en avant à la main.
+// PROVISOIRE : à mesurer à l'étape B. On corrige ici plutôt que de recâbler.
+constexpr bool ENCODER_LEFT_INVERTED = false;
+constexpr bool ENCODER_RIGHT_INVERTED = false;
+
+// ---------------------------------------------------------------------------
 // Minuteur de match
 // ---------------------------------------------------------------------------
 // Profil labo (D007, grille du Mechatronics Lab) : départ après 5 s, arrêt après 15 s.
