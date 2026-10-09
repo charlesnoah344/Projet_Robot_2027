@@ -85,8 +85,10 @@ constexpr int MOTOR_MAX_PWM_PCT = 100;
 // 960 impulsions par tour de roue et par voie (fiche DFRobot). On compte les 2 fronts de la voie A :
 // 1920 ticks par tour. PROVISOIRE : à vérifier en tournant une roue 10 tours à la main.
 constexpr int32_t ENCODER_TICKS_PER_WHEEL_TURN = 1920;
-// PROVISOIRE : à mesurer au pied à coulisse, puis à corriger avec le test du carré (étape E).
-constexpr float WHEEL_DIAMETER_MM = 65.0f;
+// 60 mm : diamètre donné par l'équipe (09/10/2026).
+// À affiner avec la ligne droite de 1 m et le test du carré (étapes D et E) : quelques dixièmes
+// de mm d'écart (pneu écrasé par le poids du PAMI) donnent déjà plusieurs mm d'erreur par mètre.
+constexpr float WHEEL_DIAMETER_MM = 60.0f;
 // Distance parcourue par la roue pour un tick : périmètre de la roue / ticks par tour.
 constexpr float MM_PER_TICK = 3.14159265f * WHEEL_DIAMETER_MM / ENCODER_TICKS_PER_WHEEL_TURN;
 // true si les voies A et B ont besoin du pull-up interne : à la mesure du guide (§ 4), le signal

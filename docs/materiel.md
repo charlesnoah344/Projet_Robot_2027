@@ -6,7 +6,7 @@
 ## Inventaire actuel
 | Composant | Qté | Référence exacte | Rôle |
 |---|---|---|---|
-| Partie mobile (châssis) | 1 | à préciser | Structure et roues |
+| Partie mobile (châssis) | 1 | à préciser. Roues de 60 mm de diamètre | Structure et roues |
 | ESP32 | 1 | ESP-32U (puce ESP32-D0WD-V3, révision 3.1). **Ne passe pas toute seule en mode téléversement** : maintenir BOOT pendant « Connecting » (T001) | Contrôleur principal |
 | Émetteur/récepteur infrarouge | 2 | MH-Sensor-Series (Flying-Fish), 3 broches : VCC, GND, OUT. Sortie tout-ou-rien (comparateur LM393), niveau bas = obstacle. Portée réglée au potentiomètre | Détection des obstacles dans les angles avant |
 | Bouton d'arrêt d'urgence | 1 | à préciser (rouge, Ø ≥ 20 mm) | Coupe la puissance des moteurs |
