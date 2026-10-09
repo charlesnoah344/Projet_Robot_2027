@@ -10,7 +10,7 @@
 | ESP32 | 1 | ESP-32U (puce ESP32-D0WD-V3, révision 3.1). **Ne passe pas toute seule en mode téléversement** : maintenir BOOT pendant « Connecting » (T001) | Contrôleur principal |
 | Émetteur/récepteur infrarouge | 2 | MH-Sensor-Series (Flying-Fish), 3 broches : VCC, GND, OUT. Sortie tout-ou-rien (comparateur LM393), niveau bas = obstacle. Portée réglée au potentiomètre | Détection des obstacles dans les angles avant |
 | Bouton d'arrêt d'urgence | 1 | à préciser (rouge, Ø ≥ 20 mm) | Coupe la puissance des moteurs |
-| Servomoteur | 1 | tower pro micro servo 9g sg90  | Actionneur d'attaque (plus tard) |
+| Servomoteur | 1 | tower pro micro servo 9g sg90  | Bras du défenseur : touche le PAMI adverse (D007) |
 | Capteur ultrason | 1 | HC-SR04 (alimenté en 5 V) | Détection des obstacles devant |
 | Bouton d'alimentation | 1 | à préciser | Interrupteur général |
 | Micro moteur DC | 2 | FIT0450 (DFRobot) : 6 V nominal (3 à 7,5 V), réduction 120:1, 160 tr/min à vide sous 6 V, 2,8 A bloqué | Propulsion gauche / droite |
@@ -22,7 +22,10 @@
 | Pièce | Priorité | Pourquoi |
 |---|---|---|
 | Batterie + support + chargeur | Bloquant | Aucune alimentation embarquée dans l'inventaire. NiMH ou LiFePO4 : pas de conditions. LiPo : sac ignifuge et chargeur présentés à l'homologation. |
-| Tirette de départ (microrupteur + goupille, ou prise jack) + cordon ≥ 50 cm | Bloquant | Seul démarrage manuel autorisé. Le bouton BOOT n'est qu'un départ provisoire de développement (D005). |
+| Bouton-poussoir de départ | Bloquant (labo) | Départ provisoire sur GPIO 16, accessible sur le PAMI monté (D007). Le bouton BOOT de la carte ne l'est pas. |
+| Tirette de départ (microrupteur + goupille, ou prise jack) + cordon ≥ 50 cm | Bloquant (Eurobot) | Seul démarrage manuel autorisé à Eurobot. Remplacera le bouton-poussoir, sur la même broche GPIO 16. |
+| Régulateur 5 V abaisseur (≥ 2 A) | Bloquant (sur batterie) | Alimente l'ESP32, les capteurs, les encodeurs et le servo. La sortie 5V0 du MDD3A ne suffit pas pour le servo (`docs/plan-logiciel-pami.md`, § 5). |
+| Condensateurs 470 µF et 100 µF | Recommandé | 470 µF près du servo, 100 µF près de VB+/VB− du MDD3A : absorbent les pics de courant. |
 | Sélecteur de couleur (interrupteur) | Bloquant | Le PAMI doit jouer bleu et jaune. |
 | Résistances | Bloquant pour les étapes 3 à 6 | Ponts diviseurs : ECHO du HC-SR04 (5 V → 3,3 V), voies A/B des encodeurs si leurs signaux sont en 5 V (4 ponts, voir « Points à vérifier »), lecture de l'état du BAU. Plus 2 × 100 kΩ entre la sortie des IR et la masse. |
 | Gyroscope / IMU (ex. MPU6050) | Optionnel (plus tard) | Les encodeurs suffisent pour les distances et la ligne droite (D004). Un gyroscope aiderait si les virages dérivent à cause du glissement des roues. |
@@ -40,10 +43,10 @@ Proposition pour un ESP32 DevKit V1 (WROOM-32). Colonne « Validé » : à coche
 | Ultrason ECHO | GPIO 19 | Pont diviseur obligatoire (HC-SR04 en 5 V) | [ ] |
 | IR avant-gauche | GPIO 34 | Entrée seule, pas de pull-up interne. Module alimenté en 3,3 V. 100 kΩ vers la masse : fil débranché = « obstacle » | [ ] |
 | IR avant-droit | GPIO 35 | Idem IR avant-gauche | [ ] |
-| Servomoteur | GPIO 23 | Bibliothèque ESP32Servo | [ ] |
-| Départ provisoire (bouton BOOT de la carte) | GPIO 0 | Bouton déjà soudé sur la carte, appui = niveau bas. Provisoire (D005), remplacé par la tirette. Ne pas appuyer pendant l'allumage : la carte passerait en mode téléversement | [x] T001 |
-| Tirette | GPIO 16 | INPUT_PULLUP | [ ] |
-| Sélecteur de couleur | GPIO 17 | INPUT_PULLUP | [ ] |
+| Servomoteur (bras défenseur) | GPIO 23 | Bibliothèque ESP32Servo. Alimenté par le régulateur 5 V, jamais par le 3V3 de l'ESP32 | [ ] |
+| ~~Départ provisoire (bouton BOOT de la carte)~~ | GPIO 0 | Ne sert plus au départ depuis D007 : le bouton BOOT n'est pas accessible sur le PAMI monté. Sert seulement au téléversement | [x] T001 |
+| Départ : bouton-poussoir externe, puis tirette | GPIO 16 | INPUT_PULLUP, l'autre patte à GND : relâché = 1, appuyé = 0 (D007). La tirette prendra la même broche : en place = 0, retirée = 1 | [ ] |
+| Sélecteur de couleur | GPIO 17 | INPUT_PULLUP, l'autre patte à GND : ouvert = bleu, fermé = jaune | [ ] |
 | Lecture de l'état du BAU (optionnel) | GPIO 39 | Entrée seule, pont diviseur obligatoire | [ ] |
 | Gyroscope I2C SDA / SCL (optionnel) | GPIO 21 / 22 | Réservées pour plus tard | [ ] |
 
@@ -94,3 +97,5 @@ Batterie ──> Interrupteur général ──┬──> Régulateur / broche 5V
                                     └──> BAU (en série) ──> Driver moteurs ──> 2 moteurs
 Toutes les masses (GND) sont reliées entre elles.
 ```
+Schéma détaillé, avec le régulateur 5 V, le servo, le bouton de départ et le sélecteur de couleur :
+`docs/plan-logiciel-pami.md`, § 5.
