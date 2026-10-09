@@ -95,6 +95,46 @@ constexpr bool ENCODER_LEFT_INVERTED = false;
 constexpr bool ENCODER_RIGHT_INVERTED = false;
 
 // ---------------------------------------------------------------------------
+// Mouvement (motion) : régulation de vitesse et trajectoires
+// ---------------------------------------------------------------------------
+// Toutes ces valeurs sont PROVISOIRES : à régler aux étapes D et E, sur le vrai PAMI.
+// Écart entre les points de contact des deux roues. Sert à mesurer les angles :
+// angle (rad) = (distance roue droite - distance roue gauche) / WHEEL_BASE_MM.
+constexpr float WHEEL_BASE_MM = 100.0f;  // PROVISOIRE : à mesurer, puis à corriger avec le carré
+// La régulation tourne toutes les 20 ms : assez souvent pour corriger, assez rarement pour que
+// chaque mesure de vitesse compte plusieurs ticks.
+constexpr uint32_t MOTION_PERIOD_MS = 20;
+// Vitesse de croisière en ligne droite. Prudente au début : on l'augmentera après les tests.
+constexpr float DRIVE_SPEED_MM_S = 200.0f;
+// Vitesse de chaque roue pendant une rotation sur place.
+constexpr float TURN_SPEED_MM_S = 120.0f;
+// Accélération et freinage : progressifs, pour ne pas patiner ni créer de pic de courant.
+constexpr float MOTION_ACCEL_MM_S2 = 400.0f;
+// En dessous de cette vitesse, les moteurs risquent de caler (zone morte) : on ne descend pas plus bas.
+constexpr float MOTION_MIN_SPEED_MM_S = 40.0f;
+// On considère la cible atteinte à moins de 3 mm (ligne droite) ou 2 mm d'arc de roue (rotation).
+constexpr float DRIVE_TOLERANCE_MM = 3.0f;
+constexpr float TURN_TOLERANCE_MM = 2.0f;
+
+// Régulateur de vitesse de chaque roue : PWM = anticipation + correction proportionnelle + intégrale.
+// Anticipation : PWM nécessaire pour décoller (zone morte) + PWM par mm/s voulu.
+constexpr float MOTOR_DEADBAND_PCT = 10.0f;     // PROVISOIRE : zone morte à mesurer (T002 incomplet)
+constexpr float MOTOR_PCT_PER_MM_S = 0.2f;      // PROVISOIRE : environ 100 % pour 500 mm/s
+constexpr float SPEED_KP_PCT_PER_MM_S = 0.05f;  // 100 mm/s d'écart -> 5 % de PWM en plus
+constexpr float SPEED_KI_PCT_PER_MM = 0.3f;     // corrige l'écart qui dure (pente, frottements)
+constexpr float SPEED_INTEGRAL_MAX_PCT = 30.0f;  // l'intégrale ne peut pas « s'emballer »
+// Ligne droite : si la roue gauche a parcouru 1 mm de plus que la droite, on la ralentit de
+// 5 mm/s et on accélère la droite d'autant. Même gain pour garder la rotation bien sur place.
+constexpr float HEADING_KP_MM_S_PER_MM = 5.0f;
+
+// Roue bloquée ou encodeur inversé : une roue qui reçoit au moins 35 % de PWM mais qui ne tourne pas
+// (ou tourne à l'envers) pendant 0,6 s. Le PAMI passe en FAULT et s'arrête.
+// Sans ça, un encodeur inversé ferait accélérer le régulateur jusqu'à la pleine vitesse.
+constexpr float STALL_MIN_PCT = 35.0f;
+constexpr float STALL_MAX_SPEED_MM_S = 15.0f;
+constexpr uint32_t STALL_TIME_MS = 600;
+
+// ---------------------------------------------------------------------------
 // Ultrason HC-SR04 et sécurité
 // ---------------------------------------------------------------------------
 // Au moins 60 ms entre deux mesures : l'écho de la mesure précédente doit avoir disparu.

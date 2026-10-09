@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "match_timer.h"
+#include "motion.h"
 #include "sensors.h"
 
 namespace stateMachine {
@@ -36,8 +37,8 @@ void update(uint32_t nowMs) {
     return;
   }
 
-  // Capteur en panne : FAULT jusqu'au redémarrage. safety freine déjà de son côté.
-  if (sensors::isFaulty()) {
+  // Capteur en panne ou roue bloquée : FAULT jusqu'au redémarrage. safety freine déjà de son côté.
+  if (sensors::isFaulty() || motion::isFaulty()) {
     if (current != PamiState::FAULT) {
       enter(PamiState::FAULT);
     }
