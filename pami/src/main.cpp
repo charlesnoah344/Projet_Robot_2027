@@ -9,6 +9,7 @@
 //   5. safety, qui pilote le driver.
 #include <Arduino.h>
 
+#include "color.h"
 #include "config.h"
 #include "encoders.h"
 #include "match_timer.h"
@@ -61,6 +62,7 @@ void setup() {
 
   encoders::begin();
   sensors::begin();
+  color::begin();
   motion::begin();
   matchTimer::begin();
   stateMachine::begin();
@@ -71,6 +73,7 @@ void loop() {
 
   matchTimer::update(nowMs);
   sensors::update(nowMs);
+  color::update(nowMs);
   stateMachine::update(nowMs);
   motion::update(nowMs);
   safety::apply(motion::command(), nowMs);

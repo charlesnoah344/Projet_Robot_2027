@@ -27,17 +27,17 @@ constexpr uint8_t PIN_MOTOR_LEFT_B = 26;   // M1B
 constexpr uint8_t PIN_MOTOR_RIGHT_A = 33;  // M2A
 constexpr uint8_t PIN_MOTOR_RIGHT_B = 32;  // M2B
 
-// Encodeurs (étape 3). Pont diviseur si leurs signaux sont en 5 V.
+// Encodeurs à effet Hall (étape B). Pont diviseur si leurs signaux sont en 5 V.
 constexpr uint8_t PIN_ENCODER_LEFT_A = 27;
 constexpr uint8_t PIN_ENCODER_LEFT_B = 14;
 constexpr uint8_t PIN_ENCODER_RIGHT_A = 13;
 constexpr uint8_t PIN_ENCODER_RIGHT_B = 4;
 
-// Ultrason HC-SR04 (étape 5). ECHO passe par un pont diviseur 5 V -> 3,3 V.
+// Ultrason HC-SR04 (étape C). ECHO passe par un pont diviseur 5 V -> 3,3 V.
 constexpr uint8_t PIN_US_TRIG = 18;
 constexpr uint8_t PIN_US_ECHO = 19;
 
-// Capteurs IR (étape 6). Sortie à l'état bas = obstacle.
+// Capteurs IR (étape F). Sortie à l'état bas = obstacle.
 constexpr uint8_t PIN_IR_FRONT_LEFT = 34;
 constexpr uint8_t PIN_IR_FRONT_RIGHT = 35;
 
@@ -46,9 +46,13 @@ constexpr uint8_t PIN_IR_FRONT_RIGHT = 35;
 // Plus tard, la tirette prendra cette même broche : tirette en place = état bas, retirée = état haut.
 constexpr uint8_t PIN_START_BUTTON = 16;
 
-// Pas encore utilisées.
-constexpr uint8_t PIN_SERVO = 23;
+// Sélecteur de couleur : interrupteur, l'autre patte à GND. Ouvert = bleu, fermé = jaune.
 constexpr uint8_t PIN_COLOR_SELECTOR = 17;
+
+// Servo SG90 du bras du défenseur (bibliothèque ESP32Servo).
+constexpr uint8_t PIN_SERVO = 23;
+
+// Pas encore utilisées.
 constexpr uint8_t PIN_EMERGENCY_STOP_SENSE = 39;  // lecture de l'état du BAU (optionnel)
 constexpr uint8_t PIN_I2C_SDA = 21;               // gyroscope (optionnel)
 constexpr uint8_t PIN_I2C_SCL = 22;
@@ -205,6 +209,12 @@ constexpr float DETOUR_SIDE_MM = 200.0f;  // PROVISOIRE : un peu plus que la lar
 // Niveau 3, contourne : après le détour, la mission vise de nouveau son point.
 // Au-delà de 3 détours, on ne fait plus qu'attendre que la voie se libère (le temps est compté).
 constexpr uint8_t AVOID_MAX_DETOURS = 3;
+
+// ---------------------------------------------------------------------------
+// Sélecteur de couleur
+// ---------------------------------------------------------------------------
+// Lu toutes les 100 ms avant le départ : un interrupteur ne change pas plus vite.
+constexpr uint32_t COLOR_READ_PERIOD_MS = 100;
 
 // ---------------------------------------------------------------------------
 // Minuteur de match

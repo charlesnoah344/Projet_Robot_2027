@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include "color.h"
 #include "config.h"
 #include "logic/avoidance.h"
 #include "match_timer.h"
@@ -16,8 +17,6 @@ namespace {
 
 PamiState current = PamiState::WAIT_START;
 uint32_t stateStartMs = 0;  // instant d'entrée dans l'état actuel
-
-TeamColor teamColor = TeamColor::BLUE;  // étape G : lue sur le sélecteur
 
 // Évitement.
 enum class DetourPhase { TURNING, SIDESTEP };
@@ -45,7 +44,8 @@ bool stopIfObstacle(uint32_t nowMs) {
 
 void startDetour(uint32_t nowMs) {
   detourCount++;
-  const float side = chooseDetourSide(sensors::irLeftBlocked(), sensors::irRightBlocked(), teamColor);
+  const float side =
+      chooseDetourSide(sensors::irLeftBlocked(), sensors::irRightBlocked(), color::current());
   if (DEBUG_LOGS) {
     Serial.printf("[FSM] Detour %u par la %s\n", detourCount, side > 0.0f ? "gauche" : "droite");
   }
@@ -83,6 +83,7 @@ void update(uint32_t nowMs) {
   switch (current) {
     case PamiState::WAIT_START:
       if (matchTimer::isStarted()) {
+        color::lock();  // la couleur ne peut plus changer jusqu'à la fin
         enter(PamiState::WAIT_DELAY, nowMs);
       }
       break;
@@ -90,7 +91,7 @@ void update(uint32_t nowMs) {
     case PamiState::WAIT_DELAY:
       // Immobile tant que les 5 s ne sont pas écoulées.
       if (matchTimer::isMoveAllowed()) {
-        mission::start(teamColor);
+        mission::start(color::current());
         enter(PamiState::MISSION, nowMs);
       }
       break;
