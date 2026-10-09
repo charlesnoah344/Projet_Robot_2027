@@ -1,22 +1,21 @@
 # Firmware du PAMI
 
 ESP32, C++ avec le framework Arduino, projet PlatformIO.
-Objectif actuel (phase d'exploration) : un PAMI qui avance droit de manière fiable et qui évite les
-obstacles, piloté par une machine à états simple. Ce n'est pas encore la mission de match.
+Objectif actuel : le PAMI **défenseur** évalué au Mechatronics Lab. Plan complet, schéma de câblage
+et ordre des étapes : `docs/plan-logiciel-pami.md`.
 Pour écrire ou modifier du code ici, suis la skill `firmware-pami`.
 
-> ## ⚠ Exception temporaire D005 — À IMPLÉMENTER AVANT TOUT MATCH
-> Pendant le développement, le firmware **n'attend pas 85 s** avant de bouger.
-> C'est une exception volontaire de l'équipe à la règle d'or n° 3 (voir `docs/decisions.md`, D005).
-> - Départ provisoire : appui sur le bouton BOOT de la carte (GPIO 0), jamais automatique à l'allumage.
-> - Conservé : arrêt total à 99,5 s après le départ.
-> - Toutes les autres règles d'or s'appliquent : évitement toujours actif, commandes moteurs via `safety`.
+> ## ⚠ Profil labo D007 — À REMPLACER AVANT TOUT MATCH EUROBOT
+> Le minuteur suit la grille du labo, pas Eurobot :
+> - départ : bouton-poussoir externe sur GPIO 16, jamais automatique à l'allumage ;
+> - immobile jusqu'à 5 s après le départ, arrêt total à 14,5 s.
+> Toutes les autres règles d'or s'appliquent : évitement toujours actif, commandes moteurs via `safety`.
 >
-> Avant tout match ou homologation :
-> - tirette (cordon ≥ 500 mm) à la place du bouton BOOT ;
-> - immobilité jusqu'à 85,3 s après la tirette (`MATCH_MOVE_ALLOWED_MS`) ;
+> Avant tout match Eurobot ou homologation :
+> - tirette (cordon ≥ 500 mm) sur GPIO 16, à la place du bouton ;
+> - `MATCH_MOVE_ALLOWED_MS = 85300` et `MATCH_STOP_MS = 99500` ;
 > - test au chronomètre ;
-> - D005 marquée « remplacée ».
+> - D007 marquée « remplacée ».
 
 ## Ce que le PAMI doit respecter
 Résumé de : règlement général F.7 et règles 2027 E.4. Détails dans `docs/`.
@@ -40,14 +39,16 @@ Résumé de : règlement général F.7 et règles 2027 E.4. Détails dans `docs/
 src/
   main.cpp          setup() + loop() : appelle chaque couche, sans jamais bloquer
   config.h          broches (recopiées de docs/materiel.md), seuils, vitesses, durées
-  match_timer.*     minuteur global : départ (bouton BOOT provisoire, puis tirette), arrêt à 99,5 s
-                    (attente de 85 s : à implémenter avant tout match, D005)
+  match_timer.*     minuteur global : départ (bouton GPIO 16, puis tirette), mouvement de 5 s
+                    à 14,5 s, arrêt total à 14,5 s (profil labo D007)
   motor_driver.*    bas niveau du driver MDD3A (PWM 20 kHz, frein). Seul safety l'appelle
   encoders.*        comptage des ticks des 2 encodeurs (interruptions), conversion en mm
   sensors.*         ultrason + 2 IR, filtrage (médiane des 3 dernières mesures), détection de panne
   motion.*          déplacements mesurés par les encodeurs (voir ci-dessous)
   safety.*          filtre de sécurité : dernière étape avant le driver moteurs
-  mission.*         (plus tard) liste d'étapes du trajet + miroir selon la couleur
+  mission.*         liste d'étapes du trajet (points de passage) + miroir selon la couleur
+  color.*           sélecteur de couleur, lu avant le départ puis verrouillé
+  arm.*             bras du défenseur (servo SG90), détaché à la fin
   state_machine.*   machine à états (voir ci-dessous)
   logic/            logique pure, sans aucun accès au matériel : filtres, rampe, régulateur,
                     odométrie, décisions, transitions. Testable sur PC.
@@ -67,10 +68,10 @@ test_bench/         programmes de test isolés par composant (voir la skill banc
 - Détection de blocage : une roue commandée qui ne tourne pas signale une panne (FAULT).
 - Gyroscope : optionnel, plus tard.
 
-**Machine à états**
-- Phase actuelle (exploration) :
-  `IDLE → FORWARD ⇄ STOP → DECIDE → TURN / BACKUP → FORWARD …`, plus `END` (99,5 s) et `FAULT` (panne).
-- Cible pour le match (plus tard) : `INIT → WAIT_START → WAIT_85S → MISSION ⇄ AVOIDANCE → END`.
+**Machine à états** (détails dans `docs/plan-logiciel-pami.md`, § 3)
+- `WAIT_START → WAIT_DELAY (5 s) → MISSION ⇄ AVOID_STOP / DETOUR → DEFEND`,
+  plus `END` (14,5 s) et `FAULT` (panne).
+- Pas de marche arrière : les capteurs ne regardent que vers l'avant, et `safety` refuse le recul.
 
 Chemin des commandes moteur : `state_machine → motion → safety → motor_driver`.
 Aucun code du firmware ne pilote le driver sans passer par `safety`.
@@ -89,16 +90,20 @@ Le minuteur est vérifié à chaque tour de `loop()` et a priorité sur tous les
 
 ## État d'avancement
 Coche une étape uniquement après un test réussi sur le vrai PAMI, consigné dans `docs/journal-tests.md`.
+Le code des étapes A à H est écrit avant les tests (choix de l'équipe) : « écrit » ne veut pas dire
+« validé ». Ce qu'il faut tester à chaque étape : `docs/plan-logiciel-pami.md`, § 9.
 - [x] 1. Projet PlatformIO + squelette des couches : compilation OK, minuteur et bouton BOOT (T001)
-- [ ] 2. Moteurs + driver : sens de rotation, vitesse minimale (zone morte), arrêt
-- [ ] 3. Encodeurs : comptage, ticks par tour de roue, mm par tick, table vitesse/PWM
-- [ ] 4. Ligne droite régulée sur 1 m (distance et écart latéral mesurés)
-- [ ] 5. Ultrason + filtre de sécurité : arrêt devant un obstacle, reprise, distance de freinage
-- [ ] 6. Capteurs IR + états DECIDE et TURN : virages mesurés, choix du côté
-- [ ] 7. Machine à états complète : exploration de 100 s sans contact, arrêt à 99,5 s
+- [ ] 2. Moteurs + driver : sens de rotation OK (T002), reste la zone morte, l'arrêt net et le BAU
+- [ ] A. Bouton de départ GPIO 16 + minuteur labo 5 s / 14,5 s
+- [ ] B. Encodeurs Hall : comptage, ticks par tour de roue, mm par tick
+- [ ] C. Ultrason + filtre de sécurité : arrêt devant un obstacle, distance de freinage
+- [ ] D. `motion` : ligne droite régulée, rotation mesurée
+- [ ] E. Odométrie + mission « carré »
+- [ ] F. Capteurs IR + évitement : arrêt, détour, contournement
+- [ ] G. Sélecteur de couleur + miroir
+- [ ] H. Mission défenseur : zone atteinte, bras qui touche l'adversaire
 - [ ] Arrêt d'urgence câblé et testé
-- [ ] **Tirette + attente de 85,3 s + sélecteur de couleur (lève l'exception D005) — obligatoire avant tout match**
-- [ ] Trajet réel sur une reproduction de la table, dans les deux couleurs
+- [ ] **Profil Eurobot : tirette + attente de 85,3 s (remplace D007) — obligatoire avant tout match Eurobot**
 - [ ] (Optionnel) Gyroscope : lecture du cap, dérive mesurée
 
 ## Valeurs calibrées

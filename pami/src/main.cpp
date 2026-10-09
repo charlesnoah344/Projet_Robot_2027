@@ -1,4 +1,4 @@
-// Firmware du PAMI — phase d'exploration (voir pami/CLAUDE.md).
+// Firmware du PAMI défenseur, profil labo (voir docs/plan-logiciel-pami.md).
 //
 // loop() ne bloque jamais : chaque couche fait un petit travail puis rend la main.
 // Ordre des couches à chaque tour :
@@ -48,10 +48,11 @@ void setup() {
 
   Serial.begin(SERIAL_BAUD);
   Serial.println();
-  Serial.println("[MAIN] PAMI ECAMlibur - firmware d'exploration (etape 1 : squelette)");
-  // Rappel à chaque démarrage : l'exception D005 ne doit pas être oubliée.
-  Serial.println("[TIME] ATTENTION : attente de 85 s DESACTIVEE (exception D005).");
-  Serial.println("[TIME] A implementer avant tout match. Arret total a 99,5 s : actif.");
+  Serial.println("[MAIN] PAMI ECAMlibur - firmware defenseur");
+  // Rappel à chaque démarrage : ce profil ne convient pas à un match Eurobot (D007).
+  Serial.printf("[TIME] Profil LABO (D007) : mouvement a %.1f s, arret total a %.1f s.\n",
+                MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
+  Serial.println("[TIME] Pour Eurobot : 85,3 s et 99,5 s, avec la tirette.");
 
   encoders::begin();
   sensors::begin();

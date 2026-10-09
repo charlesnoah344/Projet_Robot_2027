@@ -80,7 +80,7 @@
 
 ### D005 — Exception temporaire au minuteur pendant le développement
 - **Date** : 26/09/2026
-- **Statut** : adoptée — **temporaire, à lever avant tout match**
+- **Statut** : remplacée par D007
 - **Contexte** : pendant le développement, attendre 85 s avant chaque essai ralentit beaucoup les tests.
   La tirette n'existe pas encore.
 - **Décision**, pour le firmware de développement uniquement :
@@ -121,3 +121,37 @@
 - **Conséquences** :
   - GPIO 27 et 13 sont libérées et servent aux encodeurs ;
   - un seul fichier (`motor_driver.cpp`) connaît cette logique.
+
+### D007 — Profil labo du minuteur et bouton de départ externe
+- **Date** : 09/10/2026
+- **Statut** : adoptée — **profil labo, à remplacer par le profil Eurobot avant tout match Eurobot**
+- **Contexte** :
+  - le PAMI est d'abord évalué au Mechatronics Lab. La grille demande « démarrage après 5 s et arrêt
+    après 15 s », et non 85 s / 100 s comme Eurobot ;
+  - le bouton BOOT de la carte (départ provisoire de D005) n'est pas accessible sur le PAMI monté ;
+  - la tirette n'est pas encore achetée.
+- **Options envisagées** :
+  - deux profils (labo et Eurobot) choisis à la compilation : complet, mais plus de choses à expliquer
+    pour un seul usage aujourd'hui ;
+  - profil labo seulement, Eurobot plus tard : simple ;
+  - garder Eurobot : on perd le point « temps de déplacement » de la grille.
+- **Décision** :
+  - profil labo seulement : immobile jusqu'à 5 s après le départ (`MATCH_MOVE_ALLOWED_MS = 5000`),
+    arrêt total à 14,5 s (`MATCH_STOP_MS = 14500`, 0,5 s de marge comme pour Eurobot) ;
+  - les deux durées comptent depuis l'appui sur le bouton de départ ;
+  - départ par un bouton-poussoir externe sur GPIO 16, avec la logique déjà testée en T001
+    (armé seulement après avoir vu le bouton relâché, appui d'au moins 50 ms, un seul départ) ;
+  - `safety` refuse toute commande moteur en dehors de la période 5 s – 14,5 s.
+- **Pourquoi** :
+  - c'est ce que la grille note, et c'est le moins de code ;
+  - l'état `WAIT_START` sépare l'allumage du départ : un redémarrage de l'ESP32 ne relance jamais
+    le PAMI ;
+  - la tirette pourra prendre la même broche avec la même logique (« en place » = relâché,
+    « retirée » = appuyé). Il n'y aura qu'une ligne à changer.
+- **Règles en jeu** : règle d'or n° 3 (Eurobot : 85,3 s et 99,5 s), règlement général F.6
+  (seul le cordon d'au moins 500 mm est homologué à Eurobot), règles 2027 E.4.
+- **Conséquences** :
+  - le firmware rappelle le profil labo à chaque démarrage ;
+  - **avant tout match Eurobot** : tirette sur GPIO 16, `MATCH_MOVE_ALLOWED_MS = 85300`,
+    `MATCH_STOP_MS = 99500`, test au chronomètre, puis cette décision passe à « remplacée » ;
+  - à confirmer avec l'encadrant : les 15 s comptent-elles depuis le départ, ou depuis la fin des 5 s ?

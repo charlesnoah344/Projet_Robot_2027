@@ -9,7 +9,7 @@ namespace stateMachine {
 
 namespace {
 
-PamiState current = PamiState::IDLE;
+PamiState current = PamiState::WAIT_START;
 
 void enter(PamiState next) {
   if (DEBUG_LOGS) {
@@ -21,13 +21,13 @@ void enter(PamiState next) {
 }  // namespace
 
 void begin() {
-  current = PamiState::IDLE;
+  current = PamiState::WAIT_START;
 }
 
 void update(uint32_t nowMs) {
   (void)nowMs;
 
-  // Priorité absolue : à 99,5 s, END, quel que soit l'état (règle d'or n° 3).
+  // Priorité absolue : à 14,5 s, END, quel que soit l'état (règle d'or n° 3, profil labo D007).
   if (matchTimer::isOver()) {
     if (current != PamiState::END) {
       enter(PamiState::END);
@@ -36,18 +36,25 @@ void update(uint32_t nowMs) {
   }
 
   switch (current) {
-    case PamiState::IDLE:
+    case PamiState::WAIT_START:
       if (matchTimer::isStarted()) {
-        enter(PamiState::FORWARD);
+        enter(PamiState::WAIT_DELAY);
       }
       break;
 
-    case PamiState::FORWARD:
-      // Étape 1 : on reste ici jusqu'à la fin du match. Les moteurs ne sont pas encore commandés.
+    case PamiState::WAIT_DELAY:
+      // Immobile tant que les 5 s ne sont pas écoulées.
+      if (matchTimer::isMoveAllowed()) {
+        enter(PamiState::MISSION);
+      }
+      break;
+
+    case PamiState::MISSION:
+      // Étape E : déroulement de la mission.
       break;
 
     default:
-      // STOP, DECIDE, BACKUP, TURN : étapes 5 à 7. END et FAULT : états finaux.
+      // AVOID_STOP, DETOUR, DEFEND : étapes F et H. END et FAULT : états finaux.
       break;
   }
 }

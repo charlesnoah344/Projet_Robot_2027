@@ -70,18 +70,20 @@ void test_start_across_millis_overflow() {
 
 // ---------- Temps de match ----------
 
-void test_match_over_at_99_5_s() {
+// MATCH_STOP_MS plutôt qu'une valeur en dur : le test reste juste avec le profil labo (D007)
+// comme avec le profil Eurobot.
+void test_match_over_at_stop_time() {
   TEST_ASSERT_FALSE(isMatchOver(1000, 1000));
-  TEST_ASSERT_FALSE(isMatchOver(1000, 1000 + 99499));
-  TEST_ASSERT_TRUE(isMatchOver(1000, 1000 + 99500));
-  TEST_ASSERT_TRUE(isMatchOver(1000, 1000 + 200000));
+  TEST_ASSERT_FALSE(isMatchOver(1000, 1000 + MATCH_STOP_MS - 1));
+  TEST_ASSERT_TRUE(isMatchOver(1000, 1000 + MATCH_STOP_MS));
+  TEST_ASSERT_TRUE(isMatchOver(1000, 1000 + MATCH_STOP_MS + 100000));
 }
 
 void test_match_clock_across_millis_overflow() {
   const uint32_t start = 0xFFFFF000UL;  // départ juste avant le passage à zéro de millis()
   TEST_ASSERT_EQUAL_UINT32(0x2000UL, elapsedSinceMs(start, 0x00001000UL));
-  TEST_ASSERT_FALSE(isMatchOver(start, start + 99499));
-  TEST_ASSERT_TRUE(isMatchOver(start, start + 99500));
+  TEST_ASSERT_FALSE(isMatchOver(start, start + MATCH_STOP_MS - 1));
+  TEST_ASSERT_TRUE(isMatchOver(start, start + MATCH_STOP_MS));
 }
 
 int runAllTests() {
@@ -91,7 +93,7 @@ int runAllTests() {
   RUN_TEST(test_short_bounce_is_ignored);
   RUN_TEST(test_second_press_is_ignored);
   RUN_TEST(test_start_across_millis_overflow);
-  RUN_TEST(test_match_over_at_99_5_s);
+  RUN_TEST(test_match_over_at_stop_time);
   RUN_TEST(test_match_clock_across_millis_overflow);
   return UNITY_END();
 }

@@ -41,13 +41,13 @@ constexpr uint8_t PIN_US_ECHO = 19;
 constexpr uint8_t PIN_IR_FRONT_LEFT = 34;
 constexpr uint8_t PIN_IR_FRONT_RIGHT = 35;
 
-// Départ provisoire : bouton BOOT de la carte, appui = état bas (D005).
-// Remplacé par la tirette avant tout match.
-constexpr uint8_t PIN_START_BUTTON = 0;
+// Départ : bouton-poussoir externe, l'autre patte à GND. Appui = état bas (D007).
+// Le bouton BOOT de la carte n'est pas accessible sur le PAMI monté.
+// Plus tard, la tirette prendra cette même broche : tirette en place = état bas, retirée = état haut.
+constexpr uint8_t PIN_START_BUTTON = 16;
 
 // Pas encore utilisées.
 constexpr uint8_t PIN_SERVO = 23;
-constexpr uint8_t PIN_PULL_CORD = 16;             // tirette
 constexpr uint8_t PIN_COLOR_SELECTOR = 17;
 constexpr uint8_t PIN_EMERGENCY_STOP_SENSE = 39;  // lecture de l'état du BAU (optionnel)
 constexpr uint8_t PIN_I2C_SDA = 21;               // gyroscope (optionnel)
@@ -78,11 +78,14 @@ constexpr int MOTOR_MAX_PWM_PCT = 100;
 // ---------------------------------------------------------------------------
 // Minuteur de match
 // ---------------------------------------------------------------------------
-// Arrêt total 99,5 s après le départ (règle d'or n° 3) : 0,5 s de marge avant la fin des 100 s.
-constexpr uint32_t MATCH_STOP_MS = 99500;
-// Immobilité jusqu'à 85,3 s après la tirette (règles 2027, E.4).
-// PAS ENCORE UTILISÉE : exception temporaire D005. À IMPLÉMENTER AVANT TOUT MATCH.
-constexpr uint32_t MATCH_MOVE_ALLOWED_MS = 85300;
+// Profil labo (D007, grille du Mechatronics Lab) : départ après 5 s, arrêt après 15 s.
+// Les deux durées comptent depuis l'appui sur le bouton de départ.
+// Valeurs Eurobot, pour plus tard (règle d'or n° 3, règles 2027 E.4) :
+//   MATCH_MOVE_ALLOWED_MS = 85300 et MATCH_STOP_MS = 99500.
+// Immobile jusqu'à 5 s après le départ.
+constexpr uint32_t MATCH_MOVE_ALLOWED_MS = 5000;
+// Arrêt total à 14,5 s : 0,5 s de marge avant les 15 s, comme les 99,5 s d'Eurobot.
+constexpr uint32_t MATCH_STOP_MS = 14500;
 // Un appui ou un relâchement doit durer au moins 50 ms pour compter :
 // les contacts d'un bouton rebondissent pendant quelques millisecondes.
 constexpr uint32_t START_BUTTON_DEBOUNCE_MS = 50;
