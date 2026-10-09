@@ -68,24 +68,33 @@ Il sépare **l'allumage** du **départ**. C'est utile pour trois raisons :
 
 ## 3. Architecture cible
 
-### Fichiers (nouveaux en gras)
+### Fichiers (tels qu'écrits le 09/10/2026)
 ```
 src/
-  config.h            + profil labo, vitesses, seuils, coordonnées de la zone, bras
-  match_timer.*       départ par GPIO 16, attente de 5 s : isMoveAllowed()
+  main.cpp            setup() + loop() : minuteur, capteurs, couleur, machine à états, motion, safety, bras
+  config.h            toutes les constantes (les valeurs non mesurées sont marquées PROVISOIRE)
+  match_timer.*       départ par GPIO 16, isMoveAllowed() entre 5 s et 14,5 s, isOver() à 14,5 s
   encoders.*          encodeurs Hall des FIT0450, comptage par interruption (§ 4)
-  sensors.*           ultrason + 2 IR
-  motion.*            driveDistance(mm), turnAngle(deg), stop(), isDone(), régulation
-  safety.*            filtre réel : temps, obstacle, pas de recul
-  **color.***         lit le sélecteur, verrouille la couleur au départ
-  **arm.***           servo du bras (ESP32Servo), détaché à la fin
-  **mission.***       déroule la liste d'étapes, une à la fois
-  state_machine.*     nouveaux états (ci-dessous)
-  logic/
-    pami_state.h      liste d'états mise à jour
-    **odometry.h/.cpp**   position (x, y, cap) à partir des ticks des roues
-    **mission_step.h**    étapes, missions écrites pour le bleu, fonction miroir
-    **avoidance.h**       choix du côté libre d'après les IR, testable sur PC
+  sensors.*           ultrason (mesure par interruption, médiane de 3) + 2 IR (2 lectures sur 3)
+  motion.*            driveDistance(mm), turnAngle(deg), stop(), régulation, odométrie, pose()
+  safety.*            filtre réel : temps, panne, obstacle (ultrason ou IR), pas de recul
+  color.*             lit le sélecteur, verrouille la couleur au départ
+  arm.*               servo du bras, piloté par LEDC sur le canal 4 (D008), coupé à la fin
+  mission.*           déroule la liste d'étapes de ACTIVE_MISSION, une à la fois
+  state_machine.*     états ci-dessous
+  logic/              logique pure, sans matériel (testable sur PC) :
+    pami_state.h        liste des états
+    match_clock.h       calculs du minuteur (isMatchOver, isInMovePhase)
+    start_button.*      anti-rebond et armement du bouton de départ (T001)
+    median3.h           médiane de 3 mesures ultrason
+    safety_filter.h     règles de safety (obstacle avec marge, rotation sur place, pas de recul)
+    speed_profile.h     profil de vitesse en trapèze (accélération, croisière, freinage)
+    speed_controller.h  régulateur de vitesse d'une roue (anticipation + P + I)
+    odometry.*          position (x, y, cap) à partir des ticks des roues
+    mission_step.h      types d'étapes (GOTO, TURN_TO, DEFEND), couleur, miroir
+    missions.h          les 4 missions, écrites pour le bleu
+    next_move.h         choix du prochain mouvement : DONE, TURN ou DRIVE
+    avoidance.h         choix du côté du détour d'après les IR
 ```
 
 ### Machine à états
@@ -250,7 +259,7 @@ capteur est interdit (règle d'or n° 1).
 | E | Odométrie + étapes de mission + mission « carré » | `logic/odometry`, `logic/mission_step.h`, `mission.*` | Carré |
 | F | IR + `AVOID_STOP` → `DETOUR` → retour à la mission | `sensors.*`, `logic/avoidance.h`, `state_machine.*` | Évite, contourne |
 | G | Sélecteur de couleur + miroir | `color.*`, `logic/mission_step.h` | Couleur |
-| H | Mission défenseur : GOTO zone + bras (`DEFEND`) | `arm.*`, `platformio.ini` (ESP32Servo), `config.h` | Défenseur |
+| H | Mission défenseur : GOTO zone + bras (`DEFEND`) | `arm.*` (servo par LEDC, D008), `config.h` | Défenseur |
 | I | (Optionnel) Lecture de l'état du BAU sur GPIO 39 | `safety.*` | Arrêt d'urgence (le vrai arrêt est matériel) |
 
 Remarques :
@@ -320,6 +329,43 @@ existeront.
   - bouton maintenu enfoncé pendant l'allumage → aucun départ ;
   - 3 redémarrages sans départ spontané.
   Résultat à consigner dans `docs/journal-tests.md` (T003).
+
+## 9. À tester sur le vrai PAMI (pour le membre chargé des tests)
+Tout le code des étapes A à H est écrit et compile. **Rien n'est encore validé.**
+Suivre les étapes dans l'ordre. Chaque résultat va dans `docs/journal-tests.md`, et chaque valeur
+mesurée remplace la valeur `PROVISOIRE` correspondante dans `config.h`.
+Moniteur série : une ligne d'état par seconde (`[MAIN] ... etat ... US ... mm | ticks G ... D ...`).
+
+| # | Montage | Ce qu'on vérifie | Réglages dans `config.h` |
+|---|---|---|---|
+| A | ESP32 seul + bouton GPIO 16 | Voir § 8 et le guide pratique, § 5 | — |
+| B | Encodeurs branchés **après la mesure du guide, § 4**. Roues à la main, sans moteurs | Pousser le PAMI en avant : les deux compteurs augmentent. 10 tours de roue ≈ 19 200 ticks | `ENCODER_USE_INTERNAL_PULLUP`, `ENCODER_*_INVERTED`, `ENCODER_TICKS_PER_WHEEL_TURN` |
+| C | + HC-SR04 (pont diviseur sur ECHO) | Distance affichée juste (règle à 100, 300, 1000 mm). Débrancher ECHO → `FAULT` en 1 s. Main devant pendant le mouvement → arrêt. Mesurer la distance de freinage | `OBSTACLE_STOP_DISTANCE_MM` (distance de freinage + marge) |
+| D | PAMI **sur cales**, puis au sol. `ACTIVE_MISSION = STRAIGHT_LINE` | Roues au même régime, pas de `FAULT` au démarrage, arrêt progressif. Au sol : 1 m parcouru, écart latéral mesuré | `MOTOR_DEADBAND_PCT`, `MOTOR_PCT_PER_MM_S`, gains `SPEED_*`, `HEADING_KP_MM_S_PER_MM`, `WHEEL_DIAMETER_MM` |
+| D | `ACTIVE_MISSION = ROTATION` | 4 quarts de tour, retour au cap de départ (marque au sol) | `WHEEL_BASE_MM` |
+| E | `ACTIVE_MISSION = SQUARE` | Retour au point de départ : noter l'écart en x, en y et en cap. Tient dans les 9,5 s ? | `WHEEL_DIAMETER_MM`, `WHEEL_BASE_MM`, `SQUARE_SIDE_MM` |
+| F | + IR (100 kΩ vers GND), STRAIGHT_LINE avec une boîte au milieu | Boîte posée puis retirée en moins de 1 s : arrêt puis reprise. Boîte laissée : détour, puis retour vers le point. IR débranché → « obstacle » | portée des IR (potentiomètre), `AVOID_WAIT_MS`, `DETOUR_SIDE_MM` |
+| G | + interrupteur GPIO 17 | La couleur s'affiche au démarrage et suit l'interrupteur jusqu'au départ, puis ne change plus. Jaune : le carré tourne de l'autre côté | — |
+| H | + servo et bras, `ACTIVE_MISSION = DEFENDER` | Aucun mouvement du servo avant la zone. Zone atteinte (mesurer l'écart). Main à moins de 60 mm → bras déployé. À 14,5 s : `[ARM] Servo coupe` | `DEFENDER_ZONE_*`, `ARM_*_DEG`, `ARM_TRIGGER_DISTANCE_MM`, `SERVO_*_PULSE_US` |
+
+**À chaque essai où les moteurs tournent** : BAU à portée de main, premier essai de chaque étape sur
+cales, vitesse prudente (`DRIVE_SPEED_MM_S = 200` au départ).
+
+### Limites connues de cette première version
+- **Les valeurs `PROVISOIRE` sont des estimations.** Avec une zone morte ou un diamètre de roue faux,
+  le PAMI peut partir en `FAULT` (roue « bloquée ») ou mal mesurer ses distances. C'est voulu : il
+  s'arrête plutôt que de rouler n'importe comment.
+- **Détour et IR** : si un IR voit encore l'obstacle pendant le pas de côté, le PAMI s'arrête de
+  nouveau. Il peut alors refaire un quart de tour du même côté et repartir vers l'arrière.
+  Les détours sont limités à 3 par essai. À régler avec la portée des IR et `DETOUR_SIDE_MM`.
+- **Zone près d'un bord** : le seuil d'arrêt (150 mm) empêche d'approcher un mur à moins de 150 mm.
+  Si la zone est contre une bordure, il faudra réduire le seuil pendant l'approche finale, avec une
+  vitesse plus basse. On ne coupera jamais la détection (règle d'or n° 1).
+- **Le bras reste déployé** une fois sorti. Un balayage gauche-droite pourra venir ensuite si le
+  contact n'est pas assez sûr.
+- **Odométrie seule** : les glissements de roue s'accumulent. Le gyroscope (optionnel, D004)
+  pourra corriger le cap plus tard.
+- **Lecture de l'état du BAU (étape I)** : pas faite. Le pont diviseur n'est pas câblé.
 
 ## Questions pour l'encadrant du labo
 1. Les « 15 s » comptent-elles depuis le départ, ou depuis la fin des 5 s d'attente ?

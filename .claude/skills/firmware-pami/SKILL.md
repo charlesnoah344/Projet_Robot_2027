@@ -113,7 +113,9 @@ Propose ces tests quand tu écris ou modifies cette logique.
   - 2.x : `ledcSetup` et `ledcAttachPin`.
   - 3.x : `ledcAttach` et `ledcWrite` par broche.
   Vérifie la version utilisée (platformio.ini, `pio pkg list`) avant d'écrire du code PWM.
-- **Servomoteur** : utilise la bibliothèque `ESP32Servo`. La bibliothèque `Servo` standard ne marche pas sur ESP32.
+- **Servomoteur** : dans ce projet, le servo est piloté directement par LEDC, sur le canal 4 (`arm.cpp`, D008).
+  N'ajoute pas `ESP32Servo` : elle choisit elle-même ses canaux PWM et pourrait prendre ceux des moteurs (0 à 3).
+  La bibliothèque `Servo` standard ne marche pas sur ESP32.
 - **Redémarrages quand les moteurs démarrent** : c'est une chute de tension (brown-out).
   Les pistes :
   - rampes d'accélération ;
