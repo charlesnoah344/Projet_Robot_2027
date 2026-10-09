@@ -12,6 +12,7 @@ namespace safety {
 
 namespace {
 
+bool blockedByUltrasound = false;
 bool blockedByObstacle = false;
 bool blocking = false;
 
@@ -20,11 +21,15 @@ bool blocking = false;
 void apply(const WheelCommand& requested, uint32_t nowMs) {
   (void)nowMs;
 
+  // Obstacle devant : ultrason (avec marge de libération), ou l'un des IR des angles avant.
+  blockedByUltrasound = isObstacleAhead(blockedByUltrasound, sensors::frontDistanceMm());
   const bool wasBlockedByObstacle = blockedByObstacle;
-  blockedByObstacle = isObstacleAhead(blockedByObstacle, sensors::frontDistanceMm());
+  blockedByObstacle =
+      blockedByUltrasound || sensors::irLeftBlocked() || sensors::irRightBlocked();
   if (DEBUG_LOGS && blockedByObstacle != wasBlockedByObstacle) {
-    Serial.printf("[SAFE] %s (%u mm)\n", blockedByObstacle ? "Obstacle devant" : "Voie libre",
-                  sensors::frontDistanceMm());
+    Serial.printf("[SAFE] %s (US %u mm, IR G %d, IR D %d)\n",
+                  blockedByObstacle ? "Obstacle devant" : "Voie libre", sensors::frontDistanceMm(),
+                  sensors::irLeftBlocked(), sensors::irRightBlocked());
   }
 
   const WheelCommand sent = filterCommand(requested, matchTimer::isMoveAllowed(),

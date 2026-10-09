@@ -33,6 +33,10 @@ void stop();
 // Vrai quand le dernier mouvement demandé est terminé (ou qu'il n'y en a pas).
 bool isDone();
 
+// Vrai pendant une ligne droite (pas pendant une rotation sur place).
+// Un obstacle ne compte que si le PAMI avance vers lui.
+bool isDriving();
+
 // Vrai si une roue est bloquée ou tourne à l'envers. Le reste jusqu'au redémarrage.
 bool isFaulty();
 

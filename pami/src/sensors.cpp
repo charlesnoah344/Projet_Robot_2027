@@ -40,6 +40,16 @@ uint32_t lastTriggerMs = 0;
 uint32_t lastValidMeasureMs = 0;
 bool faulty = false;
 
+// --- Capteurs IR : 3 dernières lectures de chaque côté (true = obstacle) ---
+bool irLeftReads[3] = {true, true, true};  // « obstacle » tant qu'on n'a rien lu
+bool irRightReads[3] = {true, true, true};
+uint8_t nextIrIndex = 0;
+uint32_t lastIrReadMs = 0;
+
+bool majority(const bool reads[3]) {
+  return (reads[0] + reads[1] + reads[2]) >= 2;
+}
+
 void trigger() {
   digitalWrite(PIN_US_TRIG, HIGH);
   // 10 µs d'attente active : c'est la seule attente du programme, 1000 fois plus courte qu'un tour
@@ -95,6 +105,17 @@ void updateUltrasound(uint32_t nowMs) {
   }
 }
 
+void updateInfrared(uint32_t nowMs) {
+  if (nowMs - lastIrReadMs < IR_PERIOD_MS) {
+    return;
+  }
+  lastIrReadMs = nowMs;
+  // Sortie à l'état bas = obstacle.
+  irLeftReads[nextIrIndex] = (digitalRead(PIN_IR_FRONT_LEFT) == LOW);
+  irRightReads[nextIrIndex] = (digitalRead(PIN_IR_FRONT_RIGHT) == LOW);
+  nextIrIndex = (nextIrIndex + 1) % 3;
+}
+
 }  // namespace
 
 void begin() {
@@ -103,14 +124,28 @@ void begin() {
   pinMode(PIN_US_ECHO, INPUT);  // ECHO passe par un pont diviseur 5 V -> 3,3 V
   attachInterrupt(digitalPinToInterrupt(PIN_US_ECHO), onEchoChange, CHANGE);
   lastValidMeasureMs = millis();
+
+  // GPIO 34 et 35 : entrées seules, sans pull-up interne. La résistance de 100 kΩ vers la masse
+  // est sur la carte : un fil débranché lit l'état bas, donc « obstacle » (sécurité par défaut).
+  pinMode(PIN_IR_FRONT_LEFT, INPUT);
+  pinMode(PIN_IR_FRONT_RIGHT, INPUT);
 }
 
 void update(uint32_t nowMs) {
   updateUltrasound(nowMs);
+  updateInfrared(nowMs);
 }
 
 uint16_t frontDistanceMm() {
   return filteredMm;
+}
+
+bool irLeftBlocked() {
+  return majority(irLeftReads);
+}
+
+bool irRightBlocked() {
+  return majority(irRightReads);
 }
 
 bool isFaulty() {

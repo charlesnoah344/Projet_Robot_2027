@@ -188,6 +188,24 @@ constexpr uint16_t OBSTACLE_STOP_DISTANCE_MM = 150;
 // Sans cette marge, une mesure qui oscille autour du seuil ferait avancer et freiner en boucle.
 constexpr uint16_t OBSTACLE_CLEAR_MARGIN_MM = 30;
 
+// Capteurs IR (sortie tout-ou-rien, état bas = obstacle) : lus toutes les 10 ms.
+// Obstacle si au moins 2 des 3 dernières lectures le disent : un parasite isolé est ignoré.
+constexpr uint32_t IR_PERIOD_MS = 10;
+
+// ---------------------------------------------------------------------------
+// Évitement (états AVOID_STOP et DETOUR)
+// ---------------------------------------------------------------------------
+// Niveau 1, arrêt : safety freine dès qu'un obstacle est devant (ultrason ou IR).
+// Niveau 2, évite : obstacle toujours là après 1 s -> détour. Ce délai laisse à un robot qui passe
+// le temps de s'en aller.
+constexpr uint32_t AVOID_WAIT_MS = 1000;
+// Le détour : quart de tour du côté libre, puis pas de côté.
+constexpr float DETOUR_TURN_DEG = 90.0f;
+constexpr float DETOUR_SIDE_MM = 200.0f;  // PROVISOIRE : un peu plus que la largeur d'un PAMI
+// Niveau 3, contourne : après le détour, la mission vise de nouveau son point.
+// Au-delà de 3 détours, on ne fait plus qu'attendre que la voie se libère (le temps est compté).
+constexpr uint8_t AVOID_MAX_DETOURS = 3;
+
 // ---------------------------------------------------------------------------
 // Minuteur de match
 // ---------------------------------------------------------------------------

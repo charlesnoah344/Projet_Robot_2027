@@ -193,6 +193,10 @@ bool isDone() {
   return done;
 }
 
+bool isDriving() {
+  return mode == Mode::DRIVE;
+}
+
 bool isFaulty() {
   return faulty;
 }
