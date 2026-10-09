@@ -106,7 +106,8 @@ constexpr bool ENCODER_RIGHT_INVERTED = false;
 // Toutes ces valeurs sont PROVISOIRES : à régler aux étapes D et E, sur le vrai PAMI.
 // Écart entre les points de contact des deux roues. Sert à mesurer les angles :
 // angle (rad) = (distance roue droite - distance roue gauche) / WHEEL_BASE_MM.
-constexpr float WHEEL_BASE_MM = 100.0f;  // PROVISOIRE : à mesurer, puis à corriger avec le carré
+// 100 mm : entraxe donné par l'équipe (09/10/2026). À affiner avec la mission ROTATION et le carré.
+constexpr float WHEEL_BASE_MM = 100.0f;
 // La régulation tourne toutes les 20 ms : assez souvent pour corriger, assez rarement pour que
 // chaque mesure de vitesse compte plusieurs ticks.
 constexpr uint32_t MOTION_PERIOD_MS = 20;
