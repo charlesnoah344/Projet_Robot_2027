@@ -211,6 +211,27 @@ constexpr float DETOUR_SIDE_MM = 200.0f;  // PROVISOIRE : un peu plus que la lar
 constexpr uint8_t AVOID_MAX_DETOURS = 3;
 
 // ---------------------------------------------------------------------------
+// Bras du défenseur (servo SG90, D008)
+// ---------------------------------------------------------------------------
+// Servo piloté directement par le générateur PWM de l'ESP32 (LEDC), sans bibliothèque :
+// ESP32Servo choisirait elle-même un canal et pourrait prendre celui d'un moteur (canaux 0 à 3).
+// Canal 4 : il utilise un autre minuteur (timer 2) que les moteurs (timers 0 et 1),
+// donc ses 50 Hz ne changent pas les 20 kHz des moteurs.
+constexpr uint8_t LEDC_CHANNEL_SERVO = 4;
+constexpr uint32_t SERVO_PWM_FREQ_HZ = 50;         // un servo attend une impulsion toutes les 20 ms
+constexpr uint8_t SERVO_PWM_RESOLUTION_BITS = 16;  // réglage fin de la largeur d'impulsion
+// Largeur d'impulsion pour 0° et pour 180° (fiche du SG90, à vérifier au test).
+constexpr uint32_t SERVO_MIN_PULSE_US = 500;
+constexpr uint32_t SERVO_MAX_PULSE_US = 2400;
+// Positions du bras. PROVISOIRES : à régler quand le bras sera monté.
+constexpr float ARM_RETRACTED_DEG = 0.0f;  // replié, dans le périmètre du PAMI
+constexpr float ARM_DEPLOYED_DEG = 90.0f;  // déployé vers l'avant
+// Le bras se déploie quand l'ultrason voit l'adversaire à moins de 60 mm.
+// Le bras ne peut dépasser que d'environ 50 mm (grille : périmètre déployé + 10 cm au plus).
+// PROVISOIRE : à régler d'après la longueur réelle du bras.
+constexpr uint16_t ARM_TRIGGER_DISTANCE_MM = 60;
+
+// ---------------------------------------------------------------------------
 // Sélecteur de couleur
 // ---------------------------------------------------------------------------
 // Lu toutes les 100 ms avant le départ : un interrupteur ne change pas plus vite.

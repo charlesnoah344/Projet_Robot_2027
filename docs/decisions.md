@@ -155,3 +155,30 @@
   - **avant tout match Eurobot** : tirette sur GPIO 16, `MATCH_MOVE_ALLOWED_MS = 85300`,
     `MATCH_STOP_MS = 99500`, test au chronomètre, puis cette décision passe à « remplacée » ;
   - à confirmer avec l'encadrant : les 15 s comptent-elles depuis le départ, ou depuis la fin des 5 s ?
+
+### D008 — Servo du bras piloté directement par LEDC, sans ESP32Servo
+- **Date** : 09/10/2026
+- **Statut** : adoptée
+- **Contexte** : le bras du défenseur est un servo SG90 sur GPIO 23. Le plan prévoyait la bibliothèque
+  ESP32Servo. Or nos moteurs utilisent déjà les canaux PWM 0 à 3 de l'ESP32 (LEDC), configurés
+  directement par `motor_driver`.
+- **Options envisagées** :
+  - ESP32Servo : pratique, mais elle choisit elle-même un canal PWM et ne sait pas que les canaux 0 à 3
+    sont pris. Si elle prenait le canal d'un moteur, elle changerait sa fréquence et enverrait les
+    impulsions du servo au moteur : le moteur pourrait tourner sans passer par `safety` ;
+  - ESP32Servo en lui réservant un minuteur (`ESP32PWM::allocateTimer`) : possible, mais c'est un
+    réglage caché, facile à oublier ou à casser ;
+  - piloter le servo nous-mêmes avec LEDC, sur un canal choisi : une dizaine de lignes.
+- **Décision** : `arm.cpp` pilote le servo avec LEDC, canal 4 (minuteur 2, distinct des minuteurs 0 et 1
+  des moteurs), 50 Hz, 16 bits. Angle → largeur d'impulsion entre `SERVO_MIN_PULSE_US` et
+  `SERVO_MAX_PULSE_US`.
+- **Pourquoi** :
+  - aucun risque qu'une bibliothèque touche aux canaux des moteurs ;
+  - même API que `motor_driver` (core 2.x : `ledcSetup`, `ledcAttachPin`, `ledcWrite`) ;
+  - le code est court et s'explique facilement.
+- **Conséquences** :
+  - pas de bibliothèque à ajouter dans `platformio.ini` ;
+  - la règle de la skill `firmware-pami` (« utilise ESP32Servo ») ne s'applique pas à ce projet tant que
+    les moteurs utilisent LEDC directement ;
+  - le servo n'a aucun PWM avant la défense, ne bouge qu'entre 5 s et 14,5 s, et son PWM est coupé
+    à la fin (règle d'or n° 3).

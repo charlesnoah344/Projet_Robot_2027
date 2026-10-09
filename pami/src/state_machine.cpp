@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include "arm.h"
 #include "color.h"
 #include "config.h"
 #include "logic/avoidance.h"
@@ -66,6 +67,7 @@ void update(uint32_t nowMs) {
   if (matchTimer::isOver()) {
     if (current != PamiState::END) {
       motion::stop();
+      arm::release();
       enter(PamiState::END, nowMs);
     }
     return;
@@ -75,6 +77,7 @@ void update(uint32_t nowMs) {
   if (sensors::isFaulty() || motion::isFaulty()) {
     if (current != PamiState::FAULT) {
       motion::stop();
+      arm::release();
       enter(PamiState::FAULT, nowMs);
     }
     return;
@@ -101,6 +104,10 @@ void update(uint32_t nowMs) {
         break;
       }
       mission::update();
+      if (mission::isDefendReached()) {
+        arm::retract();
+        enter(PamiState::DEFEND, nowMs);
+      }
       break;
 
     case PamiState::AVOID_STOP:
@@ -132,8 +139,16 @@ void update(uint32_t nowMs) {
       }
       break;
 
+    case PamiState::DEFEND:
+      // Immobile dans la zone. Un adversaire à portée du bras : on le déploie, et il reste déployé.
+      // L'évitement reste actif : safety interdit toujours d'avancer vers l'adversaire.
+      if (sensors::frontDistanceMm() < ARM_TRIGGER_DISTANCE_MM) {
+        arm::deploy();
+      }
+      break;
+
     default:
-      // DEFEND : étape H. END et FAULT : états finaux.
+      // END et FAULT : états finaux.
       break;
   }
 }

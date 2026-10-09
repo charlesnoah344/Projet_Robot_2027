@@ -6,9 +6,11 @@
 //   2. capteurs ;
 //   3. machine à états ;
 //   4. motion ;
-//   5. safety, qui pilote le driver.
+//   5. safety, qui pilote le driver ;
+//   6. bras (coupé dès la fin du temps).
 #include <Arduino.h>
 
+#include "arm.h"
 #include "color.h"
 #include "config.h"
 #include "encoders.h"
@@ -60,6 +62,7 @@ void setup() {
                 MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
   Serial.println("[TIME] Pour Eurobot : 85,3 s et 99,5 s, avec la tirette.");
 
+  arm::begin();  // servo sans PWM : il ne bouge pas
   encoders::begin();
   sensors::begin();
   color::begin();
@@ -77,6 +80,7 @@ void loop() {
   stateMachine::update(nowMs);
   motion::update(nowMs);
   safety::apply(motion::command(), nowMs);
+  arm::update();
 
   logStatus(nowMs);
 }
