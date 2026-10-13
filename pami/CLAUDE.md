@@ -43,7 +43,8 @@ src/
                     à 14,5 s, arrêt total à 14,5 s (profil labo D007)
   motor_driver.*    bas niveau du driver MDD3A (PWM 20 kHz, frein). Seul safety l'appelle
   encoders.*        comptage des ticks des 2 encodeurs (interruptions), conversion en mm
-  sensors.*         ultrason + 2 IR, filtrage (médiane des 3 dernières mesures), détection de panne
+  sensors.*         ultrason (évitement, médiane des 3 dernières mesures, détection de panne)
+                    + 2 capteurs IR tournés vers le sol (bord de la zone, D009)
   motion.*          déplacements mesurés par les encodeurs (voir ci-dessous)
   safety.*          filtre de sécurité : dernière étape avant le driver moteurs
   mission.*         liste d'étapes du trajet (points de passage) + miroir selon la couleur
@@ -99,9 +100,9 @@ Le code des étapes A à H est écrit avant les tests (choix de l'équipe) : « 
 - [ ] C. Ultrason + filtre de sécurité : arrêt devant un obstacle, distance de freinage
 - [ ] D. `motion` : ligne droite régulée, rotation mesurée
 - [ ] E. Odométrie + mission « carré »
-- [ ] F. Capteurs IR + évitement : arrêt, détour, contournement
+- [ ] F. Évitement par l'ultrason : arrêt, détour, contournement
 - [ ] G. Sélecteur de couleur + miroir
-- [ ] H. Mission défenseur : zone atteinte, bras qui touche l'adversaire
+- [ ] H. Mission défenseur : bord de zone vu par les capteurs de sol, bras qui touche l'adversaire
 - [ ] Arrêt d'urgence câblé et testé
 - [ ] **Profil Eurobot : tirette + attente de 85,3 s (remplace D007) — obligatoire avant tout match Eurobot**
 - [ ] (Optionnel) Gyroscope : lecture du cap, dérive mesurée

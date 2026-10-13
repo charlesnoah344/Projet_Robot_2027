@@ -33,12 +33,12 @@ Aujourd'hui, seuls le minuteur (T001) et le driver moteurs (T002, partiel) fonct
 |---|---|---|---|
 | Se déplace | 1 | `motor_driver` (fait), `safety`, `motion` | ok |
 | Ligne droite, rotation, carré | 2 | `encoders`, `motion` (régulation), `logic/odometry`, mission « carré » | ok |
-| Obstacle : arrêt / évite / contourne | 3 | `sensors`, `safety` (arrêt), états d'évitement | résistances (ponts diviseurs) |
+| Obstacle : arrêt / évite / contourne | 3 | `sensors` (ultrason), `safety` (arrêt), états d'évitement | pont diviseur sur ECHO |
 | Départ 5 s, arrêt 15 s | 1 | `match_timer`, état `WAIT_DELAY` | bouton-poussoir (GPIO 16) |
 | Arrêt d'urgence | 1 | matériel (D003), lecture optionnelle sur GPIO 39 | BAU |
 | Mécaniquement fermé | 2 | pas de code | — |
 | Choix de la couleur | — | `color`, miroir dans `logic/mission_step.h` | interrupteur (GPIO 17) |
-| Défenseur : atteindre une zone | 2* | `logic/odometry` + étapes `GOTO` | ok |
+| Défenseur : atteindre une zone | 2* | `logic/odometry` + étapes `GOTO`, puis `REACH_ZONE` avec les capteurs de sol (D009) | 2 IR tournés vers le sol |
 | Défenseur : toucher un adversaire | 2* | `arm` (servo SG90, GPIO 23) + état `DEFEND` | bras de couleur distincte |
 
 \* La répartition 0/2/4 du rôle défenseur est à confirmer avec l'encadrant.
@@ -75,9 +75,9 @@ src/
   config.h            toutes les constantes (les valeurs non mesurées sont marquées PROVISOIRE)
   match_timer.*       départ par GPIO 16, isMoveAllowed() entre 5 s et 14,5 s, isOver() à 14,5 s
   encoders.*          encodeurs Hall des FIT0450, comptage par interruption (§ 4)
-  sensors.*           ultrason (mesure par interruption, médiane de 3) + 2 IR (2 lectures sur 3)
+  sensors.*           ultrason (mesure par interruption, médiane de 3) + 2 capteurs de sol IR (D009)
   motion.*            driveDistance(mm), turnAngle(deg), stop(), régulation, odométrie, pose()
-  safety.*            filtre réel : temps, panne, obstacle (ultrason ou IR), pas de recul
+  safety.*            filtre réel : temps, panne, obstacle (ultrason), pas de recul
   color.*             lit le sélecteur, verrouille la couleur au départ
   arm.*               servo du bras, piloté par LEDC sur le canal 4 (D008), coupé à la fin
   mission.*           déroule la liste d'étapes de ACTIVE_MISSION, une à la fois
@@ -94,7 +94,8 @@ src/
     mission_step.h      types d'étapes (GOTO, TURN_TO, DEFEND), couleur, miroir
     missions.h          les 4 missions, écrites pour le bleu
     next_move.h         choix du prochain mouvement : DONE, TURN ou DRIVE
-    avoidance.h         choix du côté du détour d'après les IR
+    avoidance.h         côté du détour : gauche pour le bleu, droite pour le jaune
+    zone_approach.h     bord de la zone : le sol a-t-il changé ? distance de recherche restante
 ```
 
 ### Machine à états
@@ -121,9 +122,17 @@ L'ancien état `IDLE` devient `WAIT_START`. `FORWARD`, `STOP`, `DECIDE`, `BACKUP
 1. **Arrêt** : `safety` freine si l'ultrason voit un obstacle sous `OBSTACLE_STOP_DISTANCE_MM`,
    quel que soit l'état.
 2. **Évite** : si l'obstacle est encore là après `AVOID_WAIT_MS`, le PAMI passe en `DETOUR`.
-   Il tourne de 90° du côté libre (indiqué par les IR) et avance de `DETOUR_SIDE_MM`.
+   Il tourne de 90° (à gauche pour le bleu, à droite pour le jaune) et avance de `DETOUR_SIDE_MM`.
 3. **Contourne** : retour à `MISSION`, qui vise de nouveau le même point.
    Le nombre de tentatives est limité.
+
+**Atteindre la zone précisément (D009)** : les deux IR sont tournés vers le sol, à l'avant.
+1. Le PAMI va au point d'approche, environ 10 cm avant la zone, grâce à l'odométrie.
+2. Il se tourne vers la zone, note ce que voient les capteurs de sol, puis avance lentement (80 mm/s).
+3. Dès que l'un des deux capteurs voit autre chose, il est au bord : il freine, avance encore de
+   `ZONE_ENTRY_MM` (50 mm), et s'arrête. Sans bord vu après `ZONE_SEARCH_MAX_MM`, il s'arrête quand même.
+- On compare au sol de départ : ça marche que la zone soit plus claire ou plus foncée que le sol.
+- Le repère est le vrai bord de la zone, pas une position estimée : c'est plus précis que l'odométrie seule.
 
 **Pas de marche arrière dans le firmware de match**, et `safety` la refuse.
 - Nos capteurs ne regardent que vers l'avant.
@@ -194,7 +203,7 @@ Batterie ──> Interrupteur général ┤                             ├─�
                        └──> BAU (contact NC) ──> MDD3A VB+ ──> moteurs
                                                  MDD3A VB− ──> masse
 
-ESP32, broche 3V3 ──> capteurs IR (VCC)
+ESP32, broche 3V3 ──> capteurs de sol IR (VCC)
 MASSE COMMUNE : batterie (−) = régulateur = MDD3A VB− et GND = ESP32 GND = tous les capteurs
 ```
 - **Pourquoi deux branches ?** Le BAU coupe seulement les moteurs (D003, règle d'or n° 2).
@@ -216,8 +225,8 @@ MASSE COMMUNE : batterie (−) = régulateur = MDD3A VB− et GND = ESP32 GND = 
 ```
                       ESP32
         ┌──────────────────────────────┐
-MDD3A M1A ◄── GPIO 25          GPIO 34 ◄── OUT IR avant-gauche  (+ 100 kΩ vers GND)
-MDD3A M1B ◄── GPIO 26          GPIO 35 ◄── OUT IR avant-droit   (+ 100 kΩ vers GND)
+MDD3A M1A ◄── GPIO 25          GPIO 34 ◄── OUT IR de sol gauche (+ 100 kΩ vers GND)
+MDD3A M1B ◄── GPIO 26          GPIO 35 ◄── OUT IR de sol droit  (+ 100 kΩ vers GND)
 MDD3A M2A ◄── GPIO 33          GPIO 18 ──► TRIG HC-SR04
 MDD3A M2B ◄── GPIO 32          GPIO 19 ◄── ECHO HC-SR04 via pont 1 kΩ / 2 kΩ
 Enc. G  A ──► GPIO 27 (*)      GPIO 23 ──► signal servo SG90 (orange)
@@ -257,9 +266,9 @@ capteur est interdit (règle d'or n° 1).
 | C | Ultrason + vrai filtre `safety` (arrêt, temps, pas de recul) | `sensors.*`, `safety.*` | Obstacle : arrêt |
 | D | `motion` : vitesse régulée, ligne droite, rotation mesurée | `motion.*`, `logic/` (régulateur, rampe) | Se déplace, ligne droite, rotation |
 | E | Odométrie + étapes de mission + mission « carré » | `logic/odometry`, `logic/mission_step.h`, `mission.*` | Carré |
-| F | IR + `AVOID_STOP` → `DETOUR` → retour à la mission | `sensors.*`, `logic/avoidance.h`, `state_machine.*` | Évite, contourne |
+| F | `AVOID_STOP` → `DETOUR` → retour à la mission (ultrason seul, D009) | `logic/avoidance.h`, `state_machine.*` | Évite, contourne |
 | G | Sélecteur de couleur + miroir | `color.*`, `logic/mission_step.h` | Couleur |
-| H | Mission défenseur : GOTO zone + bras (`DEFEND`) | `arm.*` (servo par LEDC, D008), `config.h` | Défenseur |
+| H | Mission défenseur : approche, bord de zone vu par les capteurs de sol, bras (`DEFEND`) | `arm.*` (D008), `mission.*`, `logic/zone_approach.h` (D009) | Défenseur |
 | I | (Optionnel) Lecture de l'état du BAU sur GPIO 39 | `safety.*` | Arrêt d'urgence (le vrai arrêt est matériel) |
 
 Remarques :
@@ -344,9 +353,9 @@ Moniteur série : une ligne d'état par seconde (`[MAIN] ... etat ... US ... mm 
 | D | PAMI **sur cales**, puis au sol. `ACTIVE_MISSION = STRAIGHT_LINE` | Roues au même régime, pas de `FAULT` au démarrage, arrêt progressif. Au sol : 1 m parcouru, écart latéral mesuré | `MOTOR_DEADBAND_PCT`, `MOTOR_PCT_PER_MM_S`, gains `SPEED_*`, `HEADING_KP_MM_S_PER_MM`, `WHEEL_DIAMETER_MM` |
 | D | `ACTIVE_MISSION = ROTATION` | 4 quarts de tour, retour au cap de départ (marque au sol) | `WHEEL_BASE_MM` |
 | E | `ACTIVE_MISSION = SQUARE` | Retour au point de départ : noter l'écart en x, en y et en cap. Tient dans les 9,5 s ? | `WHEEL_DIAMETER_MM`, `WHEEL_BASE_MM`, `SQUARE_SIDE_MM` |
-| F | + IR (100 kΩ vers GND), STRAIGHT_LINE avec une boîte au milieu | Boîte posée puis retirée en moins de 1 s : arrêt puis reprise. Boîte laissée : détour, puis retour vers le point. IR débranché → « obstacle » | portée des IR (potentiomètre), `AVOID_WAIT_MS`, `DETOUR_SIDE_MM` |
+| F | STRAIGHT_LINE avec une boîte au milieu | Boîte posée puis retirée en moins de 1 s : arrêt puis reprise. Boîte laissée : détour, puis retour vers le point | `AVOID_WAIT_MS`, `DETOUR_SIDE_MM` |
 | G | + interrupteur GPIO 17 | La couleur s'affiche au démarrage et suit l'interrupteur jusqu'au départ, puis ne change plus. Jaune : le carré tourne de l'autre côté | — |
-| H | + servo et bras, `ACTIVE_MISSION = DEFENDER` | Aucun mouvement du servo avant la zone. Zone atteinte (mesurer l'écart). Main à moins de 60 mm → bras déployé. À 14,5 s : `[ARM] Servo coupe` | `DEFENDER_ZONE_*`, `ARM_*_DEG`, `ARM_TRIGGER_DISTANCE_MM`, `SERVO_*_PULSE_US` |
+| H | + capteurs de sol, servo et bras, `ACTIVE_MISSION = DEFENDER` | `sol G` / `sol D` changent au passage sol → zone. `Bord de la zone`, puis arrêt 50 mm plus loin. Aucun mouvement du servo avant la zone. Main à moins de 60 mm → bras déployé. À 14,5 s : `[ARM] Servo coupe` | potentiomètre des IR, `DEFENDER_APPROACH_*`, `ZONE_*`, `ARM_*_DEG`, `ARM_TRIGGER_DISTANCE_MM` |
 
 **À chaque essai où les moteurs tournent** : BAU à portée de main, premier essai de chaque étape sur
 cales, vitesse prudente (`DRIVE_SPEED_MM_S = 200` au départ).
@@ -355,9 +364,12 @@ cales, vitesse prudente (`DRIVE_SPEED_MM_S = 200` au départ).
 - **Les valeurs `PROVISOIRE` sont des estimations.** Avec une zone morte ou un diamètre de roue faux,
   le PAMI peut partir en `FAULT` (roue « bloquée ») ou mal mesurer ses distances. C'est voulu : il
   s'arrête plutôt que de rouler n'importe comment.
-- **Détour et IR** : si un IR voit encore l'obstacle pendant le pas de côté, le PAMI s'arrête de
-  nouveau. Il peut alors refaire un quart de tour du même côté et repartir vers l'arrière.
-  Les détours sont limités à 3 par essai. À régler avec la portée des IR et `DETOUR_SIDE_MM`.
+- **Ultrason seul pour l'évitement (D009)** : les angles avant ne sont plus surveillés. Un obstacle
+  étroit, de biais ou sur le côté peut ne pas être vu. Risque à l'homologation (« couverture
+  suffisante ») : parade possible, un 2ᵉ ultrason.
+- **Détour** : le côté est fixe (gauche pour le bleu). Les détours sont limités à 3 par essai.
+- **Approche de la zone** : si le PAMI doit faire un détour pendant l'approche, il peut repartir
+  au-dessus d'un sol différent et « voir » un faux bord.
 - **Zone près d'un bord** : le seuil d'arrêt (150 mm) empêche d'approcher un mur à moins de 150 mm.
   Si la zone est contre une bordure, il faudra réduire le seuil pendant l'approche finale, avec une
   vitesse plus basse. On ne coupera jamais la détection (règle d'or n° 1).

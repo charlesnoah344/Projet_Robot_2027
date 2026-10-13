@@ -44,7 +44,7 @@ avant d'allumer.**
 Alim de labo (+) 6 V ──> BAU (contact NC) ──> MDD3A, borne VB+
 Alim de labo (−) ─────────────────────────> MDD3A, borne VB−
 PC ──USB──> ESP32 ──┬── broche 5V (ou VIN) ──> encodeurs + HC-SR04
-                    └── broche 3V3 ─────────> capteurs IR
+                    └── broche 3V3 ─────────> capteurs de sol IR
 Masse commune : GND ESP32 = GND MDD3A = (−) alim de labo = GND des capteurs
 ```
 - Alimentation de labo réglée à **6 V**, limite de courant à **2 A environ** pour les premiers
@@ -68,8 +68,8 @@ Masse commune : GND ESP32 = GND MDD3A = (−) alim de labo = GND des capteurs
 | HC-SR04 | VCC / GND | 5V / GND | |
 | HC-SR04 | TRIG | GPIO 18 | branchement direct |
 | HC-SR04 | ECHO | GPIO 19 **via le pont diviseur** | jamais en direct |
-| IR avant-gauche | VCC / GND / OUT | 3V3 / GND / GPIO 34 | résistance de 100 kΩ entre GPIO 34 et GND |
-| IR avant-droit | VCC / GND / OUT | 3V3 / GND / GPIO 35 | résistance de 100 kΩ entre GPIO 35 et GND |
+| Capteur de sol IR gauche | VCC / GND / OUT | 3V3 / GND / GPIO 34 | résistance de 100 kΩ entre GPIO 34 et GND ; capteur tourné vers le sol (D009) |
+| Capteur de sol IR droit | VCC / GND / OUT | 3V3 / GND / GPIO 35 | résistance de 100 kΩ entre GPIO 35 et GND |
 | BAU | contact **NC** (fermé au repos) | en série entre le (+) de l'alimentation et VB+ | au multimètre : le courant passe au repos, plus rien quand on appuie |
 | Bouton de départ | une patte / l'autre | GPIO 16 / GND | pas de résistance : le pull-up interne est activé dans le code (D007) |
 | Interrupteur de couleur | commun / contact | GPIO 17 / GND | ouvert = bleu, fermé = jaune |
@@ -155,10 +155,11 @@ Ordre des étapes et ce qu'il faut vérifier à chacune : `docs/plan-logiciel-pa
   Pistes : limite de courant trop basse, masse mal serrée, condensateur à ajouter près du MDD3A,
   rampes d'accélération (étape 4).
 - **Masse pas commune** : mesures aléatoires, moteurs qui ne répondent pas.
-- **GPIO 34 et 35 n'ont pas de pull-up interne.** Sans la résistance de 100 kΩ, un IR débranché
-  donne des valeurs au hasard. Avec elle, il lit « obstacle » : c'est voulu (sécurité par défaut).
-- **IR** : une lumière forte peut les aveugler (les rencontres sont très éclairées), et les objets
-  noirs sont mal vus. Réglez le potentiomètre, puis testez sous une lampe.
+- **GPIO 34 et 35 n'ont pas de pull-up interne.** Sans la résistance de 100 kΩ, un capteur de sol
+  débranché donne des valeurs au hasard, et pourrait « voir » un faux bord de zone.
+- **Capteurs de sol IR** : ils voient la différence entre une surface claire et une surface foncée,
+  pas les couleurs. Réglez le potentiomètre pour que la LED du module change d'état pile au passage
+  du sol à la zone, sous l'éclairage de la salle.
 - **HC-SR04** :
   - il ne voit rien à moins de 2 ou 3 cm ;
   - il voit mal les objets en biais ou mous ;

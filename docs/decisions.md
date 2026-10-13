@@ -182,3 +182,39 @@
     les moteurs utilisent LEDC directement ;
   - le servo n'a aucun PWM avant la défense, ne bouge qu'entre 5 s et 14,5 s, et son PWM est coupé
     à la fin (règle d'or n° 3).
+
+### D009 — Les IR regardent le sol pour trouver la zone ; l'évitement repose sur l'ultrason
+- **Date** : 13/10/2026
+- **Statut** : adoptée
+- **Contexte** :
+  - les deux IR surveillaient les angles avant (évitement) ;
+  - la grille du labo note « atteint une zone précisément » ; l'odométrie seule accumule des erreurs ;
+  - l'équipe veut aussi pouvoir faire rouler le PAMI avec l'ultrason seul, sans les IR.
+- **Options envisagées** :
+  - garder les IR pour l'évitement et trouver la zone par l'odométrie seule : moins précis ;
+  - IR tournés vers le sol pour voir le bord de la zone, évitement par l'ultrason seul : précis, mais
+    les angles avant ne sont plus surveillés ;
+  - acheter d'autres capteurs : plus tard si besoin.
+- **Décision** :
+  - les deux IR sont montés à l'avant, tournés vers le sol (GPIO 34 et 35, câblage inchangé) ;
+  - nouvelle étape de mission `REACH_ZONE` : au début de l'approche, on note ce que voient les capteurs ;
+    dès que l'un des deux voit autre chose, le PAMI est au bord. Il freine, entre de `ZONE_ENTRY_MM`
+    (50 mm), et s'arrête. Recherche limitée à `ZONE_SEARCH_MAX_MM` ;
+  - l'évitement ne dépend plus que de l'ultrason. Il reste toujours actif (règle d'or n° 1) ;
+  - le côté du détour devient fixe : gauche pour le bleu, droite pour le jaune.
+- **Pourquoi** :
+  - le repère est le vrai bord de la zone : à 80 mm/s, l'arrêt se fait en moins d'un centimètre ;
+  - comparer au sol de départ marche que la zone soit claire ou foncée ;
+  - les capteurs de sol ne sont lus que pendant l'approche finale : les autres lignes croisées en chemin
+    ne déclenchent rien.
+- **Règles en jeu** :
+  - grille du labo et règlement général : « couverture suffisante autour du robot pour assurer la
+    détection dans tous les sens de déplacement possibles ». Avec un seul HC-SR04 (cône d'environ 30°),
+    les angles avant ne sont pas couverts. **Risque à l'homologation** ;
+  - règles 2027, E.4 : un PAMI compte s'il a une partie de lui dans une douve adverse. S'arrêter sur le
+    bord suffirait (`ZONE_ENTRY_MM = 0`).
+- **Conséquences** :
+  - plus besoin des IR pour rouler : moteurs, driver, encodeurs et ultrason suffisent ;
+  - le potentiomètre des IR se règle pour que la LED change d'état au passage sol → zone ;
+  - si l'encadrant juge la couverture insuffisante : ajouter un 2ᵉ ultrason, ou deux ultrasons orientés
+    un peu vers l'extérieur.
