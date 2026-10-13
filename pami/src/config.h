@@ -96,8 +96,10 @@ constexpr float MM_PER_TICK = 3.14159265f * WHEEL_DIAMETER_MM / ENCODER_TICKS_PE
 // (encodeur alimenté en 5 V). Branchement direct, sans pont diviseur ni pull-up.
 constexpr bool ENCODER_USE_INTERNAL_PULLUP = false;
 // true si le compteur diminue quand on pousse le PAMI en avant à la main.
-// PROVISOIRE : à mesurer à l'étape B. On corrige ici plutôt que de recâbler.
-constexpr bool ENCODER_LEFT_INVERTED = false;
+// On corrige ici plutôt que de recâbler.
+// Gauche : true, constaté le 13/10/2026 (banc test_odometrie) : roue gauche commandée en avant,
+// compteur gauche qui descend. Les deux moteurs sont montés en miroir, leurs encodeurs aussi.
+constexpr bool ENCODER_LEFT_INVERTED = true;
 constexpr bool ENCODER_RIGHT_INVERTED = false;
 
 // ---------------------------------------------------------------------------
