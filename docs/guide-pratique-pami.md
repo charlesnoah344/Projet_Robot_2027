@@ -2,6 +2,7 @@
 
 > À garder ouvert pendant les séances sur le vrai PAMI.
 > Le brochage de référence reste `docs/materiel.md`. Ce guide ne fait que l'appliquer.
+> Schéma complet du PAMI sur batterie : `docs/plan-logiciel-pami.md`, § 5.
 > Les broches ne sont pas encore validées : cochez la colonne « Validé » de `materiel.md` après chaque test réussi.
 
 ## 1. Avant de commencer
@@ -43,7 +44,7 @@ avant d'allumer.**
 Alim de labo (+) 6 V ──> BAU (contact NC) ──> MDD3A, borne VB+
 Alim de labo (−) ─────────────────────────> MDD3A, borne VB−
 PC ──USB──> ESP32 ──┬── broche 5V (ou VIN) ──> encodeurs + HC-SR04
-                    └── broche 3V3 ─────────> capteurs IR
+                    └── broche 3V3 ─────────> capteurs de sol IR
 Masse commune : GND ESP32 = GND MDD3A = (−) alim de labo = GND des capteurs
 ```
 - Alimentation de labo réglée à **6 V**, limite de courant à **2 A environ** pour les premiers
@@ -67,9 +68,12 @@ Masse commune : GND ESP32 = GND MDD3A = (−) alim de labo = GND des capteurs
 | HC-SR04 | VCC / GND | 5V / GND | |
 | HC-SR04 | TRIG | GPIO 18 | branchement direct |
 | HC-SR04 | ECHO | GPIO 19 **via le pont diviseur** | jamais en direct |
-| IR avant-gauche | VCC / GND / OUT | 3V3 / GND / GPIO 34 | résistance de 100 kΩ entre GPIO 34 et GND |
-| IR avant-droit | VCC / GND / OUT | 3V3 / GND / GPIO 35 | résistance de 100 kΩ entre GPIO 35 et GND |
+| Capteur de sol IR gauche | VCC / GND / OUT | 3V3 / GND / GPIO 34 | résistance de 100 kΩ entre GPIO 34 et GND ; capteur tourné vers le sol (D009) |
+| Capteur de sol IR droit | VCC / GND / OUT | 3V3 / GND / GPIO 35 | résistance de 100 kΩ entre GPIO 35 et GND |
 | BAU | contact **NC** (fermé au repos) | en série entre le (+) de l'alimentation et VB+ | au multimètre : le courant passe au repos, plus rien quand on appuie |
+| Bouton de départ | une patte / l'autre | GPIO 16 / GND | pas de résistance : le pull-up interne est activé dans le code (D007) |
+| Interrupteur de couleur | commun / contact | GPIO 17 / GND | ouvert = bleu, fermé = jaune |
+| Servo SG90 (bras) | marron / rouge / orange | GND / 5 V / GPIO 23 | jamais sur le 3V3 de l'ESP32 ; condensateur de 470 µF près du servo |
 
 **Attention aux noms en double sur le MDD3A** : M1A, M1B, M2A et M2B désignent à la fois les
 **entrées** du connecteur 6 broches (vers l'ESP32) et les **sorties** du bornier à vis (vers les moteurs).
@@ -118,23 +122,16 @@ Notez ces mesures dans `docs/journal-tests.md`.
 4. Consignez le résultat dans `docs/journal-tests.md` (modèle Txxx), ou envoyez-le pour qu'on le fasse.
 5. Re-téléversez le firmware.
 
-| Étape | Ce qu'on teste | Programme |
-|---|---|---|
-| 1 | Squelette : bouton BOOT, arrêt à 99,5 s | firmware (`esp32dev`) |
-| 2 | Moteurs : sens, vitesse minimale, arrêt | `test_moteurs` |
-| 3 | Encodeurs : ticks par tour, mm par tick | `test_encodeurs` |
-| 4 | Ligne droite régulée sur 1 m | `test_ligne_droite` |
-| 5 | Ultrason + arrêt devant un obstacle | `test_ultrason`, `test_arret_obstacle` |
-| 6 | IR + virages | `test_ir`, `test_virage` |
-| 7 | Machine à états complète | firmware (`esp32dev`) |
+Ordre des étapes et ce qu'il faut vérifier à chacune : `docs/plan-logiciel-pami.md`, § 6 et § 9.
 
-**Test de l'étape 1** (ESP32 seul en USB, rien d'autre de branché) :
-- [ ] `pio test -e logic_esp32` affiche `7 test cases: 7 succeeded`.
-- [ ] Au démarrage : avertissement « attente de 85 s DESACTIVEE », puis « Pret : appuyez sur BOOT ».
-- [ ] Pendant 30 s sans toucher à rien, l'état reste `IDLE`.
-- [ ] Un appui bref sur BOOT affiche `DEPART !`. Lancez le chronomètre en même temps.
-- [ ] Un 2ᵉ appui sur BOOT ne fait rien.
-- [ ] `FIN DU MATCH` apparaît entre 99,2 et 99,8 s au chronomètre.
+**Test de l'étape A** (ESP32 seul en USB, bouton de départ câblé sur GPIO 16) :
+- [ ] Au démarrage : « Profil LABO (D007) », puis « Pret : appuyez sur le bouton de depart ».
+- [ ] Pendant 30 s sans toucher à rien, l'état reste `WAIT_START`.
+- [ ] Un appui bref sur le bouton affiche `DEPART !` et `WAIT_DELAY`. Lancez le chronomètre en même temps.
+- [ ] `MISSION` apparaît à 5,0 s (± 0,1 s) au chronomètre.
+- [ ] Un 2ᵉ appui ne fait rien.
+- [ ] `FIN` et `END` apparaissent à 14,5 s (± 0,1 s).
+- [ ] Bouton maintenu enfoncé pendant l'allumage (appui sur EN) : aucun départ.
 - [ ] Toujours au moins 1000 tours/s. Refaites le tout 3 fois.
 
 ## 6. Points d'attention sur la carte réelle
@@ -158,10 +155,11 @@ Notez ces mesures dans `docs/journal-tests.md`.
   Pistes : limite de courant trop basse, masse mal serrée, condensateur à ajouter près du MDD3A,
   rampes d'accélération (étape 4).
 - **Masse pas commune** : mesures aléatoires, moteurs qui ne répondent pas.
-- **GPIO 34 et 35 n'ont pas de pull-up interne.** Sans la résistance de 100 kΩ, un IR débranché
-  donne des valeurs au hasard. Avec elle, il lit « obstacle » : c'est voulu (sécurité par défaut).
-- **IR** : une lumière forte peut les aveugler (les rencontres sont très éclairées), et les objets
-  noirs sont mal vus. Réglez le potentiomètre, puis testez sous une lampe.
+- **GPIO 34 et 35 n'ont pas de pull-up interne.** Sans la résistance de 100 kΩ, un capteur de sol
+  débranché donne des valeurs au hasard, et pourrait « voir » un faux bord de zone.
+- **Capteurs de sol IR** : ils voient la différence entre une surface claire et une surface foncée,
+  pas les couleurs. Réglez le potentiomètre pour que la LED du module change d'état pile au passage
+  du sol à la zone, sous l'éclairage de la salle.
 - **HC-SR04** :
   - il ne voit rien à moins de 2 ou 3 cm ;
   - il voit mal les objets en biais ou mous ;

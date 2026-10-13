@@ -1,4 +1,4 @@
-// Firmware du PAMI — phase d'exploration (voir pami/CLAUDE.md).
+// Firmware du PAMI défenseur, profil labo (voir docs/plan-logiciel-pami.md).
 //
 // loop() ne bloque jamais : chaque couche fait un petit travail puis rend la main.
 // Ordre des couches à chaque tour :
@@ -6,9 +6,12 @@
 //   2. capteurs ;
 //   3. machine à états ;
 //   4. motion ;
-//   5. safety, qui pilote le driver.
+//   5. safety, qui pilote le driver ;
+//   6. bras (coupé dès la fin du temps).
 #include <Arduino.h>
 
+#include "arm.h"
+#include "color.h"
 #include "config.h"
 #include "encoders.h"
 #include "match_timer.h"
@@ -33,8 +36,15 @@ void logStatus(uint32_t nowMs) {
   }
   if (DEBUG_LOGS) {
     const uint32_t loopsPerSecond = loopCount * 1000UL / (nowMs - lastLogMs);
-    Serial.printf("[MAIN] %lu tours/s | etat %s | t = %.1f s\n", (unsigned long)loopsPerSecond,
-                  stateName(stateMachine::state()), matchTimer::elapsedMs(nowMs) / 1000.0f);
+    int32_t leftTicks = 0;
+    int32_t rightTicks = 0;
+    encoders::read(leftTicks, rightTicks);
+    // sol G/D : 1 = surface claire sous le capteur, 0 = surface foncée (réglage des IR de sol).
+    Serial.printf(
+        "[MAIN] %lu tours/s | etat %s | t = %.1f s | US %u mm | ticks G %ld D %ld | sol G %d D %d\n",
+        (unsigned long)loopsPerSecond, stateName(stateMachine::state()),
+        matchTimer::elapsedMs(nowMs) / 1000.0f, sensors::frontDistanceMm(), (long)leftTicks,
+        (long)rightTicks, sensors::floorLeftReflects(), sensors::floorRightReflects());
   }
   loopCount = 0;
   lastLogMs = nowMs;
@@ -48,13 +58,16 @@ void setup() {
 
   Serial.begin(SERIAL_BAUD);
   Serial.println();
-  Serial.println("[MAIN] PAMI ECAMlibur - firmware d'exploration (etape 1 : squelette)");
-  // Rappel à chaque démarrage : l'exception D005 ne doit pas être oubliée.
-  Serial.println("[TIME] ATTENTION : attente de 85 s DESACTIVEE (exception D005).");
-  Serial.println("[TIME] A implementer avant tout match. Arret total a 99,5 s : actif.");
+  Serial.println("[MAIN] PAMI ECAMlibur - firmware defenseur");
+  // Rappel à chaque démarrage : ce profil ne convient pas à un match Eurobot (D007).
+  Serial.printf("[TIME] Profil LABO (D007) : mouvement a %.1f s, arret total a %.1f s.\n",
+                MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
+  Serial.println("[TIME] Pour Eurobot : 85,3 s et 99,5 s, avec la tirette.");
 
+  arm::begin();  // servo sans PWM : il ne bouge pas
   encoders::begin();
   sensors::begin();
+  color::begin();
   motion::begin();
   matchTimer::begin();
   stateMachine::begin();
@@ -65,9 +78,11 @@ void loop() {
 
   matchTimer::update(nowMs);
   sensors::update(nowMs);
+  color::update(nowMs);
   stateMachine::update(nowMs);
-  motion::update(nowMs);
+  motion::update(nowMs, safety::isBlocking());
   safety::apply(motion::command(), nowMs);
+  arm::update();
 
   logStatus(nowMs);
 }

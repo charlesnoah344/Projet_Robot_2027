@@ -80,7 +80,7 @@
 
 ### D005 — Exception temporaire au minuteur pendant le développement
 - **Date** : 26/09/2026
-- **Statut** : adoptée — **temporaire, à lever avant tout match**
+- **Statut** : remplacée par D007
 - **Contexte** : pendant le développement, attendre 85 s avant chaque essai ralentit beaucoup les tests.
   La tirette n'existe pas encore.
 - **Décision**, pour le firmware de développement uniquement :
@@ -121,3 +121,100 @@
 - **Conséquences** :
   - GPIO 27 et 13 sont libérées et servent aux encodeurs ;
   - un seul fichier (`motor_driver.cpp`) connaît cette logique.
+
+### D007 — Profil labo du minuteur et bouton de départ externe
+- **Date** : 09/10/2026
+- **Statut** : adoptée — **profil labo, à remplacer par le profil Eurobot avant tout match Eurobot**
+- **Contexte** :
+  - le PAMI est d'abord évalué au Mechatronics Lab. La grille demande « démarrage après 5 s et arrêt
+    après 15 s », et non 85 s / 100 s comme Eurobot ;
+  - le bouton BOOT de la carte (départ provisoire de D005) n'est pas accessible sur le PAMI monté ;
+  - la tirette n'est pas encore achetée.
+- **Options envisagées** :
+  - deux profils (labo et Eurobot) choisis à la compilation : complet, mais plus de choses à expliquer
+    pour un seul usage aujourd'hui ;
+  - profil labo seulement, Eurobot plus tard : simple ;
+  - garder Eurobot : on perd le point « temps de déplacement » de la grille.
+- **Décision** :
+  - profil labo seulement : immobile jusqu'à 5 s après le départ (`MATCH_MOVE_ALLOWED_MS = 5000`),
+    arrêt total à 14,5 s (`MATCH_STOP_MS = 14500`, 0,5 s de marge comme pour Eurobot) ;
+  - les deux durées comptent depuis l'appui sur le bouton de départ ;
+  - départ par un bouton-poussoir externe sur GPIO 16, avec la logique déjà testée en T001
+    (armé seulement après avoir vu le bouton relâché, appui d'au moins 50 ms, un seul départ) ;
+  - `safety` refuse toute commande moteur en dehors de la période 5 s – 14,5 s.
+- **Pourquoi** :
+  - c'est ce que la grille note, et c'est le moins de code ;
+  - l'état `WAIT_START` sépare l'allumage du départ : un redémarrage de l'ESP32 ne relance jamais
+    le PAMI ;
+  - la tirette pourra prendre la même broche avec la même logique (« en place » = relâché,
+    « retirée » = appuyé). Il n'y aura qu'une ligne à changer.
+- **Règles en jeu** : règle d'or n° 3 (Eurobot : 85,3 s et 99,5 s), règlement général F.6
+  (seul le cordon d'au moins 500 mm est homologué à Eurobot), règles 2027 E.4.
+- **Conséquences** :
+  - le firmware rappelle le profil labo à chaque démarrage ;
+  - **avant tout match Eurobot** : tirette sur GPIO 16, `MATCH_MOVE_ALLOWED_MS = 85300`,
+    `MATCH_STOP_MS = 99500`, test au chronomètre, puis cette décision passe à « remplacée » ;
+  - à confirmer avec l'encadrant : les 15 s comptent-elles depuis le départ, ou depuis la fin des 5 s ?
+
+### D008 — Servo du bras piloté directement par LEDC, sans ESP32Servo
+- **Date** : 09/10/2026
+- **Statut** : adoptée
+- **Contexte** : le bras du défenseur est un servo SG90 sur GPIO 23. Le plan prévoyait la bibliothèque
+  ESP32Servo. Or nos moteurs utilisent déjà les canaux PWM 0 à 3 de l'ESP32 (LEDC), configurés
+  directement par `motor_driver`.
+- **Options envisagées** :
+  - ESP32Servo : pratique, mais elle choisit elle-même un canal PWM et ne sait pas que les canaux 0 à 3
+    sont pris. Si elle prenait le canal d'un moteur, elle changerait sa fréquence et enverrait les
+    impulsions du servo au moteur : le moteur pourrait tourner sans passer par `safety` ;
+  - ESP32Servo en lui réservant un minuteur (`ESP32PWM::allocateTimer`) : possible, mais c'est un
+    réglage caché, facile à oublier ou à casser ;
+  - piloter le servo nous-mêmes avec LEDC, sur un canal choisi : une dizaine de lignes.
+- **Décision** : `arm.cpp` pilote le servo avec LEDC, canal 4 (minuteur 2, distinct des minuteurs 0 et 1
+  des moteurs), 50 Hz, 16 bits. Angle → largeur d'impulsion entre `SERVO_MIN_PULSE_US` et
+  `SERVO_MAX_PULSE_US`.
+- **Pourquoi** :
+  - aucun risque qu'une bibliothèque touche aux canaux des moteurs ;
+  - même API que `motor_driver` (core 2.x : `ledcSetup`, `ledcAttachPin`, `ledcWrite`) ;
+  - le code est court et s'explique facilement.
+- **Conséquences** :
+  - pas de bibliothèque à ajouter dans `platformio.ini` ;
+  - la règle de la skill `firmware-pami` (« utilise ESP32Servo ») ne s'applique pas à ce projet tant que
+    les moteurs utilisent LEDC directement ;
+  - le servo n'a aucun PWM avant la défense, ne bouge qu'entre 5 s et 14,5 s, et son PWM est coupé
+    à la fin (règle d'or n° 3).
+
+### D009 — Les IR regardent le sol pour trouver la zone ; l'évitement repose sur l'ultrason
+- **Date** : 13/10/2026
+- **Statut** : adoptée
+- **Contexte** :
+  - les deux IR surveillaient les angles avant (évitement) ;
+  - la grille du labo note « atteint une zone précisément » ; l'odométrie seule accumule des erreurs ;
+  - l'équipe veut aussi pouvoir faire rouler le PAMI avec l'ultrason seul, sans les IR.
+- **Options envisagées** :
+  - garder les IR pour l'évitement et trouver la zone par l'odométrie seule : moins précis ;
+  - IR tournés vers le sol pour voir le bord de la zone, évitement par l'ultrason seul : précis, mais
+    les angles avant ne sont plus surveillés ;
+  - acheter d'autres capteurs : plus tard si besoin.
+- **Décision** :
+  - les deux IR sont montés à l'avant, tournés vers le sol (GPIO 34 et 35, câblage inchangé) ;
+  - nouvelle étape de mission `REACH_ZONE` : au début de l'approche, on note ce que voient les capteurs ;
+    dès que l'un des deux voit autre chose, le PAMI est au bord. Il freine, entre de `ZONE_ENTRY_MM`
+    (50 mm), et s'arrête. Recherche limitée à `ZONE_SEARCH_MAX_MM` ;
+  - l'évitement ne dépend plus que de l'ultrason. Il reste toujours actif (règle d'or n° 1) ;
+  - le côté du détour devient fixe : gauche pour le bleu, droite pour le jaune.
+- **Pourquoi** :
+  - le repère est le vrai bord de la zone : à 80 mm/s, l'arrêt se fait en moins d'un centimètre ;
+  - comparer au sol de départ marche que la zone soit claire ou foncée ;
+  - les capteurs de sol ne sont lus que pendant l'approche finale : les autres lignes croisées en chemin
+    ne déclenchent rien.
+- **Règles en jeu** :
+  - grille du labo et règlement général : « couverture suffisante autour du robot pour assurer la
+    détection dans tous les sens de déplacement possibles ». Avec un seul HC-SR04 (cône d'environ 30°),
+    les angles avant ne sont pas couverts. **Risque à l'homologation** ;
+  - règles 2027, E.4 : un PAMI compte s'il a une partie de lui dans une douve adverse. S'arrêter sur le
+    bord suffirait (`ZONE_ENTRY_MM = 0`).
+- **Conséquences** :
+  - plus besoin des IR pour rouler : moteurs, driver, encodeurs et ultrason suffisent ;
+  - le potentiomètre des IR se règle pour que la LED change d'état au passage sol → zone ;
+  - si l'encadrant juge la couverture insuffisante : ajouter un 2ᵉ ultrason, ou deux ultrasons orientés
+    un peu vers l'extérieur.

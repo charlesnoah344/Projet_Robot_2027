@@ -1,6 +1,6 @@
-// Machine à états d'exploration (voir pami/CLAUDE.md).
+// Machine à états du PAMI défenseur (voir docs/plan-logiciel-pami.md, § 3).
 //
-// Étape 1 : seulement IDLE -> FORWARD -> END. En FORWARD, les moteurs ne sont pas encore commandés.
+// WAIT_START -> WAIT_DELAY -> MISSION <-> AVOID_STOP / DETOUR -> DEFEND, et END à 14,5 s.
 #pragma once
 
 #include <stdint.h>

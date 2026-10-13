@@ -1,16 +1,48 @@
 #include "safety.h"
 
+#include <Arduino.h>
+
+#include "config.h"
+#include "logic/safety_filter.h"
+#include "match_timer.h"
 #include "motor_driver.h"
+#include "sensors.h"
 
 namespace safety {
 
+namespace {
+
+bool blockedByObstacle = false;
+bool blocking = false;
+
+}  // namespace
+
 void apply(const WheelCommand& requested, uint32_t nowMs) {
-  (void)requested;
   (void)nowMs;
-  // Étape 1 : les capteurs d'obstacles n'existent pas encore, on ne peut donc pas savoir
-  // si la voie est libre. Sécurité par défaut : aucune commande ne passe, moteurs freinés.
-  // Le vrai filtre (fin de match, panne, obstacle) arrive à l'étape 5, avec l'ultrason.
-  motorDriver::brake();
+
+  // Obstacle devant : l'ultrason, avec une marge de libération.
+  // Les IR ne comptent plus : ils regardent le sol pour repérer la zone (D009).
+  const bool wasBlockedByObstacle = blockedByObstacle;
+  blockedByObstacle = isObstacleAhead(blockedByObstacle, sensors::frontDistanceMm());
+  if (DEBUG_LOGS && blockedByObstacle != wasBlockedByObstacle) {
+    Serial.printf("[SAFE] %s (%u mm)\n", blockedByObstacle ? "Obstacle devant" : "Voie libre",
+                  sensors::frontDistanceMm());
+  }
+
+  const WheelCommand sent = filterCommand(requested, matchTimer::isMoveAllowed(),
+                                          sensors::isFaulty(), blockedByObstacle);
+  blocking = (sent.leftPct != requested.leftPct || sent.rightPct != requested.rightPct);
+
+  // Seul endroit du firmware qui commande les moteurs.
+  motorDriver::setWheelPercent(sent.leftPct, sent.rightPct);
+}
+
+bool obstacleAhead() {
+  return blockedByObstacle;
+}
+
+bool isBlocking() {
+  return blocking;
 }
 
 }  // namespace safety
