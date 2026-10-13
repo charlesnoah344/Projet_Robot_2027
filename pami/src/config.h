@@ -113,10 +113,12 @@ constexpr float WHEEL_BASE_MM = 100.0f;
 // La régulation tourne toutes les 20 ms : assez souvent pour corriger, assez rarement pour que
 // chaque mesure de vitesse compte plusieurs ticks.
 constexpr uint32_t MOTION_PERIOD_MS = 20;
-// Vitesse de croisière en ligne droite. Prudente au début : on l'augmentera après les tests.
-constexpr float DRIVE_SPEED_MM_S = 200.0f;
-// Vitesse de chaque roue pendant une rotation sur place.
-constexpr float TURN_SPEED_MM_S = 120.0f;
+// Vitesse de croisière en ligne droite. Baissée de 200 à 150 mm/s pour les premiers réglages
+// de l'odométrie au sol (13/10/2026) : moins de glissement, essais plus faciles à suivre.
+// On l'augmentera ensuite si les missions ne tiennent pas dans les 9,5 s.
+constexpr float DRIVE_SPEED_MM_S = 150.0f;
+// Vitesse de chaque roue pendant une rotation sur place (baissée de 120 à 90 mm/s).
+constexpr float TURN_SPEED_MM_S = 90.0f;
 // Accélération et freinage : progressifs, pour ne pas patiner ni créer de pic de courant.
 constexpr float MOTION_ACCEL_MM_S2 = 400.0f;
 // En dessous de cette vitesse, les moteurs risquent de caler (zone morte) : on ne descend pas plus bas.
@@ -159,8 +161,9 @@ constexpr MissionId ACTIVE_MISSION = MissionId::STRAIGHT_LINE;
 
 // Il n'y a que 9,5 s de mouvement (de 5 s à 14,5 s) : chaque mission doit tenir dedans,
 // avec de la marge pour un détour. PROVISOIRE : à ajuster d'après les vitesses réelles.
-constexpr float STRAIGHT_LINE_LENGTH_MM = 1000.0f;
-constexpr float SQUARE_SIDE_MM = 250.0f;
+// Raccourcies pour les essais d'odométrie au sol (13/10/2026) : 1000 -> 500 mm, 250 -> 200 mm.
+constexpr float STRAIGHT_LINE_LENGTH_MM = 500.0f;
+constexpr float SQUARE_SIDE_MM = 200.0f;
 // Mission défenseur, dans le repère de départ (x devant, y à gauche), écrite pour le bleu.
 // PROVISOIRE : à fixer quand on connaîtra la table et la zone de l'évaluation.
 // 1. Point d'approche, à environ 10 cm AVANT le bord de la zone (atteint par l'odométrie).
@@ -278,7 +281,7 @@ constexpr int TEST_BENCH_PWM_STEP_PCT = 5;       // touches + et -
 constexpr int TEST_BENCH_PWM_FINE_STEP_PCT = 1;  // touches > et < : zone morte au pourcent près
 // Sécurité : les moteurs s'arrêtent seuls si personne n'a tapé de commande depuis 10 s.
 constexpr uint32_t TEST_BENCH_AUTO_STOP_MS = 10000;
-// Banc test_odometrie : un essai s'arrête seul au bout de 15 s (le carré dure environ 10 s).
+// Banc test_odometrie : un essai s'arrête seul au bout de 15 s (le carré dure environ 11 s).
 constexpr uint32_t TEST_BENCH_ODOMETRY_MAX_RUN_MS = 15000;
 // Une ligne de mesures toutes les 0,2 s pendant un essai, toutes les secondes au repos.
 constexpr uint32_t TEST_BENCH_ODOMETRY_LOG_PERIOD_MS = 200;

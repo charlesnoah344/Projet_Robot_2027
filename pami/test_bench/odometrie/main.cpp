@@ -31,7 +31,7 @@
 // PROTOCOLE
 //  1. Encodeurs, roues à la main, rien ne bouge : faire faire 1 tour exact vers l'avant à chaque
 //     roue (marque sur le pneu). Seul le compteur de cette roue augmente, d'environ 1920.
-//  2. Sur cales : « 1 ». Les deux roues accélèrent doucement, tournent environ 5 s, ralentissent,
+//  2. Sur cales : « 1 ». Les deux roues accélèrent doucement, tournent environ 4 s, ralentissent,
 //     s'arrêtent. Pas de panne.
 //  3. Au sol, ligne droite : marquer le départ, « 1 », mesurer la distance réelle D et l'écart
 //     latéral. WHEEL_DIAMETER_MM = valeur actuelle × D / x affiché. Refaire 3 fois.
@@ -43,9 +43,9 @@
 //
 // CRITÈRES DE RÉUSSITE
 // - Encodeurs : 1920 ± 20 ticks par tour de roue, compteurs croissants vers l'avant.
-// - Ligne droite : distance réelle à ± 10 mm de 1000 mm, écart latéral < 20 mm.
+// - Ligne droite : distance réelle à ± 5 mm de STRAIGHT_LINE_LENGTH_MM (500 mm), écart latéral < 10 mm.
 // - Rotation : 360° ± 5° après réglage de WHEEL_BASE_MM.
-// - Carré (250 mm de côté) : retour à moins de 30 mm du départ.
+// - Carré (SQUARE_SIDE_MM = 200 mm de côté) : retour à moins de 30 mm du départ.
 #include <Arduino.h>
 #include <esp_system.h>
 
