@@ -115,6 +115,8 @@
     en miroir.
 - **Pour vérifier** : point 4 de la checklist, roue par roue, en notant quel compteur bouge et dans
   quel sens.
+- **Vécu le 13/10** : après avoir décroisé, la roue droite était bonne mais le compteur gauche descendait
+  en marche avant. Correction : `ENCODER_LEFT_INVERTED = true`. Ensuite, tout a marché du premier coup.
 
 ## ESP32
 
@@ -171,6 +173,8 @@
 ## État à la fin de la séance du 13/10/2026
 - **Fonctionne** : téléversement (avec BOOT), moniteur, encodeurs sans faux ticks (masse commune),
   driver alimenté, les deux roues dans les deux sens avec `test_moteurs`.
-- **En cours** : encodeurs croisés à décroiser, puis sens de chaque compteur à vérifier roue par roue.
-- **Pas encore fait** : réglage de l'odométrie (ligne droite, rotation, carré), câblage du BAU.
+- **Fonctionne sur cales** (banc `test_odometrie`), après avoir décroisé les encodeurs et passé
+  `ENCODER_LEFT_INVERTED` à `true` : ligne droite à 200 mm/s avec les deux roues à 3 ticks près sur
+  10 250, rotation par quarts de tour à moins de 1° près, carré refermé à 12 mm près en 9,0 s.
+- **Pas encore fait** : réglage de l'odométrie **au sol** (diamètre des roues, entraxe), câblage du BAU.
 - **Non résolu** : l'ultrason ne mesure rien (refaire les mesures avec la masse commune).
