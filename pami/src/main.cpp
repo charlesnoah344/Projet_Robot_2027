@@ -39,10 +39,12 @@ void logStatus(uint32_t nowMs) {
     int32_t leftTicks = 0;
     int32_t rightTicks = 0;
     encoders::read(leftTicks, rightTicks);
-    Serial.printf("[MAIN] %lu tours/s | etat %s | t = %.1f s | US %u mm | ticks G %ld D %ld\n",
-                  (unsigned long)loopsPerSecond, stateName(stateMachine::state()),
-                  matchTimer::elapsedMs(nowMs) / 1000.0f, sensors::frontDistanceMm(),
-                  (long)leftTicks, (long)rightTicks);
+    // sol G/D : 1 = surface claire sous le capteur, 0 = surface foncée (réglage des IR de sol).
+    Serial.printf(
+        "[MAIN] %lu tours/s | etat %s | t = %.1f s | US %u mm | ticks G %ld D %ld | sol G %d D %d\n",
+        (unsigned long)loopsPerSecond, stateName(stateMachine::state()),
+        matchTimer::elapsedMs(nowMs) / 1000.0f, sensors::frontDistanceMm(), (long)leftTicks,
+        (long)rightTicks, sensors::floorLeftReflects(), sensors::floorRightReflects());
   }
   loopCount = 0;
   lastLogMs = nowMs;

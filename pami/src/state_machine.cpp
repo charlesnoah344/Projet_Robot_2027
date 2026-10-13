@@ -45,8 +45,7 @@ bool stopIfObstacle(uint32_t nowMs) {
 
 void startDetour(uint32_t nowMs) {
   detourCount++;
-  const float side =
-      chooseDetourSide(sensors::irLeftBlocked(), sensors::irRightBlocked(), color::current());
+  const float side = chooseDetourSide(color::current());
   if (DEBUG_LOGS) {
     Serial.printf("[FSM] Detour %u par la %s\n", detourCount, side > 0.0f ? "gauche" : "droite");
   }

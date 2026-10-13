@@ -40,11 +40,11 @@ uint32_t lastTriggerMs = 0;
 uint32_t lastValidMeasureMs = 0;
 bool faulty = false;
 
-// --- Capteurs IR : 3 dernières lectures de chaque côté (true = obstacle) ---
-bool irLeftReads[3] = {true, true, true};  // « obstacle » tant qu'on n'a rien lu
-bool irRightReads[3] = {true, true, true};
-uint8_t nextIrIndex = 0;
-uint32_t lastIrReadMs = 0;
+// --- Capteurs de sol : 3 dernières lectures de chaque côté (true = surface claire) ---
+bool floorLeftReads[3] = {false, false, false};
+bool floorRightReads[3] = {false, false, false};
+uint8_t nextFloorIndex = 0;
+uint32_t lastFloorReadMs = 0;
 
 bool majority(const bool reads[3]) {
   return (reads[0] + reads[1] + reads[2]) >= 2;
@@ -105,15 +105,19 @@ void updateUltrasound(uint32_t nowMs) {
   }
 }
 
-void updateInfrared(uint32_t nowMs) {
-  if (nowMs - lastIrReadMs < IR_PERIOD_MS) {
+// Sortie du module à l'état bas = la lumière IR revient = surface claire sous le capteur.
+void readFloor(uint8_t index) {
+  floorLeftReads[index] = (digitalRead(PIN_FLOOR_LEFT) == LOW);
+  floorRightReads[index] = (digitalRead(PIN_FLOOR_RIGHT) == LOW);
+}
+
+void updateFloor(uint32_t nowMs) {
+  if (nowMs - lastFloorReadMs < FLOOR_SENSOR_PERIOD_MS) {
     return;
   }
-  lastIrReadMs = nowMs;
-  // Sortie à l'état bas = obstacle.
-  irLeftReads[nextIrIndex] = (digitalRead(PIN_IR_FRONT_LEFT) == LOW);
-  irRightReads[nextIrIndex] = (digitalRead(PIN_IR_FRONT_RIGHT) == LOW);
-  nextIrIndex = (nextIrIndex + 1) % 3;
+  lastFloorReadMs = nowMs;
+  readFloor(nextFloorIndex);
+  nextFloorIndex = (nextFloorIndex + 1) % 3;
 }
 
 }  // namespace
@@ -125,27 +129,32 @@ void begin() {
   attachInterrupt(digitalPinToInterrupt(PIN_US_ECHO), onEchoChange, CHANGE);
   lastValidMeasureMs = millis();
 
-  // GPIO 34 et 35 : entrées seules, sans pull-up interne. La résistance de 100 kΩ vers la masse
-  // est sur la carte : un fil débranché lit l'état bas, donc « obstacle » (sécurité par défaut).
-  pinMode(PIN_IR_FRONT_LEFT, INPUT);
-  pinMode(PIN_IR_FRONT_RIGHT, INPUT);
+  // GPIO 34 et 35 : entrées seules, sans pull-up interne. Avec la résistance de 100 kΩ vers la
+  // masse, un fil débranché lit toujours la même chose : le bord de la zone n'est jamais « vu »,
+  // et l'approche s'arrête au bout de ZONE_SEARCH_MAX_MM.
+  pinMode(PIN_FLOOR_LEFT, INPUT);
+  pinMode(PIN_FLOOR_RIGHT, INPUT);
+  // Les 3 lectures partent toutes de l'état réel du sol au démarrage.
+  for (uint8_t i = 0; i < 3; i++) {
+    readFloor(i);
+  }
 }
 
 void update(uint32_t nowMs) {
   updateUltrasound(nowMs);
-  updateInfrared(nowMs);
+  updateFloor(nowMs);
 }
 
 uint16_t frontDistanceMm() {
   return filteredMm;
 }
 
-bool irLeftBlocked() {
-  return majority(irLeftReads);
+bool floorLeftReflects() {
+  return majority(floorLeftReads);
 }
 
-bool irRightBlocked() {
-  return majority(irRightReads);
+bool floorRightReflects() {
+  return majority(floorRightReads);
 }
 
 bool isFaulty() {

@@ -51,6 +51,6 @@ inline MoveDecision decideNextMove(const MissionStep& step, const Pose& pose) {
     return MoveDecision{MoveAction::DONE, 0.0f};
   }
 
-  // DEFEND : rien à parcourir.
+  // DEFEND : rien à parcourir. REACH_ZONE est géré à part dans mission.cpp (il lit les capteurs).
   return MoveDecision{MoveAction::DONE, 0.0f};
 }

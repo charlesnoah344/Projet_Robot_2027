@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 
+#include "config.h"
 #include "logic/odometry.h"
 #include "logic/wheel_command.h"
 
@@ -22,7 +23,8 @@ void begin();
 void update(uint32_t nowMs);
 
 // Avance tout droit de distanceMm (> 0). Remplace le mouvement en cours.
-void driveDistance(float distanceMm);
+// speedMmS : vitesse de croisière ; plus lente pour l'approche de la zone.
+void driveDistance(float distanceMm, float speedMmS = DRIVE_SPEED_MM_S);
 
 // Tourne sur place de angleDeg. Positif = vers la gauche (sens inverse des aiguilles d'une montre).
 void turnAngle(float angleDeg);

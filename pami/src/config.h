@@ -27,7 +27,7 @@ constexpr uint8_t PIN_MOTOR_LEFT_B = 26;   // M1B
 constexpr uint8_t PIN_MOTOR_RIGHT_A = 33;  // M2A
 constexpr uint8_t PIN_MOTOR_RIGHT_B = 32;  // M2B
 
-// Encodeurs à effet Hall (étape B). Pont diviseur si leurs signaux sont en 5 V.
+// Encodeurs à effet Hall (étape B). Branchement direct : signaux mesurés entre 0 et 3,3 V.
 constexpr uint8_t PIN_ENCODER_LEFT_A = 27;
 constexpr uint8_t PIN_ENCODER_LEFT_B = 14;
 constexpr uint8_t PIN_ENCODER_RIGHT_A = 13;
@@ -37,9 +37,10 @@ constexpr uint8_t PIN_ENCODER_RIGHT_B = 4;
 constexpr uint8_t PIN_US_TRIG = 18;
 constexpr uint8_t PIN_US_ECHO = 19;
 
-// Capteurs IR (étape F). Sortie à l'état bas = obstacle.
-constexpr uint8_t PIN_IR_FRONT_LEFT = 34;
-constexpr uint8_t PIN_IR_FRONT_RIGHT = 35;
+// Capteurs de sol IR (D009) : tournés vers le sol, à l'avant, pour repérer le bord de la zone.
+// Sortie à l'état bas = le sol renvoie la lumière IR (surface claire).
+constexpr uint8_t PIN_FLOOR_LEFT = 34;
+constexpr uint8_t PIN_FLOOR_RIGHT = 35;
 
 // Départ : bouton-poussoir externe, l'autre patte à GND. Appui = état bas (D007).
 // Le bouton BOOT de la carte n'est pas accessible sur le PAMI monté.
@@ -49,7 +50,7 @@ constexpr uint8_t PIN_START_BUTTON = 16;
 // Sélecteur de couleur : interrupteur, l'autre patte à GND. Ouvert = bleu, fermé = jaune.
 constexpr uint8_t PIN_COLOR_SELECTOR = 17;
 
-// Servo SG90 du bras du défenseur (bibliothèque ESP32Servo).
+// Servo SG90 du bras du défenseur (piloté par LEDC, D008).
 constexpr uint8_t PIN_SERVO = 23;
 
 // Pas encore utilisées.
@@ -91,9 +92,8 @@ constexpr int32_t ENCODER_TICKS_PER_WHEEL_TURN = 1920;
 constexpr float WHEEL_DIAMETER_MM = 60.0f;
 // Distance parcourue par la roue pour un tick : périmètre de la roue / ticks par tour.
 constexpr float MM_PER_TICK = 3.14159265f * WHEEL_DIAMETER_MM / ENCODER_TICKS_PER_WHEEL_TURN;
-// true si les voies A et B ont besoin du pull-up interne : à la mesure du guide (§ 4), le signal
-// reste à 0 V (sortie « collecteur ouvert »). false si elles passent par un pont diviseur.
-// PROVISOIRE : à régler après la mesure, AVANT de brancher les encodeurs sur l'ESP32.
+// false : mesuré par l'équipe, les voies A et B alternent entre 0 et 3,3 V toutes seules
+// (encodeur alimenté en 5 V). Branchement direct, sans pont diviseur ni pull-up.
 constexpr bool ENCODER_USE_INTERNAL_PULLUP = false;
 // true si le compteur diminue quand on pousse le PAMI en avant à la main.
 // PROVISOIRE : à mesurer à l'étape B. On corrige ici plutôt que de recâbler.
@@ -159,12 +159,24 @@ constexpr MissionId ACTIVE_MISSION = MissionId::STRAIGHT_LINE;
 // avec de la marge pour un détour. PROVISOIRE : à ajuster d'après les vitesses réelles.
 constexpr float STRAIGHT_LINE_LENGTH_MM = 1000.0f;
 constexpr float SQUARE_SIDE_MM = 250.0f;
-// Zone du défenseur, dans le repère de départ (x devant, y à gauche), pour le bleu.
+// Mission défenseur, dans le repère de départ (x devant, y à gauche), écrite pour le bleu.
 // PROVISOIRE : à fixer quand on connaîtra la table et la zone de l'évaluation.
-constexpr float DEFENDER_ZONE_X_MM = 700.0f;
-constexpr float DEFENDER_ZONE_Y_MM = 300.0f;
-// Cap à prendre une fois dans la zone, pour que l'ultrason et le bras regardent vers l'adversaire.
+// 1. Point d'approche, à environ 10 cm AVANT le bord de la zone (atteint par l'odométrie).
+constexpr float DEFENDER_APPROACH_X_MM = 600.0f;
+constexpr float DEFENDER_APPROACH_Y_MM = 300.0f;
+// 2. Cap de l'approche : la direction dans laquelle se trouve la zone, vue du point d'approche.
+constexpr float DEFENDER_APPROACH_HEADING_DEG = 0.0f;
+// 3. Approche lente jusqu'au bord de la zone, vu par les capteurs de sol (étape REACH_ZONE).
+// 4. Cap à prendre une fois dans la zone, pour que l'ultrason et le bras regardent vers l'adversaire.
 constexpr float DEFENDER_FACING_DEG = 0.0f;
+
+// Approche de la zone (étape REACH_ZONE, D009).
+// Lent : à 80 mm/s, le PAMI s'arrête en moins d'un centimètre après avoir vu le bord.
+constexpr float ZONE_APPROACH_SPEED_MM_S = 80.0f;
+// Une fois le bord vu, on avance encore de 50 mm pour être dans la zone (0 = s'arrêter sur le bord).
+constexpr float ZONE_ENTRY_MM = 50.0f;
+// Si aucun bord n'est vu après 300 mm, on s'arrête quand même : on ne roule jamais sans fin.
+constexpr float ZONE_SEARCH_MAX_MM = 300.0f;
 
 // Point atteint à moins de 30 mm. Cap atteint à moins de 3°.
 // Si le PAMI est mal orienté, il se retourne vers le point avant d'avancer.
@@ -195,18 +207,18 @@ constexpr uint16_t OBSTACLE_STOP_DISTANCE_MM = 150;
 // Sans cette marge, une mesure qui oscille autour du seuil ferait avancer et freiner en boucle.
 constexpr uint16_t OBSTACLE_CLEAR_MARGIN_MM = 30;
 
-// Capteurs IR (sortie tout-ou-rien, état bas = obstacle) : lus toutes les 10 ms.
-// Obstacle si au moins 2 des 3 dernières lectures le disent : un parasite isolé est ignoré.
-constexpr uint32_t IR_PERIOD_MS = 10;
+// Capteurs de sol IR (sortie tout-ou-rien) : lus toutes les 10 ms.
+// On garde l'avis d'au moins 2 des 3 dernières lectures : un parasite isolé est ignoré.
+constexpr uint32_t FLOOR_SENSOR_PERIOD_MS = 10;
 
 // ---------------------------------------------------------------------------
 // Évitement (états AVOID_STOP et DETOUR)
 // ---------------------------------------------------------------------------
-// Niveau 1, arrêt : safety freine dès qu'un obstacle est devant (ultrason ou IR).
+// Niveau 1, arrêt : safety freine dès que l'ultrason voit un obstacle devant.
 // Niveau 2, évite : obstacle toujours là après 1 s -> détour. Ce délai laisse à un robot qui passe
 // le temps de s'en aller.
 constexpr uint32_t AVOID_WAIT_MS = 1000;
-// Le détour : quart de tour du côté libre, puis pas de côté.
+// Le détour : quart de tour (à gauche pour le bleu, à droite pour le jaune), puis pas de côté.
 constexpr float DETOUR_TURN_DEG = 90.0f;
 constexpr float DETOUR_SIDE_MM = 200.0f;  // PROVISOIRE : un peu plus que la largeur d'un PAMI
 // Niveau 3, contourne : après le détour, la mission vise de nouveau son point.

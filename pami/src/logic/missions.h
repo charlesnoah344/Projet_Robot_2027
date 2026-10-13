@@ -34,9 +34,15 @@ constexpr MissionStep SQUARE_STEPS[] = {
     turnTo(0.0f),
 };
 
-// Défenseur : aller dans la zone, regarder vers l'adversaire, puis défendre.
+// Défenseur (D009) :
+// 1. aller au point d'approche, juste avant la zone (odométrie) ;
+// 2. se tourner vers la zone ;
+// 3. avancer lentement jusqu'à ce que les capteurs de sol voient le bord, puis entrer de 50 mm ;
+// 4. regarder vers l'adversaire, puis défendre.
 constexpr MissionStep DEFENDER_STEPS[] = {
-    gotoPoint(DEFENDER_ZONE_X_MM, DEFENDER_ZONE_Y_MM),
+    gotoPoint(DEFENDER_APPROACH_X_MM, DEFENDER_APPROACH_Y_MM),
+    turnTo(DEFENDER_APPROACH_HEADING_DEG),
+    reachZone(DEFENDER_APPROACH_HEADING_DEG),
     turnTo(DEFENDER_FACING_DEG),
     defend(),
 };

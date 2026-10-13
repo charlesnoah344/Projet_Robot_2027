@@ -6,9 +6,10 @@
 #pragma once
 
 enum class StepType {
-  GOTO,     // aller au point (x, y) : se tourner vers lui, puis avancer
-  TURN_TO,  // se tourner vers un cap absolu (degrés)
-  DEFEND    // dernière étape du défenseur : rester sur place, bras prêt
+  GOTO,        // aller au point (x, y) : se tourner vers lui, puis avancer
+  TURN_TO,     // se tourner vers un cap absolu (degrés)
+  REACH_ZONE,  // avancer lentement au cap donné jusqu'au bord de la zone, vu par les capteurs de sol
+  DEFEND       // dernière étape du défenseur : rester sur place, bras prêt
 };
 
 struct MissionStep {
@@ -26,6 +27,9 @@ constexpr MissionStep gotoPoint(float xMm, float yMm) {
 }
 constexpr MissionStep turnTo(float headingDeg) {
   return MissionStep{StepType::TURN_TO, 0.0f, 0.0f, headingDeg};
+}
+constexpr MissionStep reachZone(float headingDeg) {
+  return MissionStep{StepType::REACH_ZONE, 0.0f, 0.0f, headingDeg};
 }
 constexpr MissionStep defend() {
   return MissionStep{StepType::DEFEND, 0.0f, 0.0f, 0.0f};

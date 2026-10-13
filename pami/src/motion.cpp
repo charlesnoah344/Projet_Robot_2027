@@ -21,7 +21,8 @@ bool faulty = false;
 // Cible du mouvement en cours.
 // DRIVE : distance à parcourir. TURN : arc que chaque roue doit parcourir (toujours positif).
 float targetMm = 0.0f;
-float turnSign = 1.0f;  // TURN : +1 = vers la gauche, -1 = vers la droite
+float turnSign = 1.0f;                     // TURN : +1 = vers la gauche, -1 = vers la droite
+float cruiseSpeedMmS = DRIVE_SPEED_MM_S;   // DRIVE : vitesse de croisière de ce mouvement
 
 // Compteurs des encodeurs au début du mouvement, et au cycle précédent.
 int32_t startLeftTicks = 0;
@@ -138,7 +139,7 @@ void update(uint32_t nowMs) {
       finishMove();
       return;
     }
-    profileSpeedMmS = nextProfileSpeed(profileSpeedMmS, remainingMm, DRIVE_SPEED_MM_S, dtS);
+    profileSpeedMmS = nextProfileSpeed(profileSpeedMmS, remainingMm, cruiseSpeedMmS, dtS);
     // Ligne droite : la roue qui a pris de l'avance ralentit, l'autre accélère.
     const float correctionMmS = HEADING_KP_MM_S_PER_MM * (leftMm - rightMm);
     leftTargetMmS = profileSpeedMmS - correctionMmS;
@@ -167,12 +168,14 @@ void update(uint32_t nowMs) {
   checkStall(leftMeasuredMmS, rightMeasuredMmS, nowMs);
 }
 
-void driveDistance(float distanceMm) {
+void driveDistance(float distanceMm, float speedMmS) {
   if (faulty || distanceMm <= 0.0f) {
     return;  // pas de marche arrière
   }
   startMove(Mode::DRIVE);
   targetMm = distanceMm;
+  // Jamais plus vite que la vitesse de croisière normale.
+  cruiseSpeedMmS = fminf(speedMmS, DRIVE_SPEED_MM_S);
 }
 
 void turnAngle(float angleDeg) {
