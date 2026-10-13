@@ -276,3 +276,8 @@ constexpr int TEST_BENCH_PWM_STEP_PCT = 5;       // touches + et -
 constexpr int TEST_BENCH_PWM_FINE_STEP_PCT = 1;  // touches > et < : zone morte au pourcent près
 // Sécurité : les moteurs s'arrêtent seuls si personne n'a tapé de commande depuis 10 s.
 constexpr uint32_t TEST_BENCH_AUTO_STOP_MS = 10000;
+// Banc test_odometrie : un essai s'arrête seul au bout de 15 s (le carré dure environ 10 s).
+constexpr uint32_t TEST_BENCH_ODOMETRY_MAX_RUN_MS = 15000;
+// Une ligne de mesures toutes les 0,2 s pendant un essai, toutes les secondes au repos.
+constexpr uint32_t TEST_BENCH_ODOMETRY_LOG_PERIOD_MS = 200;
+constexpr uint32_t TEST_BENCH_ODOMETRY_IDLE_LOG_PERIOD_MS = 1000;

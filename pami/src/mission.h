@@ -4,12 +4,15 @@
 // (tourner ou avancer) d'après la position mesurée, et motion l'exécute.
 #pragma once
 
+#include "config.h"
 #include "logic/mission_step.h"
 
 namespace mission {
 
 // Démarre la mission, avec la couleur verrouillée au départ.
-void start(TeamColor color);
+// id : la mission à jouer. Le firmware de match prend ACTIVE_MISSION ; le banc de test
+// test_odometrie choisit la sienne au clavier.
+void start(TeamColor color, MissionId id = ACTIVE_MISSION);
 
 // À appeler à chaque tour de loop() pendant l'état MISSION.
 // Lance le mouvement suivant quand le précédent est terminé.

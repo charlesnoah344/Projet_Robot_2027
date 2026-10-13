@@ -6,7 +6,6 @@
 #include "encoders.h"
 #include "logic/speed_controller.h"
 #include "logic/speed_profile.h"
-#include "safety.h"
 
 namespace motion {
 
@@ -96,7 +95,7 @@ void begin() {
   lastUpdateMs = millis();
 }
 
-void update(uint32_t nowMs) {
+void update(uint32_t nowMs, bool commandBlocked) {
   if (nowMs - lastUpdateMs < MOTION_PERIOD_MS) {
     return;
   }
@@ -121,7 +120,7 @@ void update(uint32_t nowMs) {
 
   // safety a bloqué la dernière commande (obstacle, temps) : on repart de zéro quand la voie se
   // libère, avec une nouvelle accélération progressive. Pas de suspicion de blocage pendant ce temps.
-  if (safety::isBlocking()) {
+  if (commandBlocked) {
     resetRegulation();
     return;
   }

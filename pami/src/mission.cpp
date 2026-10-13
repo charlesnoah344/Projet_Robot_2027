@@ -101,10 +101,10 @@ void updateReachZone(const MissionStep& step) {
 
 }  // namespace
 
-void start(TeamColor color) {
+void start(TeamColor color, MissionId id) {
   teamColor = color;
   motion::resetPose();  // le PAMI est posé au point de départ : (0, 0), cap 0
-  steps = missionSteps(ACTIVE_MISSION, stepCount);
+  steps = missionSteps(id, stepCount);
   stepIndex = 0;
   finished = (stepCount == 0);
   defendReached = false;

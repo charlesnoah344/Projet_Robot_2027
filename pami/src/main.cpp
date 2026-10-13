@@ -80,7 +80,7 @@ void loop() {
   sensors::update(nowMs);
   color::update(nowMs);
   stateMachine::update(nowMs);
-  motion::update(nowMs);
+  motion::update(nowMs, safety::isBlocking());
   safety::apply(motion::command(), nowMs);
   arm::update();
 

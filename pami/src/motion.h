@@ -20,7 +20,10 @@ namespace motion {
 void begin();
 
 // À appeler à chaque tour de loop(), avant safety. Recalcule les commandes toutes les 20 ms.
-void update(uint32_t nowMs);
+// commandBlocked : vrai si safety a bloqué la dernière commande (main.cpp passe
+// safety::isBlocking()). motion ne dépend ainsi pas de safety, et le banc de test
+// test_odometrie peut l'utiliser seul.
+void update(uint32_t nowMs, bool commandBlocked);
 
 // Avance tout droit de distanceMm (> 0). Remplace le mouvement en cours.
 // speedMmS : vitesse de croisière ; plus lente pour l'approche de la zone.
