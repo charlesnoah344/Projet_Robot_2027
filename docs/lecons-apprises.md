@@ -91,6 +91,24 @@
 - **Pour vérifier** : commande `x` (100 %) puis `g`, tension entre la broche M1A du MDD3A et GND :
   environ 3,3 V. Le bouton de test M1A du MDD3A permet de tester le driver sans l'ESP32.
 
+### Le PAMI part à reculons (à l'opposé de l'ultrason)
+- **Symptôme** : la mission « ligne droite » éloigne le PAMI de l'ultrason, alors que le moniteur
+  affiche bien `x = 498 mm` et des ticks positifs. Le code est content, le PAMI va du mauvais côté.
+- **Cause** : à l'essai T002, l'avant avait été choisi sans repère. Le code appelait « avancer »
+  le sens qui part vers l'arrière réel.
+- **Pourquoi c'est grave** : `safety` interdit d'*avancer* vers un obstacle vu par l'ultrason. Si
+  « avancer » part vers l'arrière, **l'évitement surveille le mauvais côté**.
+- **Règle** : **l'avant du PAMI est le côté de l'ultrason.** Gauche et droite se voient depuis
+  l'arrière, en regardant vers l'ultrason.
+- **Diagnostic** : se placer derrière le PAMI, tourner la roue gauche à la main, regarder quel
+  compteur bouge.
+  - `ticks G` bouge → gauche et droite sont justes, seuls les sens sont inversés : inverser
+    `MOTOR_*_INVERTED` et `ENCODER_*_INVERTED` (c'était notre cas le 15/10) ;
+  - `ticks D` bouge → gauche et droite sont échangées aussi : il faut échanger les broches
+    gauche/droite dans `config.h`, sinon toutes les rotations sont en miroir.
+- **Valeurs depuis le 15/10** : `MOTOR_LEFT_INVERTED = true`, `MOTOR_RIGHT_INVERTED = true`,
+  `ENCODER_LEFT_INVERTED = false`, `ENCODER_RIGHT_INVERTED = true`.
+
 ## Encodeurs
 
 ### Niveau des signaux : branchement direct
@@ -134,7 +152,7 @@
 - D25 est entre D33 et D26 ; D12 est entre D14 et D13. Toujours relire le nom imprimé sur la carte.
 - Deux fils dans la même rangée de breadboard sont reliés entre eux.
 
-## Ultrason HC-SR04 : non résolu
+## Ultrason HC-SR04 : résolu le 15/10 en changeant de capteur
 
 ### Pas de mesure, le firmware de match passe en `FAULT`
 - **Symptôme** : `US 0 mm`, puis `[SENS] PANNE ultrason : aucune mesure depuis 1 s.` et `FAULT`.
@@ -148,6 +166,35 @@
 - **Piste à vérifier en premier** : ces mesures ont été faites **avant** de relier toutes les masses.
   Une masse non commune peut expliquer ces deux anomalies. Refaire les mesures avec la masse commune.
 - **Ensuite** : VCC du module ≥ 4,8 V mesuré sur ses pattes ; sinon un autre module.
+- **Résultat (15/10)** : avec un autre HC-SR04, les mesures sont bonnes (`US` suit la main).
+  **Le premier module était défectueux.** Garder un module de rechange testé.
+
+### L'ultrason rate presque tous les échos : il était alimenté par l'alim de labo
+- **Symptôme** (banc `test_ultrason`, 15/10) : boîte plate à 5, 10 et 15 cm, mais presque uniquement
+  des `PAS D'ECHO`, et de rares mesures du mur derrière (1,1 à 1,4 m). Le PAMI ne s'arrêtait pas devant
+  une main.
+- **Cause** : le VCC du HC-SR04 venait de l'alimentation de labo. Le récepteur du capteur est très
+  sensible aux parasites sur son 5 V : il n'entendait presque plus les échos.
+- **Solution** : VCC du capteur sur la **broche 5V de l'ESP32**. Résultat immédiat : boîte vue en
+  permanence, à environ 1 cm près, de 5 à 15 cm, 0 mesure sans écho, 16 mesures par seconde.
+- **Pour la batterie** : le régulateur 5 V à découpage est lui aussi bruyant. Mettre un condensateur
+  de 10 à 100 µF (plus 100 nF) entre VCC et GND, au plus près du capteur, et refaire ce test sur batterie.
+- **Comment on l'a trouvé** : le banc `test_ultrason` affiche chaque mesure brute. Un `PAS D'ECHO`
+  veut dire que c'est le capteur lui-même qui n'a rien entendu, pas l'ESP32 qui a mal lu.
+
+### ECHO sort environ la tension d'alimentation : le pont diviseur est obligatoire
+- **Mesuré le 15/10** : capteur alimenté par la broche 5V de l'ESP32, ECHO branché en direct (sans la
+  1 kΩ) → **4,3 V sur GPIO 19**. C'est trop : une broche de l'ESP32 supporte 3,3 V au maximum.
+  **Le pont 1 kΩ (côté ECHO) / 2 kΩ (vers GND) reste obligatoire.**
+- **Erreur de diagnostic à ne pas refaire** : au début, on avait mesuré 2,2 V après le pont, et conclu
+  que le module sortait 3,3 V et pouvait se brancher en direct. En réalité, l'alimentation de labo ne lui
+  donnait pas un vrai 5 V propre. **Ne jamais retirer une protection de tension sans avoir mesuré dans
+  le montage définitif.**
+- **Mesurer le niveau d'ECHO correctement** : le multimètre affiche une moyenne. Elle ne vaut la tension
+  haute que si le capteur ne voit **rien** (lignes `PAS D'ECHO` au moniteur, capteur vers le vide). Avec un
+  objet devant, on lit quelques dizaines de mV : ça ne veut rien dire. Attendu après le pont : environ 2,9 V.
+- Quand il n'entend rien, ce module garde ECHO à l'état haut environ 58 à 60 ms (38 ms pour un
+  HC-SR04 classique).
 
 ### Mesurer une impulsion au multimètre
 - Le multimètre en continu affiche une **moyenne**. Sur ECHO, la moyenne doit **baisser** quand un
@@ -177,4 +224,10 @@
   `ENCODER_LEFT_INVERTED` à `true` : ligne droite à 200 mm/s avec les deux roues à 3 ticks près sur
   10 250, rotation par quarts de tour à moins de 1° près, carré refermé à 12 mm près en 9,0 s.
 - **Pas encore fait** : réglage de l'odométrie **au sol** (diamètre des roues, entraxe), câblage du BAU.
-- **Non résolu** : l'ultrason ne mesure rien (refaire les mesures avec la masse commune).
+- **Non résolu ce jour-là** : l'ultrason ne mesurait rien. Résolu le 15/10 en changeant de module.
+
+## Séance du 15/10/2026
+- Nouvel ultrason : il mesure correctement.
+- Firmware de match complet essayé : départ par le fil sur GPIO 16, 5 s d'attente, ligne droite de
+  500 mm (`x = 498 mm`), arrêt à 14,5 s. Mais le PAMI partait à reculons : sens des moteurs et des
+  encodeurs corrigés (voir « Le PAMI part à reculons »). **À revérifier après la correction.**

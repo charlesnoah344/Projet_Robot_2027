@@ -13,8 +13,9 @@ void begin();
 // À appeler à chaque tour de loop(). Chaque capteur est lu à son propre rythme.
 void update(uint32_t nowMs);
 
-// Distance devant, filtrée (médiane des 3 dernières mesures), en mm.
-// US_NO_OBSTACLE_MM quand il n'y a rien dans la portée.
+// Distance devant, filtrée, en mm : médiane des 3 dernières mesures, puis confirmation des
+// distances qui s'allongent d'un coup (logic/rise_filter.h).
+// US_NO_OBSTACLE_MM quand il n'y a rien dans la portée. 0 au démarrage (« obstacle »).
 uint16_t frontDistanceMm();
 
 // Capteurs de sol, à l'avant gauche et à l'avant droit : vrai si le sol renvoie la lumière IR
@@ -26,5 +27,15 @@ bool floorRightReflects();
 // Vrai si un capteur est en panne (aucune mesure valide depuis 1 s).
 // Une fois vrai, le reste jusqu'au redémarrage : on ne repart pas avec un capteur douteux.
 bool isFaulty();
+
+// Détail de l'ultrason, pour le banc test_ultrason (le firmware de match ne s'en sert pas).
+struct UltrasoundRaw {
+  uint32_t triggers;  // impulsions envoyées sur TRIG depuis l'allumage
+  uint32_t measures;  // échos complets reçus depuis l'allumage (change à chaque nouvelle mesure)
+  uint32_t echoUs;    // durée du dernier écho, en µs
+  uint16_t rawMm;     // distance brute du dernier écho, avant la médiane
+  bool noEcho;        // vrai si le dernier écho a dépassé la portée (distance brute = 2000 mm)
+};
+UltrasoundRaw lastRawMeasure();
 
 }  // namespace sensors

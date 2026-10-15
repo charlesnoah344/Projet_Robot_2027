@@ -72,9 +72,12 @@ constexpr uint8_t LEDC_CHANNEL_MOTOR_LEFT_B = 1;
 constexpr uint8_t LEDC_CHANNEL_MOTOR_RIGHT_A = 2;
 constexpr uint8_t LEDC_CHANNEL_MOTOR_RIGHT_B = 3;
 // true si la roue tourne à l'envers quand on lui demande d'avancer.
-// À mesurer à l'étape 2 (T002). On corrige ici plutôt que de recâbler.
-constexpr bool MOTOR_LEFT_INVERTED = false;
-constexpr bool MOTOR_RIGHT_INVERTED = false;
+// L'AVANT du PAMI est le côté de l'ultrason. Gauche et droite se voient depuis l'arrière,
+// en regardant vers l'ultrason. On corrige ici plutôt que de recâbler.
+// true / true depuis le 15/10/2026 : avec false, une commande « avancer » faisait partir le PAMI
+// à l'opposé de l'ultrason (l'avant avait été jugé sans repère à l'essai T002).
+constexpr bool MOTOR_LEFT_INVERTED = true;
+constexpr bool MOTOR_RIGHT_INVERTED = true;
 // PWM maximale autorisée, appliquée par motor_driver, même dans les bancs de test.
 // Alimentation de labo à 6 V = tension nominale des FIT0450 : 100 %.
 // À revoir avec la batterie : avec 8,4 V, il faudra environ 70 % pour rester vers 6 V en moyenne.
@@ -95,12 +98,12 @@ constexpr float MM_PER_TICK = 3.14159265f * WHEEL_DIAMETER_MM / ENCODER_TICKS_PE
 // false : mesuré par l'équipe, les voies A et B alternent entre 0 et 3,3 V toutes seules
 // (encodeur alimenté en 5 V). Branchement direct, sans pont diviseur ni pull-up.
 constexpr bool ENCODER_USE_INTERNAL_PULLUP = false;
-// true si le compteur diminue quand on pousse le PAMI en avant à la main.
+// true si le compteur diminue quand on fait tourner la roue vers l'AVANT (côté ultrason) à la main.
 // On corrige ici plutôt que de recâbler.
-// Gauche : true, constaté le 13/10/2026 (banc test_odometrie) : roue gauche commandée en avant,
-// compteur gauche qui descend. Les deux moteurs sont montés en miroir, leurs encodeurs aussi.
-constexpr bool ENCODER_LEFT_INVERTED = true;
-constexpr bool ENCODER_RIGHT_INVERTED = false;
+// Gauche false / droite true depuis le 15/10/2026, en même temps que le sens des moteurs :
+// roue gauche tournée vers l'avant réel à la main -> ticks G descendait avec l'ancien réglage.
+constexpr bool ENCODER_LEFT_INVERTED = false;
+constexpr bool ENCODER_RIGHT_INVERTED = true;
 
 // ---------------------------------------------------------------------------
 // Mouvement (motion) : régulation de vitesse et trajectoires
@@ -201,6 +204,12 @@ constexpr uint32_t US_MAX_ECHO_US = 12000;
 constexpr uint16_t US_NO_OBSTACLE_MM = 2000;
 // Le son fait 343 m/s, soit 0,343 mm/µs. Il fait l'aller-retour : 0,1715 mm par µs d'écho.
 constexpr float US_MM_PER_ECHO_US = 0.1715f;
+// Filtre de sécurité (logic/rise_filter.h) : une distance qui s'allonge de plus de 50 mm d'un coup
+// doit être vue 4 fois de suite (environ 0,25 s) avant d'être crue. Une distance qui diminue est crue
+// tout de suite. Réglé sur les mesures du 15/10/2026 (banc test_ultrason) : jusqu'à 3 échos ratés de
+// suite devant un PAMI immobile, ou un saut vers le mur du fond.
+constexpr uint16_t US_RISE_THRESHOLD_MM = 50;
+constexpr uint8_t US_RISE_CONFIRM_COUNT = 4;
 // Aucune mesure valide pendant 1 s : le capteur est considéré en panne (fil débranché, ECHO bloqué).
 // Sécurité par défaut : panne = obstacle, le PAMI s'arrête.
 constexpr uint32_t SENSOR_FAULT_TIMEOUT_MS = 1000;
@@ -286,3 +295,5 @@ constexpr uint32_t TEST_BENCH_ODOMETRY_MAX_RUN_MS = 15000;
 // Une ligne de mesures toutes les 0,2 s pendant un essai, toutes les secondes au repos.
 constexpr uint32_t TEST_BENCH_ODOMETRY_LOG_PERIOD_MS = 200;
 constexpr uint32_t TEST_BENCH_ODOMETRY_IDLE_LOG_PERIOD_MS = 1000;
+// Banc test_ultrason : une ligne de bilan par seconde (nombre de mesures, sans écho, min, max).
+constexpr uint32_t TEST_BENCH_US_SUMMARY_PERIOD_MS = 1000;
