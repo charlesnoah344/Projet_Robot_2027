@@ -182,12 +182,17 @@
 - **Comment on l'a trouvé** : le banc `test_ultrason` affiche chaque mesure brute. Un `PAS D'ECHO`
   veut dire que c'est le capteur lui-même qui n'a rien entendu, pas l'ESP32 qui a mal lu.
 
-### Notre module sort du 3,3 V sur ECHO
-- Mesuré : 2,2 V après le pont 1 kΩ / 2 kΩ, donc environ 3,3 V sur ECHO, même alimenté en 5 V.
-  Avec le pont, le niveau était trop bas pour l'ESP32 (il lui faut au moins 2,5 V environ).
-- Le pont a été retiré : ECHO est branché directement sur GPIO 19.
-  **À confirmer par une mesure** : GPIO 19 ↔ GND, capteur pointé vers le vide, au plus 3,3 V.
-  Un autre module HC-SR04 peut sortir du 5 V : **toujours mesurer avant de brancher en direct.**
+### ECHO sort environ la tension d'alimentation : le pont diviseur est obligatoire
+- **Mesuré le 15/10** : capteur alimenté par la broche 5V de l'ESP32, ECHO branché en direct (sans la
+  1 kΩ) → **4,3 V sur GPIO 19**. C'est trop : une broche de l'ESP32 supporte 3,3 V au maximum.
+  **Le pont 1 kΩ (côté ECHO) / 2 kΩ (vers GND) reste obligatoire.**
+- **Erreur de diagnostic à ne pas refaire** : au début, on avait mesuré 2,2 V après le pont, et conclu
+  que le module sortait 3,3 V et pouvait se brancher en direct. En réalité, l'alimentation de labo ne lui
+  donnait pas un vrai 5 V propre. **Ne jamais retirer une protection de tension sans avoir mesuré dans
+  le montage définitif.**
+- **Mesurer le niveau d'ECHO correctement** : le multimètre affiche une moyenne. Elle ne vaut la tension
+  haute que si le capteur ne voit **rien** (lignes `PAS D'ECHO` au moniteur, capteur vers le vide). Avec un
+  objet devant, on lit quelques dizaines de mV : ça ne veut rien dire. Attendu après le pont : environ 2,9 V.
 - Quand il n'entend rien, ce module garde ECHO à l'état haut environ 58 à 60 ms (38 ms pour un
   HC-SR04 classique).
 
