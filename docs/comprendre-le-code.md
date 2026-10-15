@@ -8,7 +8,9 @@
 > du module concerné. Le code fait foi : si ce document et le code divergent, c'est le code qui a raison,
 > et il faut corriger ce document.
 >
-> À jour au 13/10/2026 (firmware défenseur, profil labo D007, IR tournés vers le sol D009).
+> À jour au 15/10/2026 (firmware défenseur, profil labo D007, IR tournés vers le sol D009).
+> **L'avant du PAMI est le côté de l'ultrason.** Gauche et droite se voient depuis l'arrière, en
+> regardant vers l'ultrason.
 
 ## 1. Les cinq idées à connaître avant de lire le code
 
@@ -145,8 +147,8 @@ Les constantes qui changent le plus souvent le comportement :
 | `ACTIVE_MISSION` | La mission jouée par le firmware de match | `STRAIGHT_LINE` |
 | `WHEEL_DIAMETER_MM` | Distance pour 1 tick → toutes les distances | 60 |
 | `WHEEL_BASE_MM` | Écart entre les roues → tous les angles | 100 |
-| `ENCODER_LEFT_INVERTED` / `ENCODER_RIGHT_INVERTED` | Sens de comptage de chaque encodeur | `true` / `false` |
-| `MOTOR_LEFT_INVERTED` / `MOTOR_RIGHT_INVERTED` | Sens de rotation de chaque moteur | `false` / `false` |
+| `ENCODER_LEFT_INVERTED` / `ENCODER_RIGHT_INVERTED` | Sens de comptage de chaque encodeur | `false` / `true` |
+| `MOTOR_LEFT_INVERTED` / `MOTOR_RIGHT_INVERTED` | Sens de rotation de chaque moteur | `true` / `true` |
 | `DRIVE_SPEED_MM_S`, `TURN_SPEED_MM_S` | Vitesses de croisière | 150, 90 |
 | `OBSTACLE_STOP_DISTANCE_MM` | Distance d'arrêt devant un obstacle | 150 |
 | `MATCH_MOVE_ALLOWED_MS`, `MATCH_STOP_MS` | Départ et fin (profil labo) | 5000, 14500 |
@@ -184,6 +186,9 @@ Les constantes qui changent le plus souvent le comportement :
 - **Une roue ne tourne que dans un sens** → un seul des deux fils de commande arrive. Avancer utilise
   l'entrée A, reculer l'entrée B. Vécu le 13/10 : le fil GPIO 25 → M1A.
 - **Une roue tourne à l'envers** → `MOTOR_LEFT_INVERTED` ou `MOTOR_RIGHT_INVERTED`.
+- **Le PAMI part à l'opposé de l'ultrason** → l'avant du code n'est pas l'avant réel. Vérifier
+  d'abord que la roue gauche (vue depuis l'arrière) fait bouger `ticks G`, puis inverser les sens
+  des moteurs et des encodeurs. Vécu le 15/10 (voir `docs/lecons-apprises.md`).
 - **Les ordres n'arrivent pas** → GND du connecteur de commande du MDD3A ↔ GND de l'ESP32.
 
 ### 4.4 `encoders.*` : compter les tours de roue
