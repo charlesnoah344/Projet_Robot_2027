@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "logic/median3.h"
+#include "logic/rise_filter.h"
 
 namespace sensors {
 
@@ -16,7 +17,8 @@ volatile uint32_t echoDurationUs = 0;  // durée du dernier écho complet
 volatile bool echoReady = false;       // un nouvel écho complet attend d'être lu
 portMUX_TYPE echoMux = portMUX_INITIALIZER_UNLOCKED;
 
-// ECHO monte quand le son part, et redescend quand l'écho revient (ou après environ 38 ms sans écho).
+// ECHO monte quand le son part, et redescend quand l'écho revient. Sans écho, il redescend tout seul
+// au bout de 38 à 60 ms selon le module (58 ms pour le nôtre).
 void IRAM_ATTR onEchoChange() {
   const uint32_t nowUs = micros();
   if (digitalRead(PIN_US_ECHO) == HIGH) {
@@ -36,6 +38,7 @@ void IRAM_ATTR onEchoChange() {
 uint16_t lastMeasuresMm[3] = {0, 0, 0};  // 0 au départ : « obstacle » tant qu'on n'a rien mesuré
 uint8_t nextMeasureIndex = 0;
 uint16_t filteredMm = 0;
+RiseFilter riseFilter;  // une distance qui s'allonge d'un coup doit être confirmée
 uint32_t lastTriggerMs = 0;
 uint32_t lastValidMeasureMs = 0;
 bool faulty = false;
@@ -69,7 +72,10 @@ uint16_t echoToMm(uint32_t durationUs) {
 void addMeasure(uint16_t distanceMm, uint32_t nowMs) {
   lastMeasuresMm[nextMeasureIndex] = distanceMm;
   nextMeasureIndex = (nextMeasureIndex + 1) % 3;
-  filteredMm = median3(lastMeasuresMm[0], lastMeasuresMm[1], lastMeasuresMm[2]);
+  // 1. La médiane écarte une mesure aberrante isolée (vers le haut comme vers le bas).
+  // 2. Le filtre de montée refuse qu'une distance s'allonge d'un coup sans confirmation.
+  const uint16_t medianMm = median3(lastMeasuresMm[0], lastMeasuresMm[1], lastMeasuresMm[2]);
+  filteredMm = riseFilter.update(medianMm);
   lastValidMeasureMs = nowMs;
 }
 
@@ -92,14 +98,14 @@ void updateUltrasound(uint32_t nowMs) {
     addMeasure(raw.rawMm, nowMs);
   }
 
-  // 2. Nouvelle mesure toutes les US_PERIOD_MS.
-  if (nowMs - lastTriggerMs >= US_PERIOD_MS) {
+  // 2. Nouvelle mesure dès que US_PERIOD_MS sont passées ET que la mesure précédente est finie
+  //    (ECHO à l'état bas). Si ECHO est encore haut, on réessaie au tour de boucle suivant, au lieu
+  //    d'attendre une période entière : on garde ainsi environ 16 mesures par seconde.
+  //    ECHO bloqué à l'état haut : plus aucune mesure, donc panne au bout de 1 s (étape 3).
+  if (nowMs - lastTriggerMs >= US_PERIOD_MS && digitalRead(PIN_US_ECHO) == LOW) {
     lastTriggerMs = nowMs;
-    // ECHO encore haut : la mesure précédente n'est pas finie (ou ECHO est bloqué). On n'insiste pas.
-    if (digitalRead(PIN_US_ECHO) == LOW) {
-      trigger();
-      raw.triggers++;
-    }
+    trigger();
+    raw.triggers++;
   }
 
   // 3. Aucune mesure valide depuis 1 s : panne (fil débranché, ECHO bloqué, capteur mort).

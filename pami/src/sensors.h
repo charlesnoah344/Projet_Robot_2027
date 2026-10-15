@@ -13,8 +13,9 @@ void begin();
 // À appeler à chaque tour de loop(). Chaque capteur est lu à son propre rythme.
 void update(uint32_t nowMs);
 
-// Distance devant, filtrée (médiane des 3 dernières mesures), en mm.
-// US_NO_OBSTACLE_MM quand il n'y a rien dans la portée.
+// Distance devant, filtrée, en mm : médiane des 3 dernières mesures, puis confirmation des
+// distances qui s'allongent d'un coup (logic/rise_filter.h).
+// US_NO_OBSTACLE_MM quand il n'y a rien dans la portée. 0 au démarrage (« obstacle »).
 uint16_t frontDistanceMm();
 
 // Capteurs de sol, à l'avant gauche et à l'avant droit : vrai si le sol renvoie la lumière IR

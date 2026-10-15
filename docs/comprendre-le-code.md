@@ -229,8 +229,9 @@ Les constantes qui changent le plus souvent le comportement :
 | `floorLeftReflects()` / `floorRightReflects()` | Vrai si le sol renvoie la lumière IR (surface claire) |
 
 **L'ultrason, étape par étape** :
-1. Toutes les 60 ms, si ECHO est au repos (état bas), `trigger()` envoie une impulsion de 10 µs sur
-   TRIG (GPIO 18). C'est la seule attente du programme.
+1. Dès que 60 ms sont passées depuis le dernier déclenchement **et** qu'ECHO est au repos (état bas),
+   `trigger()` envoie une impulsion de 10 µs sur TRIG (GPIO 18). C'est la seule attente du programme.
+   Si ECHO est encore haut, on réessaie au tour de boucle suivant : environ 16 mesures par seconde.
 2. Le HC-SR04 envoie un « bip » ultrason et passe ECHO à l'état haut. ECHO redescend quand l'écho
    revient (ou après environ 38 ms s'il ne revient pas).
 3. L'interruption `onEchoChange()` (GPIO 19) note l'heure de la montée, puis calcule la durée à la
@@ -238,8 +239,12 @@ Les constantes qui changent le plus souvent le comportement :
 4. `updateUltrasound()` convertit la durée en distance : durée × 0,1715 mm/µs (le son fait 343 m/s,
    aller et retour). Plus de 12 000 µs → 2000 mm (« rien »).
 5. Il garde les 3 dernières mesures et prend la **médiane** (`logic/median3.h`) : une mesure aberrante
-   est écartée.
-6. Aucune mesure depuis 1 s → `isFaulty()` devient vrai et le log affiche `[SENS] PANNE ultrason`.
+   isolée est écartée.
+6. **Filtre de montée** (`logic/rise_filter.h`) : une distance qui **diminue** est crue tout de suite ;
+   une distance qui **augmente de plus de 50 mm d'un coup** doit être vue 4 fois de suite (environ
+   0,25 s). Pourquoi : le capteur rate parfois l'écho d'un obstacle proche (« pas d'écho », ou le mur du
+   fond). Sans ce filtre, un seul écho raté faisait croire la voie libre et le PAMI repartait (15/10).
+7. Aucune mesure depuis 1 s → `isFaulty()` devient vrai et le log affiche `[SENS] PANNE ultrason`.
    **Sécurité par défaut : panne = obstacle**, le PAMI ne roule plus.
 
 Au démarrage, la distance vaut 0 (« obstacle ») tant qu'aucune mesure n'est arrivée.
@@ -484,6 +489,7 @@ Calculs purs, sans matériel, testables sur PC.
 | `match_clock.h` | `isMatchOver()`, `isInMovePhase()`, `elapsedSinceMs()` | `match_timer` |
 | `start_button.*` | `StartButtonDetector` : anti-rebond, armement, un seul départ | `match_timer` |
 | `median3.h` | Médiane de 3 valeurs | `sensors` |
+| `rise_filter.h` | `RiseFilter` : une distance qui s'allonge d'un coup doit être confirmée | `sensors` |
 | `safety_filter.h` | `isObstacleAhead()`, `isTurnInPlace()`, `filterCommand()` | `safety` |
 | `speed_profile.h` | `nextProfileSpeed()` : accélération, croisière, freinage | `motion` |
 | `speed_controller.h` | `SpeedController` : vitesse voulue → PWM | `motion` |

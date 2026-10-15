@@ -204,6 +204,12 @@ constexpr uint32_t US_MAX_ECHO_US = 12000;
 constexpr uint16_t US_NO_OBSTACLE_MM = 2000;
 // Le son fait 343 m/s, soit 0,343 mm/µs. Il fait l'aller-retour : 0,1715 mm par µs d'écho.
 constexpr float US_MM_PER_ECHO_US = 0.1715f;
+// Filtre de sécurité (logic/rise_filter.h) : une distance qui s'allonge de plus de 50 mm d'un coup
+// doit être vue 4 fois de suite (environ 0,25 s) avant d'être crue. Une distance qui diminue est crue
+// tout de suite. Réglé sur les mesures du 15/10/2026 (banc test_ultrason) : jusqu'à 3 échos ratés de
+// suite devant un PAMI immobile, ou un saut vers le mur du fond.
+constexpr uint16_t US_RISE_THRESHOLD_MM = 50;
+constexpr uint8_t US_RISE_CONFIRM_COUNT = 4;
 // Aucune mesure valide pendant 1 s : le capteur est considéré en panne (fil débranché, ECHO bloqué).
 // Sécurité par défaut : panne = obstacle, le PAMI s'arrête.
 constexpr uint32_t SENSOR_FAULT_TIMEOUT_MS = 1000;

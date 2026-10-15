@@ -18,7 +18,8 @@
 // - Une ligne par mesure (environ 16 par seconde) :
 //     [US] #123 | echo   583 us | brute  100 mm | filtree  101 mm
 //     [US] #124 | PAS D'ECHO (38012 us) | brute 2000 mm | filtree  101 mm
-//   « brute » = cette mesure seule ; « filtree » = médiane des 3 dernières, c'est ce qu'utilise safety.
+//   « brute » = cette mesure seule ; « filtree » = médiane des 3 dernières, puis confirmation des
+//   distances qui s'allongent d'un coup (logic/rise_filter.h). C'est ce qu'utilise safety.
 // - Une ligne de bilan par seconde :
 //     [BILAN] 16 mesures (17 envois) | 2 sans echo | brute min 98 max 104 moy 101 mm | filtree 101 mm
 //   « envois » plus grand que « mesures » : des impulsions sont restées sans écho complet.
