@@ -72,9 +72,12 @@ constexpr uint8_t LEDC_CHANNEL_MOTOR_LEFT_B = 1;
 constexpr uint8_t LEDC_CHANNEL_MOTOR_RIGHT_A = 2;
 constexpr uint8_t LEDC_CHANNEL_MOTOR_RIGHT_B = 3;
 // true si la roue tourne à l'envers quand on lui demande d'avancer.
-// À mesurer à l'étape 2 (T002). On corrige ici plutôt que de recâbler.
-constexpr bool MOTOR_LEFT_INVERTED = false;
-constexpr bool MOTOR_RIGHT_INVERTED = false;
+// L'AVANT du PAMI est le côté de l'ultrason. Gauche et droite se voient depuis l'arrière,
+// en regardant vers l'ultrason. On corrige ici plutôt que de recâbler.
+// true / true depuis le 15/10/2026 : avec false, une commande « avancer » faisait partir le PAMI
+// à l'opposé de l'ultrason (l'avant avait été jugé sans repère à l'essai T002).
+constexpr bool MOTOR_LEFT_INVERTED = true;
+constexpr bool MOTOR_RIGHT_INVERTED = true;
 // PWM maximale autorisée, appliquée par motor_driver, même dans les bancs de test.
 // Alimentation de labo à 6 V = tension nominale des FIT0450 : 100 %.
 // À revoir avec la batterie : avec 8,4 V, il faudra environ 70 % pour rester vers 6 V en moyenne.
@@ -95,12 +98,12 @@ constexpr float MM_PER_TICK = 3.14159265f * WHEEL_DIAMETER_MM / ENCODER_TICKS_PE
 // false : mesuré par l'équipe, les voies A et B alternent entre 0 et 3,3 V toutes seules
 // (encodeur alimenté en 5 V). Branchement direct, sans pont diviseur ni pull-up.
 constexpr bool ENCODER_USE_INTERNAL_PULLUP = false;
-// true si le compteur diminue quand on pousse le PAMI en avant à la main.
+// true si le compteur diminue quand on fait tourner la roue vers l'AVANT (côté ultrason) à la main.
 // On corrige ici plutôt que de recâbler.
-// Gauche : true, constaté le 13/10/2026 (banc test_odometrie) : roue gauche commandée en avant,
-// compteur gauche qui descend. Les deux moteurs sont montés en miroir, leurs encodeurs aussi.
-constexpr bool ENCODER_LEFT_INVERTED = true;
-constexpr bool ENCODER_RIGHT_INVERTED = false;
+// Gauche false / droite true depuis le 15/10/2026, en même temps que le sens des moteurs :
+// roue gauche tournée vers l'avant réel à la main -> ticks G descendait avec l'ancien réglage.
+constexpr bool ENCODER_LEFT_INVERTED = false;
+constexpr bool ENCODER_RIGHT_INVERTED = true;
 
 // ---------------------------------------------------------------------------
 // Mouvement (motion) : régulation de vitesse et trajectoires
