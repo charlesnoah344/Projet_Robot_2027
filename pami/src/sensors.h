@@ -27,4 +27,14 @@ bool floorRightReflects();
 // Une fois vrai, le reste jusqu'au redémarrage : on ne repart pas avec un capteur douteux.
 bool isFaulty();
 
+// Détail de l'ultrason, pour le banc test_ultrason (le firmware de match ne s'en sert pas).
+struct UltrasoundRaw {
+  uint32_t triggers;  // impulsions envoyées sur TRIG depuis l'allumage
+  uint32_t measures;  // échos complets reçus depuis l'allumage (change à chaque nouvelle mesure)
+  uint32_t echoUs;    // durée du dernier écho, en µs
+  uint16_t rawMm;     // distance brute du dernier écho, avant la médiane
+  bool noEcho;        // vrai si le dernier écho a dépassé la portée (distance brute = 2000 mm)
+};
+UltrasoundRaw lastRawMeasure();
+
 }  // namespace sensors

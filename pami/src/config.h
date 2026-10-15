@@ -289,3 +289,5 @@ constexpr uint32_t TEST_BENCH_ODOMETRY_MAX_RUN_MS = 15000;
 // Une ligne de mesures toutes les 0,2 s pendant un essai, toutes les secondes au repos.
 constexpr uint32_t TEST_BENCH_ODOMETRY_LOG_PERIOD_MS = 200;
 constexpr uint32_t TEST_BENCH_ODOMETRY_IDLE_LOG_PERIOD_MS = 1000;
+// Banc test_ultrason : une ligne de bilan par seconde (nombre de mesures, sans écho, min, max).
+constexpr uint32_t TEST_BENCH_US_SUMMARY_PERIOD_MS = 1000;

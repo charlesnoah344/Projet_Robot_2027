@@ -39,6 +39,7 @@ uint16_t filteredMm = 0;
 uint32_t lastTriggerMs = 0;
 uint32_t lastValidMeasureMs = 0;
 bool faulty = false;
+UltrasoundRaw raw = {0, 0, 0, 0, false};  // détail pour le banc test_ultrason
 
 // --- Capteurs de sol : 3 dernières lectures de chaque côté (true = surface claire) ---
 bool floorLeftReads[3] = {false, false, false};
@@ -84,7 +85,11 @@ void updateUltrasound(uint32_t nowMs) {
   }
   portEXIT_CRITICAL(&echoMux);
   if (ready) {
-    addMeasure(echoToMm(durationUs), nowMs);
+    raw.measures++;
+    raw.echoUs = durationUs;
+    raw.rawMm = echoToMm(durationUs);
+    raw.noEcho = (durationUs > US_MAX_ECHO_US);
+    addMeasure(raw.rawMm, nowMs);
   }
 
   // 2. Nouvelle mesure toutes les US_PERIOD_MS.
@@ -93,6 +98,7 @@ void updateUltrasound(uint32_t nowMs) {
     // ECHO encore haut : la mesure précédente n'est pas finie (ou ECHO est bloqué). On n'insiste pas.
     if (digitalRead(PIN_US_ECHO) == LOW) {
       trigger();
+      raw.triggers++;
     }
   }
 
@@ -159,6 +165,10 @@ bool floorRightReflects() {
 
 bool isFaulty() {
   return faulty;
+}
+
+UltrasoundRaw lastRawMeasure() {
+  return raw;
 }
 
 }  // namespace sensors
