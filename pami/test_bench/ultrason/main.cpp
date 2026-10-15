@@ -23,6 +23,12 @@
 //     [BILAN] 16 mesures (17 envois) | 2 sans echo | brute min 98 max 104 moy 101 mm | filtree 101 mm
 //   « envois » plus grand que « mesures » : des impulsions sont restées sans écho complet.
 // - Touche « v » : afficher ou masquer les lignes de mesure (le bilan reste). « h » : aide.
+// - Touche « r » : MODE DE RÉFÉRENCE. Mesure avec la méthode classique des tutoriels Arduino
+//   (déclenchement puis pulseIn()), sans aucun code du firmware. Lignes préfixées [REF].
+//   Sert à savoir si un problème vient du capteur ou de notre code :
+//   - la référence rate aussi les échos  -> problème matériel (capteur, alimentation, montage) ;
+//   - la référence voit bien, pas sensors -> problème dans notre code.
+//   pulseIn() bloque le programme jusqu'à 70 ms : interdit en match, sans risque ici.
 //
 // PROTOCOLE (objet immobile au moins 3 s à chaque distance, face au capteur, à sa hauteur)
 //  1. Boîte en carton (face plate) à 5, 10, 15, 20, 30, 50 et 100 cm (distance au mètre ruban).
@@ -47,6 +53,9 @@
 namespace {
 
 bool showEachMeasure = true;
+bool referenceMode = false;  // touche r : méthode classique pulseIn(), sans le code du firmware
+uint32_t lastReferenceMs = 0;
+uint32_t referenceCount = 0;
 uint32_t lastPrintedMeasure = 0;
 
 // Bilan de la seconde en cours.
@@ -63,6 +72,7 @@ bool faultReported = false;
 void printHelp() {
   Serial.println("[BANC] Commandes (une touche, sans Entree) :");
   Serial.println("[BANC]   v = afficher / masquer chaque mesure (le bilan par seconde reste)");
+  Serial.println("[BANC]   r = mode de reference (methode classique pulseIn, sans notre code)");
   Serial.println("[BANC]   h = cette aide");
 }
 
@@ -126,6 +136,31 @@ void printSummary(uint32_t nowMs) {
   resetSummary(nowMs);
 }
 
+// Mode de référence : la méthode « classique » des tutoriels, indépendante de sensors.cpp.
+// Déclenchement de 10 µs, puis pulseIn() attend l'impulsion ECHO et mesure sa durée.
+void referenceMeasure(uint32_t nowMs) {
+  if (nowMs - lastReferenceMs < US_PERIOD_MS) {
+    return;
+  }
+  lastReferenceMs = nowMs;
+  digitalWrite(PIN_US_TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(PIN_US_TRIG, HIGH);
+  delayMicroseconds(US_TRIGGER_PULSE_US);
+  digitalWrite(PIN_US_TRIG, LOW);
+  // 0 = aucune impulsion vue en 70 ms (ou impulsion plus longue que 70 ms).
+  const unsigned long durationUs = pulseIn(PIN_US_ECHO, HIGH, 70000UL);
+  referenceCount++;
+  if (durationUs == 0) {
+    Serial.printf("[REF] #%lu | aucune impulsion ECHO en 70 ms\n", (unsigned long)referenceCount);
+  } else if (durationUs > US_MAX_ECHO_US) {
+    Serial.printf("[REF] #%lu | PAS D'ECHO (%lu us)\n", (unsigned long)referenceCount, durationUs);
+  } else {
+    Serial.printf("[REF] #%lu | echo %5lu us | %4u mm\n", (unsigned long)referenceCount, durationUs,
+                  (unsigned)(durationUs * US_MM_PER_ECHO_US));
+  }
+}
+
 }  // namespace
 
 void setup() {
@@ -152,9 +187,18 @@ void loop() {
     if (key == 'v' || key == 'V') {
       showEachMeasure = !showEachMeasure;
       Serial.printf("[BANC] Affichage de chaque mesure : %s\n", showEachMeasure ? "oui" : "non");
+    } else if (key == 'r' || key == 'R') {
+      referenceMode = !referenceMode;
+      Serial.printf("[BANC] Mode de reference (pulseIn, sans notre code) : %s\n",
+                    referenceMode ? "OUI" : "non, retour au code du firmware");
     } else if (key == 'h' || key == 'H' || key == '?') {
       printHelp();
     }
+  }
+
+  if (referenceMode) {
+    referenceMeasure(nowMs);
+    return;
   }
 
   sensors::update(nowMs);
