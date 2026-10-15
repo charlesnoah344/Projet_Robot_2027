@@ -169,6 +169,28 @@
 - **Résultat (15/10)** : avec un autre HC-SR04, les mesures sont bonnes (`US` suit la main).
   **Le premier module était défectueux.** Garder un module de rechange testé.
 
+### L'ultrason rate presque tous les échos : il était alimenté par l'alim de labo
+- **Symptôme** (banc `test_ultrason`, 15/10) : boîte plate à 5, 10 et 15 cm, mais presque uniquement
+  des `PAS D'ECHO`, et de rares mesures du mur derrière (1,1 à 1,4 m). Le PAMI ne s'arrêtait pas devant
+  une main.
+- **Cause** : le VCC du HC-SR04 venait de l'alimentation de labo. Le récepteur du capteur est très
+  sensible aux parasites sur son 5 V : il n'entendait presque plus les échos.
+- **Solution** : VCC du capteur sur la **broche 5V de l'ESP32**. Résultat immédiat : boîte vue en
+  permanence, à environ 1 cm près, de 5 à 15 cm, 0 mesure sans écho, 16 mesures par seconde.
+- **Pour la batterie** : le régulateur 5 V à découpage est lui aussi bruyant. Mettre un condensateur
+  de 10 à 100 µF (plus 100 nF) entre VCC et GND, au plus près du capteur, et refaire ce test sur batterie.
+- **Comment on l'a trouvé** : le banc `test_ultrason` affiche chaque mesure brute. Un `PAS D'ECHO`
+  veut dire que c'est le capteur lui-même qui n'a rien entendu, pas l'ESP32 qui a mal lu.
+
+### Notre module sort du 3,3 V sur ECHO
+- Mesuré : 2,2 V après le pont 1 kΩ / 2 kΩ, donc environ 3,3 V sur ECHO, même alimenté en 5 V.
+  Avec le pont, le niveau était trop bas pour l'ESP32 (il lui faut au moins 2,5 V environ).
+- Le pont a été retiré : ECHO est branché directement sur GPIO 19.
+  **À confirmer par une mesure** : GPIO 19 ↔ GND, capteur pointé vers le vide, au plus 3,3 V.
+  Un autre module HC-SR04 peut sortir du 5 V : **toujours mesurer avant de brancher en direct.**
+- Quand il n'entend rien, ce module garde ECHO à l'état haut environ 58 à 60 ms (38 ms pour un
+  HC-SR04 classique).
+
 ### Mesurer une impulsion au multimètre
 - Le multimètre en continu affiche une **moyenne**. Sur ECHO, la moyenne doit **baisser** quand un
   obstacle approche (l'écho revient plus vite). Au point milieu du pont, on doit lire les 2/3 d'ECHO.
