@@ -305,3 +305,28 @@ constexpr uint32_t TEST_BENCH_ODOMETRY_LOG_PERIOD_MS = 200;
 constexpr uint32_t TEST_BENCH_ODOMETRY_IDLE_LOG_PERIOD_MS = 1000;
 // Banc test_ultrason : une ligne de bilan par seconde (nombre de mesures, sans écho, min, max).
 constexpr uint32_t TEST_BENCH_US_SUMMARY_PERIOD_MS = 1000;
+
+// Banc test_pid : le régulateur de vitesse (logic/speed_controller.h) seul, roue par roue.
+// Échelon et vitesse constante : consigne de départ = vitesse de croisière du match.
+constexpr float TEST_BENCH_PID_STEP_SPEED_MM_S = DRIVE_SPEED_MM_S;
+constexpr float TEST_BENCH_PID_SPEED_STEP_MM_S = 25.0f;   // touches p et m
+constexpr float TEST_BENCH_PID_MAX_SPEED_MM_S = 300.0f;   // FIT0450 sous 6 V : environ 400 mm/s au sol
+constexpr uint32_t TEST_BENCH_PID_STEP_DURATION_MS = 3000;
+constexpr uint32_t TEST_BENCH_PID_CONSTANT_DURATION_MS = 8000;  // le temps de freiner la roue au doigt
+// Le régime établi (moyenne, erreur, ondulation) est mesuré après ce temps : avant, la roue accélère.
+constexpr uint32_t TEST_BENCH_PID_SETTLE_MS = 1500;
+// Escalier : 4 paliers, de quoi tracer la droite « PWM = zone morte + pente × vitesse ».
+// Au sol : 1,5 s × (50 + 100 + 150 + 200) mm/s = 750 mm, sous la limite de 800 mm.
+constexpr float TEST_BENCH_PID_STAIR_SPEEDS_MM_S[] = {50.0f, 100.0f, 150.0f, 200.0f};
+constexpr uint32_t TEST_BENCH_PID_STAIR_DURATION_MS = 1500;
+constexpr uint32_t TEST_BENCH_PID_STAIR_SETTLE_MS = 500;  // début de chaque palier ignoré
+// Sécurité au sol (mode par défaut, sans évitement) : un essai s'arrête après 800 mm parcourus.
+constexpr float TEST_BENCH_PID_FLOOR_MAX_DISTANCE_MM = 800.0f;
+constexpr uint32_t TEST_BENCH_PID_LOG_PERIOD_MS = 200;
+// Critères de réussite (échelon à 150 mm/s, au sol). Montée = temps pour atteindre 90 % de la consigne.
+constexpr float TEST_BENCH_PID_RISE_FRACTION = 0.9f;
+constexpr uint32_t TEST_BENCH_PID_RISE_TIME_MAX_MS = 300;
+constexpr float TEST_BENCH_PID_OVERSHOOT_MAX_PCT = 15.0f;
+constexpr float TEST_BENCH_PID_ERROR_MAX_MM_S = 5.0f;
+// Au-delà, la correction P + I fait une trop grosse part du travail : l'anticipation est à mesurer.
+constexpr float TEST_BENCH_PID_CORRECTION_HINT_PCT = 5.0f;
