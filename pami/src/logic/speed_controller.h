@@ -9,6 +9,12 @@
 
 class SpeedController {
 public:
+  // deadbandPct : PWM nécessaire pour que la roue décolle. pctPerMmS : PWM par mm/s voulu.
+  // Chaque roue a les siennes (config.h) ; sans argument, on prend les valeurs communes.
+  explicit SpeedController(float deadbandPct = MOTOR_DEADBAND_PCT,
+                           float pctPerMmS = MOTOR_PCT_PER_MM_S)
+      : deadbandPct_(deadbandPct), pctPerMmS_(pctPerMmS) {}
+
   // Renvoie la PWM à appliquer (-100 à +100 %).
   // targetMmS : vitesse voulue (négative = en arrière). measuredMmS : vitesse mesurée.
   float update(float targetMmS, float measuredMmS, float dtS) {
@@ -18,26 +24,35 @@ public:
     }
     const float errorMmS = targetMmS - measuredMmS;
 
-    // Intégrale : corrige un écart qui dure. Bornée pour ne pas accumuler sans fin.
-    integralPct_ += SPEED_KI_PCT_PER_MM * errorMmS * dtS;
-    if (integralPct_ > SPEED_INTEGRAL_MAX_PCT) {
-      integralPct_ = SPEED_INTEGRAL_MAX_PCT;
-    }
-    if (integralPct_ < -SPEED_INTEGRAL_MAX_PCT) {
-      integralPct_ = -SPEED_INTEGRAL_MAX_PCT;
-    }
-
     // Anticipation : la PWM qui donnerait à peu près la bonne vitesse, sans attendre l'erreur.
     const float sign = (targetMmS > 0.0f) ? 1.0f : -1.0f;
     const float feedForwardPct =
-        sign * MOTOR_DEADBAND_PCT + targetMmS * MOTOR_PCT_PER_MM_S;
+        sign * deadbandPct_ + targetMmS * pctPerMmS_;
+
+    // Intégrale : corrige un écart qui dure. Deux protections contre l'emballement :
+    // - on ne l'augmente pas quand la PWM est déjà au maximum et que l'erreur pousse encore
+    //   dans ce sens (la roue ne peut pas aller plus vite : intégrer ne servirait à rien et
+    //   la roue dépasserait ensuite la consigne) ;
+    // - elle reste bornée à SPEED_INTEGRAL_MAX_PCT dans tous les cas.
+    const float pctBefore = feedForwardPct + SPEED_KP_PCT_PER_MM_S * errorMmS + integralPct_;
+    const bool saturatedAndPushing = (pctBefore >= PWM_LIMIT_PCT && errorMmS > 0.0f) ||
+                                     (pctBefore <= -PWM_LIMIT_PCT && errorMmS < 0.0f);
+    if (!saturatedAndPushing) {
+      integralPct_ += SPEED_KI_PCT_PER_MM * errorMmS * dtS;
+      if (integralPct_ > SPEED_INTEGRAL_MAX_PCT) {
+        integralPct_ = SPEED_INTEGRAL_MAX_PCT;
+      }
+      if (integralPct_ < -SPEED_INTEGRAL_MAX_PCT) {
+        integralPct_ = -SPEED_INTEGRAL_MAX_PCT;
+      }
+    }
 
     float pct = feedForwardPct + SPEED_KP_PCT_PER_MM_S * errorMmS + integralPct_;
-    if (pct > 100.0f) {
-      pct = 100.0f;
+    if (pct > PWM_LIMIT_PCT) {
+      pct = PWM_LIMIT_PCT;
     }
-    if (pct < -100.0f) {
-      pct = -100.0f;
+    if (pct < -PWM_LIMIT_PCT) {
+      pct = -PWM_LIMIT_PCT;
     }
     return pct;
   }
@@ -45,5 +60,11 @@ public:
   void reset() { integralPct_ = 0.0f; }
 
 private:
+  // Même limite que le driver : si on baisse MOTOR_MAX_PWM_PCT (batterie au-dessus de 6 V),
+  // l'anti-emballement voit la saturation là où elle a vraiment lieu.
+  static constexpr float PWM_LIMIT_PCT = MOTOR_MAX_PWM_PCT;
+
+  const float deadbandPct_;
+  const float pctPerMmS_;
   float integralPct_ = 0.0f;
 };
