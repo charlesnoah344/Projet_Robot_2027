@@ -200,12 +200,14 @@ void printSettings() {
 
 void printHelp() {
   Serial.println("[BANC] Commandes (une lettre, sans Entree) :");
-  Serial.println("[BANC]   g / d / a = roue gauche seule / roue droite seule / les deux");
+  Serial.println("[BANC] REGLER (rien ne tourne) :");
+  Serial.println("[BANC]   g / d / a = choisir la roue gauche seule / la roue droite seule / les deux");
+  Serial.println("[BANC]   p / m (ou + / -) = V plus / moins 25 mm/s     n = sens avant / arriere");
+  Serial.println("[BANC]   k = au sol / sur cales   v = courbes CSV   i = reglages   h = aide");
+  Serial.println("[BANC] LANCER UN ESSAI (les roues tournent) :");
   Serial.println("[BANC]   e = echelon 0 -> V pendant 3 s (montee, depassement, erreur)");
   Serial.println("[BANC]   s = escalier 50, 100, 150, 200 mm/s (mesure l'anticipation, AU SOL)");
   Serial.println("[BANC]   c = vitesse constante V pendant 8 s (freiner la roue au doigt)");
-  Serial.println("[BANC]   p / m (ou + / -) = V plus / moins 25 mm/s     n = sens avant / arriere");
-  Serial.println("[BANC]   k = au sol / sur cales   v = courbes CSV   i = reglages   h = aide");
   Serial.println("[BANC] Pendant un essai : N'IMPORTE QUELLE touche = STOP.");
 }
 
@@ -526,15 +528,24 @@ void runCycle(uint32_t nowMs) {
   }
 }
 
+// Attention : dans test_moteurs, g, d et a font tourner les roues. Ici, elles ne font que
+// choisir les roues : on le rappelle après chaque réglage.
+void printLaunchHint() {
+  Serial.println("[BANC]   -> reglage enregistre, rien ne tourne. LANCER : e (echelon), s (escalier)"
+                 " ou c (vitesse constante).");
+}
+
 void changeSpeed(float deltaMmS) {
   speedMmS = constrain(speedMmS + deltaMmS, TEST_BENCH_PID_SPEED_STEP_MM_S, TEST_BENCH_PID_MAX_SPEED_MM_S);
   Serial.printf("[BANC] Vitesse de l'echelon et de la vitesse constante : %.0f mm/s\n", speedMmS);
+  printLaunchHint();
 }
 
 void selectWheels(bool left, bool right) {
   selected[LEFT] = left;
   selected[RIGHT] = right;
   Serial.printf("[BANC] Roues testees : %s\n", selectionName());
+  printLaunchHint();
 }
 
 void handleKey(char key, uint32_t nowMs) {
@@ -560,10 +571,12 @@ void handleKey(char key, uint32_t nowMs) {
     case 'n':
       direction = -direction;
       Serial.printf("[BANC] Sens : %s\n", direction > 0.0f ? "en avant" : "EN ARRIERE");
+      printLaunchHint();
       break;
     case 'k':
       onStands = !onStands;
       Serial.printf("[BANC] Mode : %s\n", modeName());
+      printLaunchHint();
       break;
     case 'v':
       csvOutput = !csvOutput;
@@ -599,7 +612,7 @@ void setup() {
 
   printSettings();
   printHelp();
-  Serial.println("[BANC] Moteurs arretes. Premiers essais SUR CALES : touche k.");
+  Serial.println("[BANC] Moteurs arretes. Premier essai : PAMI sur cales, k puis e.");
 }
 
 void loop() {
