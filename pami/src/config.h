@@ -134,6 +134,14 @@ constexpr float TURN_TOLERANCE_MM = 2.0f;
 // Anticipation : PWM nécessaire pour décoller (zone morte) + PWM par mm/s voulu.
 constexpr float MOTOR_DEADBAND_PCT = 10.0f;     // PROVISOIRE : zone morte à mesurer (T002 incomplet)
 constexpr float MOTOR_PCT_PER_MM_S = 0.2f;      // PROVISOIRE : environ 100 % pour 500 mm/s
+// Deux moteurs ne sont jamais identiques : chaque roue a ses propres valeurs.
+// Pour l'instant elles reprennent les valeurs communes ci-dessus, donc rien ne change.
+// Après la mesure au sol (PWM 20, 30, 40, 50 % sur chaque roue), remplacez-les par les valeurs
+// mesurées, avec le numéro du test en commentaire (// Txxx).
+constexpr float LEFT_MOTOR_DEADBAND_PCT = MOTOR_DEADBAND_PCT;
+constexpr float LEFT_MOTOR_PCT_PER_MM_S = MOTOR_PCT_PER_MM_S;
+constexpr float RIGHT_MOTOR_DEADBAND_PCT = MOTOR_DEADBAND_PCT;
+constexpr float RIGHT_MOTOR_PCT_PER_MM_S = MOTOR_PCT_PER_MM_S;
 constexpr float SPEED_KP_PCT_PER_MM_S = 0.05f;  // 100 mm/s d'écart -> 5 % de PWM en plus
 constexpr float SPEED_KI_PCT_PER_MM = 0.3f;     // corrige l'écart qui dure (pente, frottements)
 constexpr float SPEED_INTEGRAL_MAX_PCT = 30.0f;  // l'intégrale ne peut pas « s'emballer »
