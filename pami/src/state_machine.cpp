@@ -5,6 +5,7 @@
 #include "arm.h"
 #include "color.h"
 #include "config.h"
+#include "console.h"
 #include "logic/avoidance.h"
 #include "match_timer.h"
 #include "mission.h"
@@ -26,7 +27,7 @@ uint8_t detourCount = 0;
 
 void enter(PamiState next, uint32_t nowMs) {
   if (DEBUG_LOGS) {
-    Serial.printf("[FSM] %s -> %s\n", stateName(current), stateName(next));
+    Console.printf("[FSM] %s -> %s\n", stateName(current), stateName(next));
   }
   current = next;
   stateStartMs = nowMs;
@@ -47,7 +48,7 @@ void startDetour(uint32_t nowMs) {
   detourCount++;
   const float side = chooseDetourSide(color::current());
   if (DEBUG_LOGS) {
-    Serial.printf("[FSM] Detour %u par la %s\n", detourCount, side > 0.0f ? "gauche" : "droite");
+    Console.printf("[FSM] Detour %u par la %s\n", detourCount, side > 0.0f ? "gauche" : "droite");
   }
   motion::turnAngle(side * DETOUR_TURN_DEG);
   detourPhase = DetourPhase::TURNING;

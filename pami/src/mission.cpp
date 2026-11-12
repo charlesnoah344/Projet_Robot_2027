@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "console.h"
 #include "logic/missions.h"
 #include "logic/next_move.h"
 #include "logic/zone_approach.h"
@@ -36,8 +37,8 @@ void logPose(const char* message) {
     return;
   }
   const Pose pose = motion::pose();
-  Serial.printf("[MISS] %s | x = %.0f mm, y = %.0f mm, cap = %.1f deg\n", message, pose.xMm,
-                pose.yMm, pose.headingDeg);
+  Console.printf("[MISS] %s | x = %.0f mm, y = %.0f mm, cap = %.1f deg\n", message, pose.xMm,
+                 pose.yMm, pose.headingDeg);
 }
 
 void nextStep() {
@@ -110,8 +111,8 @@ void start(TeamColor color, MissionId id) {
   defendReached = false;
   zonePhase = ZonePhase::NOT_STARTED;
   if (DEBUG_LOGS) {
-    Serial.printf("[MISS] Debut : %u etapes, couleur %s\n", stepCount,
-                  color == TeamColor::BLUE ? "BLEU" : "JAUNE");
+    Console.printf("[MISS] Debut : %u etapes, couleur %s\n", stepCount,
+                   color == TeamColor::BLUE ? "BLEU" : "JAUNE");
   }
 }
 

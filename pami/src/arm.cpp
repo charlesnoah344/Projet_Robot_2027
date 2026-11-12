@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "console.h"
 #include "match_timer.h"
 
 namespace arm {
@@ -63,7 +64,7 @@ void deploy() {
   moveTo(ARM_DEPLOYED_DEG);
   deployed = attached && !released;
   if (DEBUG_LOGS && deployed) {
-    Serial.println("[ARM] Bras deploye.");
+    Console.println("[ARM] Bras deploye.");
   }
 }
 
@@ -79,7 +80,7 @@ void release() {
   pinMode(PIN_SERVO, OUTPUT);
   digitalWrite(PIN_SERVO, LOW);
   if (DEBUG_LOGS) {
-    Serial.println("[ARM] Servo coupe.");
+    Console.println("[ARM] Servo coupe.");
   }
 }
 
