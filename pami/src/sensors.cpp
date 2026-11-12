@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "console.h"
 #include "logic/median3.h"
 #include "logic/rise_filter.h"
 
@@ -112,7 +113,7 @@ void updateUltrasound(uint32_t nowMs) {
   if (!faulty && nowMs - lastValidMeasureMs >= SENSOR_FAULT_TIMEOUT_MS) {
     faulty = true;
     if (DEBUG_LOGS) {
-      Serial.println("[SENS] PANNE ultrason : aucune mesure depuis 1 s.");
+      Console.println("[SENS] PANNE ultrason : aucune mesure depuis 1 s.");
     }
   }
 }

@@ -1,10 +1,12 @@
 // Banc de test des moteurs et du driver MDD3A (étape 2).
 //
 // !!! PROGRAMME DE TEST : AUCUN ÉVITEMENT. NE JAMAIS L'UTILISER EN MATCH. !!!
-// Après le test, remettre le firmware : pio run -t upload
+// Après le test, remettre le firmware : pio run -t upload (sans fil : pio run -e esp32dev_wifi -t upload)
 //
 // Téléverser : pio run -e test_moteurs -t upload (maintenir BOOT pendant « Connecting »)
 // Moniteur   : pio device monitor -b 115200
+// Sans fil (D010) : pio run -e test_moteurs_wifi -t upload, puis pio device monitor -e test_moteurs_wifi.
+//   Téléversement accepté seulement roues arrêtées.
 //
 // MATÉRIEL ET MONTAGE (docs/guide-pratique-pami.md, § 3)
 // - ESP32 branché en USB : c'est lui qui alimente la carte.
@@ -44,7 +46,9 @@
 #include <esp_system.h>
 
 #include "config.h"
+#include "console.h"
 #include "motor_driver.h"
+#include "wireless.h"
 
 namespace {
 
@@ -67,16 +71,16 @@ void printResetReason() {
     case ESP_RST_WDT: reason = "chien de garde (programme bloque)"; break;
     default: break;
   }
-  Serial.printf("[BANC] Cause du redemarrage : %s\n", reason);
+  Console.printf("[BANC] Cause du redemarrage : %s\n", reason);
 }
 
 void printHelp() {
-  Serial.println("[BANC] Commandes (une touche, sans Entree) :");
-  Serial.println("[BANC]   a = les deux roues en avant     r = les deux roues en arriere");
-  Serial.println("[BANC]   g = roue GAUCHE seule en avant  d = roue DROITE seule en avant");
-  Serial.println("[BANC]   + / - = vitesse +5 / -5 %       > / < = vitesse +1 / -1 %");
-  Serial.println("[BANC]   x = vitesse 100 %               h = cette aide");
-  Serial.println("[BANC]   s, espace ou toute autre touche = STOP");
+  Console.println("[BANC] Commandes (une touche, sans Entree) :");
+  Console.println("[BANC]   a = les deux roues en avant     r = les deux roues en arriere");
+  Console.println("[BANC]   g = roue GAUCHE seule en avant  d = roue DROITE seule en avant");
+  Console.println("[BANC]   + / - = vitesse +5 / -5 %       > / < = vitesse +1 / -1 %");
+  Console.println("[BANC]   x = vitesse 100 %               h = cette aide");
+  Console.println("[BANC]   s, espace ou toute autre touche = STOP");
 }
 
 void applyDrive() {
@@ -90,8 +94,8 @@ void applyDrive() {
     case Drive::STOPPED: break;
   }
   motorDriver::setWheelPercent(leftPct, rightPct);
-  Serial.printf("[MOT] vitesse %d %% | gauche = %+d %% | droite = %+d %%\n", speedPct, (int)leftPct,
-                (int)rightPct);
+  Console.printf("[MOT] vitesse %d %% | gauche = %+d %% | droite = %+d %%\n", speedPct, (int)leftPct,
+                 (int)rightPct);
 }
 
 void handleKey(char key, uint32_t nowMs) {
@@ -127,26 +131,29 @@ void setup() {
   motorDriver::begin();
 
   Serial.begin(SERIAL_BAUD);
-  Serial.println();
-  Serial.println("[BANC] ===== BANC DE TEST MOTEURS (etape 2) =====");
-  Serial.println("[BANC] PAS D'EVITEMENT : NE JAMAIS UTILISER EN MATCH.");
-  Serial.println("[BANC] Apres le test : pio run -t upload (remet le firmware).");
+  Console.println();
+  Console.println("[BANC] ===== BANC DE TEST MOTEURS (etape 2) =====");
+  Console.println("[BANC] PAS D'EVITEMENT : NE JAMAIS UTILISER EN MATCH.");
+  Console.println("[BANC] Apres le test : remettre le firmware (pio run -t upload, ou -e esp32dev_wifi).");
   printResetReason();
   printHelp();
-  Serial.printf("[MOT] Moteurs arretes. Vitesse de depart : %d %%\n", speedPct);
+  Console.printf("[MOT] Moteurs arretes. Vitesse de depart : %d %%\n", speedPct);
+  wireless::begin();
 }
 
 void loop() {
   const uint32_t nowMs = millis();
 
-  while (Serial.available() > 0) {
-    handleKey((char)Serial.read(), nowMs);
+  while (Console.available() > 0) {
+    handleKey((char)Console.read(), nowMs);
   }
 
   // Sécurité : si personne n'a tapé de commande depuis 10 s, on arrête.
   if (drive != Drive::STOPPED && nowMs - lastCommandMs >= TEST_BENCH_AUTO_STOP_MS) {
     drive = Drive::STOPPED;
-    Serial.println("[MOT] Arret automatique (10 s sans commande).");
+    Console.println("[MOT] Arret automatique (10 s sans commande).");
     applyDrive();
   }
+
+  wireless::update(nowMs, drive == Drive::STOPPED);  // téléversement seulement roues arrêtées
 }

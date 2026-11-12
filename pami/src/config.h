@@ -19,6 +19,25 @@ constexpr bool DEBUG_LOGS = true;
 constexpr uint32_t STATUS_LOG_PERIOD_MS = 1000;
 
 // ---------------------------------------------------------------------------
+// Wi-Fi (D010) : téléverser et lire les messages sans câble
+// ---------------------------------------------------------------------------
+// Le PAMI crée son propre réseau (nom et mot de passe : wifi_secrets.h). Son adresse est
+// toujours 192.168.4.1, l'adresse par défaut d'un point d'accès ESP32.
+constexpr uint16_t WIFI_TELNET_PORT = 23;  // moniteur : pio device monitor -e esp32dev_wifi
+constexpr uint8_t WIFI_AP_CHANNEL = 1;     // à changer (1, 6 ou 11) si le canal est encombré
+// Messages en attente d'envoi au PC : 32 Ko, soit environ 5 min de messages d'état, ou un match
+// Eurobot de 100 s radio coupée. Tampon plein : les nouveaux messages sont perdus (et comptés),
+// mais loop() n'attend jamais le réseau.
+constexpr uint32_t WIFI_LOG_BUFFER_BYTES = 32768;
+constexpr uint32_t WIFI_KEY_BUFFER_BYTES = 64;  // touches tapées dans le moniteur Wi-Fi
+// Le réseau est servi toutes les 10 ms : largement assez pour un moniteur, presque rien pour loop().
+constexpr uint32_t WIFI_UPDATE_PERIOD_MS = 10;
+// PROFIL LABO (D010) : Wi-Fi allumé pendant les essais, pour lire les messages en direct.
+// EUROBOT : false. Le règlement général (F.6) interdit toute communication avec l'extérieur de la
+// table pendant le match : la radio s'éteint au départ et se rallume à la fin.
+constexpr bool WIFI_ON_DURING_MATCH = true;
+
+// ---------------------------------------------------------------------------
 // Broches (copie de docs/materiel.md)
 // ---------------------------------------------------------------------------
 // Driver moteurs MDD3A : 2 entrées par moteur (D006).

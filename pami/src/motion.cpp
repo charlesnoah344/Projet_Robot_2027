@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "console.h"
 #include "encoders.h"
 #include "logic/speed_controller.h"
 #include "logic/speed_profile.h"
@@ -82,7 +83,7 @@ void checkStall(float leftMeasuredMmS, float rightMeasuredMmS, uint32_t nowMs) {
     faulty = true;
     finishMove();
     if (DEBUG_LOGS) {
-      Serial.println("[MOT] PANNE : roue bloquee ou encodeur inverse.");
+      Console.println("[MOT] PANNE : roue bloquee ou encodeur inverse.");
     }
   }
 }

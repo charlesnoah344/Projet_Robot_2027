@@ -7,12 +7,15 @@
 //   3. machine à états ;
 //   4. motion ;
 //   5. safety, qui pilote le driver ;
-//   6. bras (coupé dès la fin du temps).
+//   6. bras (coupé dès la fin du temps) ;
+//   7. Wi-Fi (D010) : envoie les messages, accepte un téléversement PAMI immobile. Il ne commande
+//      rien, et le firmware ne lit aucune touche : on ne peut pas piloter le PAMI à distance.
 #include <Arduino.h>
 
 #include "arm.h"
 #include "color.h"
 #include "config.h"
+#include "console.h"
 #include "encoders.h"
 #include "match_timer.h"
 #include "motion.h"
@@ -20,6 +23,7 @@
 #include "safety.h"
 #include "sensors.h"
 #include "state_machine.h"
+#include "wireless.h"
 
 namespace {
 
@@ -40,7 +44,7 @@ void logStatus(uint32_t nowMs) {
     int32_t rightTicks = 0;
     encoders::read(leftTicks, rightTicks);
     // sol G/D : 1 = surface claire sous le capteur, 0 = surface foncée (réglage des IR de sol).
-    Serial.printf(
+    Console.printf(
         "[MAIN] %lu tours/s | etat %s | t = %.1f s | US %u mm | ticks G %ld D %ld | sol G %d D %d\n",
         (unsigned long)loopsPerSecond, stateName(stateMachine::state()),
         matchTimer::elapsedMs(nowMs) / 1000.0f, sensors::frontDistanceMm(), (long)leftTicks,
@@ -57,12 +61,12 @@ void setup() {
   motorDriver::begin();
 
   Serial.begin(SERIAL_BAUD);
-  Serial.println();
-  Serial.println("[MAIN] PAMI ECAMlibur - firmware defenseur");
+  Console.println();
+  Console.println("[MAIN] PAMI ECAMlibur - firmware defenseur");
   // Rappel à chaque démarrage : ce profil ne convient pas à un match Eurobot (D007).
-  Serial.printf("[TIME] Profil LABO (D007) : mouvement a %.1f s, arret total a %.1f s.\n",
-                MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
-  Serial.println("[TIME] Pour Eurobot : 85,3 s et 99,5 s, avec la tirette.");
+  Console.printf("[TIME] Profil LABO (D007) : mouvement a %.1f s, arret total a %.1f s.\n",
+                 MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
+  Console.println("[TIME] Pour Eurobot : 85,3 s et 99,5 s, avec la tirette.");
 
   arm::begin();  // servo sans PWM : il ne bouge pas
   encoders::begin();
@@ -71,6 +75,8 @@ void setup() {
   motion::begin();
   matchTimer::begin();
   stateMachine::begin();
+  // En dernier : créer le réseau prend une fraction de seconde, le PAMI est encore immobile.
+  wireless::begin();
 }
 
 void loop() {
@@ -85,4 +91,10 @@ void loop() {
   arm::update();
 
   logStatus(nowMs);
+
+  // PAMI immobile : avant le départ, ou après la fin du temps.
+  const bool idle = !matchTimer::isStarted() || matchTimer::isOver();
+  // Profil Eurobot (WIFI_ON_DURING_MATCH = false) : radio coupée pendant le match (F.6).
+  wireless::setRadioOn(WIFI_ON_DURING_MATCH || idle);
+  wireless::update(nowMs, idle);  // téléversement accepté seulement PAMI immobile
 }

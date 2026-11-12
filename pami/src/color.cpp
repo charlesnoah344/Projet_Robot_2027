@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "console.h"
 
 namespace color {
 
@@ -27,7 +28,7 @@ void begin() {
   pinMode(PIN_COLOR_SELECTOR, INPUT_PULLUP);
   selected = readSelector();
   if (DEBUG_LOGS) {
-    Serial.printf("[COUL] Couleur : %s\n", colorName(selected));
+    Console.printf("[COUL] Couleur : %s\n", colorName(selected));
   }
 }
 
@@ -40,7 +41,7 @@ void update(uint32_t nowMs) {
   if (reading != selected) {
     selected = reading;
     if (DEBUG_LOGS) {
-      Serial.printf("[COUL] Couleur : %s\n", colorName(selected));
+      Console.printf("[COUL] Couleur : %s\n", colorName(selected));
     }
   }
 }
@@ -51,7 +52,7 @@ void lock() {
   }
   locked = true;
   if (DEBUG_LOGS) {
-    Serial.printf("[COUL] Couleur verrouillee : %s\n", colorName(selected));
+    Console.printf("[COUL] Couleur verrouillee : %s\n", colorName(selected));
   }
 }
 

@@ -35,6 +35,40 @@ Toutes les commandes se lancent depuis le dossier `pami/`.
 - Après le téléversement, appuyez sur EN (reset) pour voir les messages de démarrage.
   Avec `pio test`, appuyez sur EN si aucun résultat ne s'affiche dans les 10 s.
 
+### Sans câble (Wi-Fi, D010)
+Le PAMI crée son propre réseau Wi-Fi. Son adresse est toujours **192.168.4.1**.
+
+**Une seule fois, au début :**
+1. Copiez `pami/src/wifi_secrets.example.h` en `pami/src/wifi_secrets.h`, et choisissez un mot de passe
+   (8 caractères au moins). Ce fichier n'est pas envoyé sur GitHub.
+2. Téléversez une première fois **par USB** : `pio run -t upload` (avec BOOT, comme d'habitude).
+   Au démarrage, le moniteur affiche `[WIFI] Reseau PAMI-1, adresse 192.168.4.1, ...`.
+3. Pare-feu Windows : pendant un téléversement sans fil, le PAMI rappelle le PC sur le port 55910.
+   Si Windows demande l'autorisation pour Python, acceptez, y compris pour les réseaux publics.
+   Sinon, ouvrez une fois PowerShell **en administrateur** et tapez :
+   `New-NetFirewallRule -DisplayName "PAMI OTA" -Direction Inbound -Protocol TCP -LocalPort 55910 -Action Allow`
+
+**Ensuite, à chaque séance :** connectez le PC au réseau « PAMI-1 ».
+Le PC n'a plus internet tant qu'il y est connecté : c'est normal.
+
+| Je veux… | Commande (depuis `pami/`) |
+|---|---|
+| Téléverser le firmware sans fil | `pio run -e esp32dev_wifi -t upload` (**pas de bouton BOOT**) |
+| Voir les messages sans fil | `pio device monitor -e esp32dev_wifi` (Ctrl+C pour quitter) |
+| Un banc de test sans fil | `pio run -e test_odometrie_wifi -t upload`, puis `pio device monitor -e test_odometrie_wifi` |
+
+- **Le téléversement n'est accepté que PAMI immobile** : avant l'appui sur le bouton de départ, ou
+  après la fin (14,5 s) ; dans un banc, hors essai. Sinon PlatformIO affiche
+  `No response from the ESP` : attendez l'arrêt, puis recommencez.
+- À la connexion, le moniteur affiche d'abord les messages gardés en mémoire, puis la suite en direct.
+  Un message `[WIFI] ... octets de messages perdus` veut dire que le tampon (32 Ko) était plein :
+  sans conséquence pour le PAMI.
+- Le moniteur se coupe quand le PAMI redémarre (après un téléversement, ou sur EN) : relancez-le.
+- Les touches des bancs marchent aussi depuis le moniteur Wi-Fi (lettres ; sur AZERTY, les chiffres
+  demandent Maj).
+- **Secours** : si le Wi-Fi ne répond plus, l'USB et les commandes habituelles marchent toujours.
+- **Avant un match Eurobot** : `WIFI_ON_DURING_MATCH = false` dans `config.h` (règlement général F.6).
+
 ## 3. Câbler
 **Règle n° 1 : on câble hors tension (USB débranché, alimentation de labo éteinte), et on vérifie
 avant d'allumer.**

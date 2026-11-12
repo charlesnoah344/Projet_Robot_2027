@@ -14,6 +14,7 @@ Pour écrire ou modifier du code ici, suis la skill `firmware-pami`.
 > Avant tout match Eurobot ou homologation :
 > - tirette (cordon ≥ 500 mm) sur GPIO 16, à la place du bouton ;
 > - `MATCH_MOVE_ALLOWED_MS = 85300` et `MATCH_STOP_MS = 99500` ;
+> - `WIFI_ON_DURING_MATCH = false` : radio coupée pendant le match (règlement général F.6, D010) ;
 > - test au chronomètre ;
 > - D007 marquée « remplacée ».
 
@@ -51,6 +52,10 @@ src/
   color.*           sélecteur de couleur, lu avant le départ puis verrouillé
   arm.*             bras du défenseur (servo SG90), détaché à la fin
   state_machine.*   machine à états (voir ci-dessous)
+  console.*         objet Console : remplace Serial pour les messages et les touches (USB + Wi-Fi)
+  wireless.*        Wi-Fi (D010) : point d'accès 192.168.4.1, moniteur telnet, téléversement sans
+                    fil accepté seulement PAMI immobile. Ne commande rien, ne bloque jamais loop()
+  wifi_secrets.h    nom et mot de passe du réseau, ignoré par git (modèle : wifi_secrets.example.h)
   logic/            logique pure, sans aucun accès au matériel : filtres, rampe, régulateur,
                     odométrie, décisions, transitions. Testable sur PC.
 test/               tests automatiques de logic/, exécutés sur PC (pio test -e native)
@@ -85,6 +90,11 @@ Le minuteur est vérifié à chaque tour de `loop()` et a priorité sur tous les
   - Compiler : `pio run -e test_xxx`.
   - Téléverser : `pio run -e test_xxx -t upload`.
   - Après un banc de test, **toujours re-téléverser le firmware** (`pio run -t upload`).
+- `*_wifi` (D010) : les mêmes programmes, téléversés et lus sans câble, PC connecté au réseau du PAMI.
+  `pio run -e esp32dev_wifi -t upload`, `pio device monitor -e esp32dev_wifi`.
+  Tout nouveau programme pour l'ESP32 doit inclure `${wireless.src}` et appeler `wireless::begin()`
+  et `wireless::update()` : sans ça, une fois téléversé, il couperait la liaison sans fil.
+- Les messages s'écrivent avec `Console` (pas `Serial`), qui les envoie sur l'USB et sur le Wi-Fi.
 - `native` : tests de `logic/` sur PC (nécessite g++, par exemple MinGW-w64 sous Windows).
 - `logic_esp32` : les mêmes tests, exécutés sur l'ESP32 branché en USB (`pio test -e logic_esp32`).
   Utile quand g++ n'est pas installé.

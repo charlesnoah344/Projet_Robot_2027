@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "console.h"
 #include "logic/safety_filter.h"
 #include "match_timer.h"
 #include "motor_driver.h"
@@ -25,8 +26,8 @@ void apply(const WheelCommand& requested, uint32_t nowMs) {
   const bool wasBlockedByObstacle = blockedByObstacle;
   blockedByObstacle = isObstacleAhead(blockedByObstacle, sensors::frontDistanceMm());
   if (DEBUG_LOGS && blockedByObstacle != wasBlockedByObstacle) {
-    Serial.printf("[SAFE] %s (%u mm)\n", blockedByObstacle ? "Obstacle devant" : "Voie libre",
-                  sensors::frontDistanceMm());
+    Console.printf("[SAFE] %s (%u mm)\n", blockedByObstacle ? "Obstacle devant" : "Voie libre",
+                   sensors::frontDistanceMm());
   }
 
   const WheelCommand sent = filterCommand(requested, matchTimer::isMoveAllowed(),

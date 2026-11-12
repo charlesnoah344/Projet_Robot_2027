@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "console.h"
 #include "logic/match_clock.h"
 #include "logic/start_button.h"
 
@@ -33,26 +34,26 @@ void update(uint32_t nowMs) {
     started = true;
     startMs = nowMs;
     if (DEBUG_LOGS) {
-      Serial.printf("[TIME] DEPART ! Mouvement dans %.1f s, arret total a %.1f s.\n",
-                    MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
+      Console.printf("[TIME] DEPART ! Mouvement dans %.1f s, arret total a %.1f s.\n",
+                     MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
     }
   }
   if (DEBUG_LOGS && !wasArmed && startButton.isArmed()) {
-    Serial.println("[TIME] Pret : appuyez sur le bouton de depart (GPIO 16).");
+    Console.println("[TIME] Pret : appuyez sur le bouton de depart (GPIO 16).");
   }
   wasArmed = startButton.isArmed();
 
   if (started && !over && isMatchOver(startMs, nowMs)) {
     over = true;  // verrouillé : une fois fini, c'est fini
     if (DEBUG_LOGS) {
-      Serial.printf("[TIME] FIN (%.1f s) : tout s'arrete.\n", MATCH_STOP_MS / 1000.0f);
+      Console.printf("[TIME] FIN (%.1f s) : tout s'arrete.\n", MATCH_STOP_MS / 1000.0f);
     }
   }
 
   const bool wasMoveAllowed = moveAllowed;
   moveAllowed = started && !over && isInMovePhase(startMs, nowMs);
   if (DEBUG_LOGS && moveAllowed && !wasMoveAllowed) {
-    Serial.println("[TIME] Mouvement autorise.");
+    Console.println("[TIME] Mouvement autorise.");
   }
 }
 

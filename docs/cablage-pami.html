@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Câblage du PAMI</title>
+<!--
+  Source du PDF docs/pdf/cablage complet pami.pdf.
+  Pour régénérer le PDF après une modification (PowerShell, depuis la racine du projet, Edge peut rester ouvert) :
+  & "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless=new --disable-gpu --no-first-run `
+    --user-data-dir="$env:TEMP\edge-pdf" --no-pdf-header-footer --print-to-pdf="$env:TEMP\cablage.pdf" `
+    "$PWD\docs\cablage-pami.html" | Out-Null
+  Copy-Item "$env:TEMP\cablage.pdf" "docs\pdf\cablage complet pami.pdf"
+  (Le PDF passe par le dossier TEMP : Edge refuse d'écrire directement un nom de fichier qui contient des espaces.)
+  Broches recopiées de docs/materiel.md et de pami/src/config.h : les trois doivent toujours dire la même chose.
+-->
+<style>
+  @page {
+    size: A4;
+    margin: 12mm 13mm 14mm;
+    @bottom-left { content: "Câblage du PAMI · ECAMlibur · à jour au 10/11/2026"; font: 8pt "Segoe UI", sans-serif; color: #6b7280; }
+    @bottom-right { content: "page " counter(page) " / " counter(pages); font: 8pt "Segoe UI", sans-serif; color: #6b7280; }
+  }
+  :root {
+    --ink: #111827; --muted: #4b5563; --line: #d1d5db;
+    --pwr: #c2410c; --v5: #a16207; --cmd: #1d4ed8; --sig: #047857; --warn: #b91c1c; --ok: #15803d;
+  }
+  html { background: #fff; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: #fff;
+    font-size: 9.6pt; line-height: 1.38; margin: 0 auto; max-width: 190mm;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  section.page { break-after: page; }
+  section.page:last-of-type { break-after: auto; }
+  h1 { font-size: 22pt; line-height: 1.1; margin: 2px 0 4px; }
+  h2 { font-size: 14pt; margin: 0 0 6px; padding-bottom: 3px; border-bottom: 2px solid var(--ink); }
+  h3 { font-size: 10.5pt; margin: 9px 0 3px; }
+  p { margin: 3px 0 6px; }
+  ul, ol { margin: 3px 0 6px; padding-left: 18px; }
+  li { margin: 1px 0; }
+  .kicker { font: 600 8pt Consolas, monospace; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+  .lead { font-size: 10.5pt; }
+  figure { margin: 5px 0 6px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; break-inside: avoid; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { font-size: 8.6pt; color: var(--muted); margin-top: 3px; }
+  table { border-collapse: collapse; width: 100%; font-size: 8.8pt; margin: 4px 0 8px; }
+  th, td { border: 1px solid var(--line); padding: 3px 6px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; font-weight: 600; }
+  tr { break-inside: avoid; }
+  code, .mono { font-family: Consolas, "Courier New", monospace; font-size: .95em; }
+  .callout { border-left: 4px solid var(--warn); background: #fef2f2; padding: 5px 10px; margin: 6px 0; break-inside: avoid; border-radius: 0 4px 4px 0; }
+  .callout.ok { border-color: var(--ok); background: #f0fdf4; }
+  .callout.info { border-color: var(--cmd); background: #eff6ff; }
+  .callout.note { border-color: var(--v5); background: #fffbeb; }
+  .callout ol, .callout ul { margin-bottom: 2px; }
+  .badge { display: inline-block; font-size: 7.8pt; font-weight: 600; padding: 0 6px; border-radius: 8px; white-space: nowrap; }
+  .badge.ok { background: #dcfce7; color: #14532d; }
+  .badge.no { background: #fee2e2; color: #7f1d1d; }
+  .badge.todo { background: #fef3c7; color: #78350f; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 8.6pt; margin: 2px 0 4px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 26px; height: 3px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fill { display: inline-block; width: 100%; border-bottom: 1px solid #6b7280; height: 1.1em; }
+  td.fillcell { width: 45%; }
+  .small { font-size: 8.4pt; color: var(--muted); }
+  .good { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--warn); font-weight: 600; }
+
+  /* Schémas */
+  svg text { font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; fill: #111827; }
+  svg .s { font-size: 9.5px; fill: #4b5563; }
+  svg .m { font-family: Consolas, "Courier New", monospace; font-size: 10.5px; }
+  svg .b { font-weight: 700; }
+  svg .tp { fill: #c2410c; } svg .tv { fill: #a16207; } svg .tc { fill: #1d4ed8; }
+  svg .tg { fill: #047857; } svg .tw { fill: #b91c1c; } svg .tm { fill: #6b7280; }
+  svg .box { fill: #fff; stroke: #1f2937; stroke-width: 1.4; }
+  svg .pwr { fill: none; stroke: #c2410c; stroke-width: 3; }
+  svg .gndp { fill: none; stroke: #111827; stroke-width: 3; }
+  svg .gnd { fill: none; stroke: #111827; stroke-width: 2; }
+  svg .rail { fill: none; stroke: #111827; stroke-width: 4; }
+  svg .v5 { fill: none; stroke: #a16207; stroke-width: 2; }
+  svg .cmd { fill: none; stroke: #1d4ed8; stroke-width: 2; }
+  svg .sig { fill: none; stroke: #047857; stroke-width: 2; }
+  svg .thin { fill: none; stroke: #111827; stroke-width: 1.5; }
+  svg .lead { fill: none; stroke: #9ca3af; stroke-width: 1; }
+  svg .dash { stroke-dasharray: 4 3; }
+  svg .pin { fill: #fff; stroke: #1f2937; stroke-width: 1.2; }
+  svg .dot { fill: #111827; }
+  svg .res { fill: #fff; stroke: #111827; stroke-width: 1.4; }
+</style>
+</head>
+<body>
+
+<!-- Symboles communs à tous les schémas -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="gsym"><path d="M0,0 V5 M-8,5 H8 M-5,9 H5 M-2,13 H2" stroke="#111827" stroke-width="1.6" fill="none"/></g>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#111827"/>
+    </marker>
+    <marker id="arrP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+  </defs>
+</svg>
+
+<!-- ============================ PAGE 1 ============================ -->
+<section class="page">
+  <div class="kicker">PAMI ECAMlibur · câblage complet · à jour au 10/11/2026</div>
+  <h1>Le câblage du PAMI</h1>
+  <p class="lead">Version validée sur le vrai PAMI le 10/11/2026 : les deux roues avancent vers l'ultrason
+    et les deux compteurs montent. Ce document remplace celui du 13/10.</p>
+
+  <div class="callout">
+    <b>Les 6 règles qui expliquent tous nos problèmes de câblage</b>
+    <ol>
+      <li><b>L'avant du PAMI est le côté de l'ultrason.</b> Gauche et droite se lisent en se plaçant
+        derrière le PAMI, face à l'ultrason (schéma ci-dessous).</li>
+      <li><b>Une seule masse.</b> Le (−) de l'alim de labo, le MDD3A, l'ESP32, les encodeurs et les capteurs
+        sont tous sur la même rangée. Sinon, les encodeurs comptent tout seuls.</li>
+      <li><b>Le MDD3A a sa propre alimentation</b> (6 V sur VB+ / VB−). L'USB n'alimente jamais les moteurs.</li>
+      <li><b>Les noms M1A, M1B, M2A, M2B existent deux fois sur le MDD3A</b> : les entrées (petites broches,
+        fils de l'ESP32) et les sorties (bornier à vis, fils du moteur).</li>
+      <li><b>Un problème de câblage se corrige dans le câblage</b>, jamais dans <code>config.h</code>.
+        Le code, <code>docs/materiel.md</code> et ce document disent la même chose.</li>
+      <li><b>Après chaque recâblage : le test des roues à la main</b> (page 7), avant toute commande de mouvement.</li>
+    </ol>
+  </div>
+
+  <h2>Vue de dessus : où sont l'avant, la gauche et la droite</h2>
+  <figure>
+    <svg viewBox="0 0 720 340" role="img" aria-label="Vue de dessus du PAMI">
+      <text x="360" y="20" text-anchor="middle" class="b" style="font-size:13px">▲ AVANT = côté ultrason</text>
+      <!-- corps -->
+      <rect x="250" y="60" width="220" height="220" rx="26" class="box" style="fill:#f9fafb"/>
+      <!-- ultrason -->
+      <rect x="312" y="44" width="96" height="30" rx="4" style="fill:#e0f2fe;stroke:#1f2937;stroke-width:1.4"/>
+      <circle cx="336" cy="59" r="10" class="pin"/>
+      <circle cx="384" cy="59" r="10" class="pin"/>
+      <text x="360" y="92" text-anchor="middle" class="s">ultrason HC-SR04</text>
+      <!-- IR de sol -->
+      <rect x="266" y="98" width="28" height="16" rx="3" style="fill:#dcfce7;stroke:#1f2937"/>
+      <text x="280" y="110" text-anchor="middle" class="s">IR</text>
+      <rect x="426" y="98" width="28" height="16" rx="3" style="fill:#dcfce7;stroke:#1f2937"/>
+      <text x="440" y="110" text-anchor="middle" class="s">IR</text>
+      <!-- roues -->
+      <rect x="226" y="150" width="24" height="84" rx="5" style="fill:#374151"/>
+      <rect x="470" y="150" width="24" height="84" rx="5" style="fill:#374151"/>
+      <!-- moteurs -->
+      <rect x="254" y="167" width="68" height="50" rx="5" class="box" style="fill:#fff7ed"/>
+      <text x="288" y="189" text-anchor="middle" class="b">moteur</text>
+      <text x="288" y="204" text-anchor="middle" class="b">G</text>
+      <rect x="398" y="167" width="68" height="50" rx="5" class="box" style="fill:#fff7ed"/>
+      <text x="432" y="189" text-anchor="middle" class="b">moteur</text>
+      <text x="432" y="204" text-anchor="middle" class="b">D</text>
+      <!-- repère -->
+      <path d="M360,258 V226" class="thin" marker-end="url(#arr)"/>
+      <path d="M360,258 H328" class="thin" marker-end="url(#arr)"/>
+      <text x="367" y="234" class="s b">x</text>
+      <text x="326" y="251" class="s b">y</text>
+      <text x="360" y="274" text-anchor="middle" class="s">cap + = vers la gauche</text>
+      <!-- étiquettes gauche -->
+      <path d="M216,106 H264" class="lead"/>
+      <text x="212" y="109" text-anchor="end" class="s tg">IR de sol gauche → GPIO 34</text>
+      <path d="M216,192 H224" class="lead"/>
+      <text x="212" y="160" text-anchor="end" class="b">ROUE GAUCHE</text>
+      <text x="212" y="176" text-anchor="end" class="s tp">moteur → bornier M1A / M1B</text>
+      <text x="212" y="191" text-anchor="end" class="s tc">commande : GPIO 25 / 26</text>
+      <text x="212" y="206" text-anchor="end" class="s tg">encodeur A / B → GPIO 27 / 14</text>
+      <text x="212" y="221" text-anchor="end" class="s">compteur : ticks G</text>
+      <!-- étiquettes droite -->
+      <path d="M456,106 H504" class="lead"/>
+      <text x="508" y="109" class="s tg">IR de sol droit → GPIO 35</text>
+      <path d="M496,192 H504" class="lead"/>
+      <text x="508" y="160" class="b">ROUE DROITE</text>
+      <text x="508" y="176" class="s tp">moteur → bornier M2A / M2B</text>
+      <text x="508" y="191" class="s tc">commande : GPIO 33 / 32</text>
+      <text x="508" y="206" class="s tg">encodeur A / B → GPIO 13 / 4</text>
+      <text x="508" y="221" class="s">compteur : ticks D</text>
+      <!-- observateur -->
+      <circle cx="232" cy="304" r="7" class="thin" style="fill:#fff"/>
+      <path d="M218,328 Q232,312 246,328" class="thin"/>
+      <text x="256" y="310" class="b">Vous êtes ici : derrière le PAMI, face à l'ultrason.</text>
+      <text x="256" y="326" class="s">Votre gauche = la gauche du PAMI. Votre droite = sa droite.</text>
+    </svg>
+    <figcaption>Roue gauche seule vers l'avant : le PAMI pivote vers la droite et le cap devient négatif.
+      Roue droite seule vers l'avant : cap positif.</figcaption>
+  </figure>
+
+  <h3>Ce qui a changé depuis la version du 13/10</h3>
+  <ul>
+    <li>L'avant est le côté de l'ultrason (15/10). Gauche et droite se lisent depuis l'arrière.</li>
+    <li>Le montage actuel (breadboard et alim de labo) est dessiné en entier, page 3. Le montage sur batterie passe page 8.</li>
+    <li>Le HC-SR04 prend son 5 V sur la broche 5V de l'ESP32, jamais sur l'alim de labo (15/10).</li>
+    <li>Le pont diviseur d'ECHO est confirmé obligatoire : 4,3 V mesurés sans le pont (15/10).</li>
+    <li>Fils des moteurs : « fil 1 / fil 2 » au lieu de « + / − ». C'est le test qui décide du sens. Fiche à remplir page 4.</li>
+    <li>Nouvelle page 7 : la vérification à faire après chaque recâblage, avec la correction de chaque symptôme.</li>
+  </ul>
+</section>
+
+<!-- ============================ PAGE 2 ============================ -->
+<section class="page">
+  <h2>La carte ESP32 : quel fil sur quelle broche</h2>
+  <p>Carte vue de dessus, antenne en haut, prise USB en bas. Disposition d'une ESP32-DevKitC à 38 broches
+    (ESP-32U). <b>Relisez toujours le nom imprimé à côté de la broche</b> : sur la breadboard, un trou
+    d'écart suffit pour se tromper.</p>
+  <figure>
+    <svg viewBox="0 0 720 600" role="img" aria-label="Brochage de la carte ESP32">
+    <rect x="285" y="10" width="150" height="580" rx="8" style="fill:#f8fafc;stroke:#1f2937;stroke-width:1.6"/>
+    <rect x="312" y="16" width="96" height="44" rx="3" style="fill:#e5e7eb;stroke:#9ca3af"/>
+    <text x="360" y="42" text-anchor="middle" class="s">antenne</text>
+    <text x="360" y="84" text-anchor="middle" class="b" style="font-size:13px">ESP32</text>
+    <text x="360" y="99" text-anchor="middle" class="s">vue de dessus</text>
+    <rect x="333" y="568" width="54" height="28" rx="3" style="fill:#e5e7eb;stroke:#6b7280"/>
+    <text x="360" y="586" text-anchor="middle" class="s b">USB</text>
+    <rect x="296" y="566" width="28" height="16" rx="3" style="fill:#fff;stroke:#6b7280"/>
+    <text x="310" y="578" text-anchor="middle" class="s">EN</text>
+    <rect x="394" y="566" width="34" height="16" rx="3" style="fill:#fff;stroke:#6b7280"/>
+    <text x="411" y="578" text-anchor="middle" class="s">BOOT</text>
+    <path d="M266,118 H280" stroke="#a16207" stroke-width="2" fill="none"/>
+    <text x="262" y="122" text-anchor="end" class="s" style="fill:#a16207;font-size:10px">VCC des 2 IR de sol (3,3 V)</text>
+    <text x="297" y="122" class="m">3V3</text>
+    <circle cx="285" cy="118" r="5" style="fill:#fde68a;stroke:#1f2937;stroke-width:1.2"/>
+    <text x="262" y="146" text-anchor="end" class="s" style="fill:#6b7280;font-size:10px">bouton EN : redémarre la carte</text>
+    <text x="297" y="146" class="m">EN</text>
+    <circle cx="285" cy="142" r="5" style="fill:#ffffff;stroke:#1f2937;stroke-width:1.2"/>
+    <text x="262" y="170" text-anchor="end" class="s" style="fill:#6b7280;font-size:10px">libre</text>
+    <text x="297" y="170" class="m">VP 36</text>
+    <circle cx="285" cy="166" r="5" style="fill:#ffffff;stroke:#1f2937;stroke-width:1.2"/>
+    <text x="262" y="194" text-anchor="end" class="s" style="fill:#6b7280;font-size:10px">(optionnel) lecture du BAU, pont 10 k / 4,7 k</text>
+    <text x="297" y="194" class="m">VN 39</text>
+    <circle cx="285" cy="190" r="5" style="fill:#ffffff;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,214 H280" stroke="#047857" stroke-width="2" fill="none"/>
+    <text x="262" y="218" text-anchor="end" class="s" style="fill:#047857;font-size:10px">IR de sol gauche, OUT (+ 100 kΩ vers GND)</text>
+    <text x="297" y="218" class="m">34</text>
+    <circle cx="285" cy="214" r="5" style="fill:#bbf7d0;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,238 H280" stroke="#047857" stroke-width="2" fill="none"/>
+    <text x="262" y="242" text-anchor="end" class="s" style="fill:#047857;font-size:10px">IR de sol droit, OUT (+ 100 kΩ vers GND)</text>
+    <text x="297" y="242" class="m">35</text>
+    <circle cx="285" cy="238" r="5" style="fill:#bbf7d0;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,262 H280" stroke="#1d4ed8" stroke-width="2" fill="none"/>
+    <text x="262" y="266" text-anchor="end" class="s" style="fill:#1d4ed8;font-size:10px">MDD3A entrée M2B (moteur droit)</text>
+    <text x="297" y="266" class="m">32</text>
+    <circle cx="285" cy="262" r="5" style="fill:#bfdbfe;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,286 H280" stroke="#1d4ed8" stroke-width="2" fill="none"/>
+    <text x="262" y="290" text-anchor="end" class="s" style="fill:#1d4ed8;font-size:10px">MDD3A entrée M2A (moteur droit)</text>
+    <text x="297" y="290" class="m">33</text>
+    <circle cx="285" cy="286" r="5" style="fill:#bfdbfe;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,310 H280" stroke="#1d4ed8" stroke-width="2" fill="none"/>
+    <text x="262" y="314" text-anchor="end" class="s" style="fill:#1d4ed8;font-size:10px">MDD3A entrée M1A (moteur gauche)</text>
+    <text x="297" y="314" class="m">25</text>
+    <circle cx="285" cy="310" r="5" style="fill:#bfdbfe;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,334 H280" stroke="#1d4ed8" stroke-width="2" fill="none"/>
+    <text x="262" y="338" text-anchor="end" class="s" style="fill:#1d4ed8;font-size:10px">MDD3A entrée M1B (moteur gauche)</text>
+    <text x="297" y="338" class="m">26</text>
+    <circle cx="285" cy="334" r="5" style="fill:#bfdbfe;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,358 H280" stroke="#047857" stroke-width="2" fill="none"/>
+    <text x="262" y="362" text-anchor="end" class="s" style="fill:#047857;font-size:10px">encodeur gauche, voie A</text>
+    <text x="297" y="362" class="m">27</text>
+    <circle cx="285" cy="358" r="5" style="fill:#bbf7d0;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,382 H280" stroke="#047857" stroke-width="2" fill="none"/>
+    <text x="262" y="386" text-anchor="end" class="s" style="fill:#047857;font-size:10px">encodeur gauche, voie B</text>
+    <text x="297" y="386" class="m">14</text>
+    <circle cx="285" cy="382" r="5" style="fill:#bbf7d0;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,406 H280" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="262" y="410" text-anchor="end" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : bloque le démarrage</text>
+    <text x="297" y="410" class="m">12</text>
+    <circle cx="285" cy="406" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,430 H280" stroke="#111827" stroke-width="2" fill="none"/>
+    <text x="262" y="434" text-anchor="end" class="s" style="fill:#111827;font-size:10px">masse commune</text>
+    <text x="297" y="434" class="m">GND</text>
+    <circle cx="285" cy="430" r="5" style="fill:#111827;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,454 H280" stroke="#047857" stroke-width="2" fill="none"/>
+    <text x="262" y="458" text-anchor="end" class="s" style="fill:#047857;font-size:10px">encodeur droit, voie A</text>
+    <text x="297" y="458" class="m">13</text>
+    <circle cx="285" cy="454" r="5" style="fill:#bbf7d0;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,478 H280" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="262" y="482" text-anchor="end" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : mémoire flash</text>
+    <text x="297" y="482" class="m">SD2</text>
+    <circle cx="285" cy="478" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,502 H280" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="262" y="506" text-anchor="end" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : mémoire flash</text>
+    <text x="297" y="506" class="m">SD3</text>
+    <circle cx="285" cy="502" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,526 H280" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="262" y="530" text-anchor="end" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : mémoire flash</text>
+    <text x="297" y="530" class="m">CMD</text>
+    <circle cx="285" cy="526" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M266,550 H280" stroke="#a16207" stroke-width="2" fill="none"/>
+    <text x="262" y="554" text-anchor="end" class="s" style="fill:#a16207;font-size:10px">+ des 2 encodeurs, VCC du HC-SR04</text>
+    <text x="297" y="554" class="m">5V</text>
+    <circle cx="285" cy="550" r="5" style="fill:#fde68a;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,118 H454" stroke="#111827" stroke-width="2" fill="none"/>
+    <text x="458" y="122" class="s" style="fill:#111827;font-size:10px">masse commune</text>
+    <text x="423" y="122" text-anchor="end" class="m">GND</text>
+    <circle cx="435" cy="118" r="5" style="fill:#111827;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,142 H454" stroke="#1d4ed8" stroke-width="2" fill="none"/>
+    <text x="458" y="146" class="s" style="fill:#1d4ed8;font-size:10px">servo SG90, fil orange (signal)</text>
+    <text x="423" y="146" text-anchor="end" class="m">23</text>
+    <circle cx="435" cy="142" r="5" style="fill:#bfdbfe;stroke:#1f2937;stroke-width:1.2"/>
+    <text x="458" y="170" class="s" style="fill:#6b7280;font-size:10px">réservée : I2C SCL (gyroscope, plus tard)</text>
+    <text x="423" y="170" text-anchor="end" class="m">22</text>
+    <circle cx="435" cy="166" r="5" style="fill:#ffffff;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,190 H454" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="458" y="194" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : liaison USB (moniteur)</text>
+    <text x="423" y="194" text-anchor="end" class="m">TX</text>
+    <circle cx="435" cy="190" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,214 H454" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="458" y="218" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : liaison USB (moniteur)</text>
+    <text x="423" y="218" text-anchor="end" class="m">RX</text>
+    <circle cx="435" cy="214" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <text x="458" y="242" class="s" style="fill:#6b7280;font-size:10px">réservée : I2C SDA (gyroscope, plus tard)</text>
+    <text x="423" y="242" text-anchor="end" class="m">21</text>
+    <circle cx="435" cy="238" r="5" style="fill:#ffffff;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,262 H454" stroke="#111827" stroke-width="2" fill="none"/>
+    <text x="458" y="266" class="s" style="fill:#111827;font-size:10px">masse commune</text>
+    <text x="423" y="266" text-anchor="end" class="m">GND</text>
+    <circle cx="435" cy="262" r="5" style="fill:#111827;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,286 H454" stroke="#047857" stroke-width="2" fill="none"/>
+    <text x="458" y="290" class="s" style="fill:#047857;font-size:10px">HC-SR04 ECHO, à travers le pont 1 k / 2 k</text>
+    <text x="423" y="290" text-anchor="end" class="m">19</text>
+    <circle cx="435" cy="286" r="5" style="fill:#bbf7d0;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,310 H454" stroke="#1d4ed8" stroke-width="2" fill="none"/>
+    <text x="458" y="314" class="s" style="fill:#1d4ed8;font-size:10px">HC-SR04 TRIG</text>
+    <text x="423" y="314" text-anchor="end" class="m">18</text>
+    <circle cx="435" cy="310" r="5" style="fill:#bfdbfe;stroke:#1f2937;stroke-width:1.2"/>
+    <text x="458" y="338" class="s" style="fill:#6b7280;font-size:10px">libre (broche de démarrage : éviter)</text>
+    <text x="423" y="338" text-anchor="end" class="m">5</text>
+    <circle cx="435" cy="334" r="5" style="fill:#ffffff;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,358 H454" stroke="#047857" stroke-width="2" fill="none"/>
+    <text x="458" y="362" class="s" style="fill:#047857;font-size:10px">interrupteur couleur, autre patte à GND</text>
+    <text x="423" y="362" text-anchor="end" class="m">17</text>
+    <circle cx="435" cy="358" r="5" style="fill:#bbf7d0;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,382 H454" stroke="#047857" stroke-width="2" fill="none"/>
+    <text x="458" y="386" class="s" style="fill:#047857;font-size:10px">bouton de départ, autre patte à GND</text>
+    <text x="423" y="386" text-anchor="end" class="m">16</text>
+    <circle cx="435" cy="382" r="5" style="fill:#bbf7d0;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,406 H454" stroke="#047857" stroke-width="2" fill="none"/>
+    <text x="458" y="410" class="s" style="fill:#047857;font-size:10px">encodeur droit, voie B</text>
+    <text x="423" y="410" text-anchor="end" class="m">4</text>
+    <circle cx="435" cy="406" r="5" style="fill:#bbf7d0;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,430 H454" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="458" y="434" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : BOOT (démarrage)</text>
+    <text x="423" y="434" text-anchor="end" class="m">0</text>
+    <circle cx="435" cy="430" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,454 H454" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="458" y="458" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : démarrage</text>
+    <text x="423" y="458" text-anchor="end" class="m">2</text>
+    <circle cx="435" cy="454" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,478 H454" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="458" y="482" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : démarrage</text>
+    <text x="423" y="482" text-anchor="end" class="m">15</text>
+    <circle cx="435" cy="478" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,502 H454" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="458" y="506" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : mémoire flash</text>
+    <text x="423" y="506" text-anchor="end" class="m">SD1</text>
+    <circle cx="435" cy="502" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,526 H454" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="458" y="530" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : mémoire flash</text>
+    <text x="423" y="530" text-anchor="end" class="m">SD0</text>
+    <circle cx="435" cy="526" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    <path d="M440,550 H454" stroke="#b91c1c" stroke-width="2" fill="none"/>
+    <text x="458" y="554" class="s" style="fill:#b91c1c;font-size:10px" font-weight="700">INTERDIT : mémoire flash</text>
+    <text x="423" y="554" text-anchor="end" class="m">CLK</text>
+    <circle cx="435" cy="550" r="5" style="fill:#fecaca;stroke:#1f2937;stroke-width:1.2"/>
+    </svg>
+  </figure>
+
+  <div class="callout">
+    <b>Voisins dangereux</b>
+    <ul>
+      <li><b>GPIO 4</b> (encodeur droit B) est collé à <b>GPIO 0</b> (BOOT). Un fil décalé d'un trou :
+        la carte reste bloquée sur <code>waiting for download</code>.</li>
+      <li><b>GPIO 14 et 13</b> (encodeurs) entourent <b>GPIO 12</b>. Un fil d'encodeur sur 12 : la carte
+        ne démarre plus, ou seulement pour certaines positions de la roue.</li>
+      <li><b>GPIO 13</b> est entre GND et SD2 (mémoire flash) : rien ne doit toucher SD2.</li>
+      <li>Les 4 fils de commande sont côte à côte, dans l'ordre <b>32, 33, 25, 26</b>
+        (droit B, droit A, gauche A, gauche B). 25 est entre 33 et 26.</li>
+      <li>La broche <b>5V</b> est en bas à gauche, la broche <b>3V3</b> en haut à gauche. Un capteur IR
+        branché sur 5V enverrait 5 V dans GPIO 34 ou 35.</li>
+    </ul>
+  </div>
+  <p>☐ Vérifié : ma carte a bien cette disposition (mêmes noms, même ordre). Sinon, prévenez l'équipe
+    logiciel avant de câbler.</p>
+</section>
+
+<!-- ============================ PAGE 3 ============================ -->
+<section class="page">
+  <h2>Alimentation : le montage actuel (breadboard et alim de labo)</h2>
+  <div class="legend">
+    <span><i style="background:#c2410c;height:4px"></i>puissance des moteurs</span>
+    <span><i style="background:#a16207"></i>alimentation 5 V / 3,3 V</span>
+    <span><i style="background:#1d4ed8"></i>commandes envoyées par l'ESP32</span>
+    <span><i style="background:#047857"></i>signaux reçus par l'ESP32</span>
+    <span><i style="background:#111827"></i>masse (GND)</span>
+    <span>● fils reliés · croisement sans point = pas reliés</span>
+  </div>
+  <figure>
+    <svg viewBox="0 0 720 430" role="img" aria-label="Alimentation du montage actuel">
+      <!-- alim de labo -->
+      <rect x="20" y="30" width="150" height="100" rx="6" class="box"/>
+      <text x="95" y="62" text-anchor="middle" class="b">Alim de labo</text>
+      <text x="95" y="79" text-anchor="middle" class="s">réglée à 6 V</text>
+      <text x="95" y="93" text-anchor="middle" class="s">limite ≈ 2 A</text>
+      <text x="160" y="60" text-anchor="end" class="b">+</text>
+      <text x="160" y="109" text-anchor="end" class="b">−</text>
+      <!-- branche moteurs -->
+      <path d="M170,56 H225" class="pwr"/>
+      <rect x="225" y="38" width="105" height="36" rx="5" style="fill:#fff7ed;stroke:#c2410c;stroke-width:1.6;stroke-dasharray:5 3"/>
+      <text x="277" y="54" text-anchor="middle" class="b">BAU (contact NC)</text>
+      <text x="277" y="68" text-anchor="middle" class="s tw">pas encore câblé</text>
+      <path d="M330,56 H410" class="pwr"/>
+      <path d="M170,105 H410" class="gndp"/>
+      <path d="M380,56 V77 M370,77 H390 M370,84 H390 M380,84 V105" class="thin"/>
+      <text x="366" y="85" text-anchor="end" class="s">100 µF conseillé</text>
+      <circle cx="380" cy="56" r="3" class="dot"/><circle cx="380" cy="105" r="3" class="dot"/>
+      <!-- MDD3A -->
+      <rect x="410" y="20" width="170" height="160" rx="6" class="box"/>
+      <text x="495" y="42" text-anchor="middle" class="b">MDD3A</text>
+      <text x="495" y="57" text-anchor="middle" class="s">driver moteurs</text>
+      <text x="418" y="60" class="m">VB+</text>
+      <text x="418" y="109" class="m">VB−</text>
+      <text x="572" y="82" text-anchor="end" class="s">sorties (bornier)</text>
+      <text x="572" y="99" text-anchor="end" class="m">M1A</text>
+      <text x="572" y="119" text-anchor="end" class="m">M1B</text>
+      <text x="572" y="144" text-anchor="end" class="m">M2A</text>
+      <text x="572" y="164" text-anchor="end" class="m">M2B</text>
+      <text x="462" y="130" text-anchor="middle" class="s">entrées : page 4</text>
+      <text x="445" y="172" text-anchor="middle" class="m">GND</text>
+      <text x="520" y="172" text-anchor="middle" class="m">5V0</text>
+      <path d="M580,95 H604 M580,115 H604 M580,140 H604 M580,160 H604" class="pwr"/>
+      <text x="608" y="109" class="s">moteur G</text>
+      <text x="608" y="131" class="s">(page 4)</text>
+      <text x="608" y="154" class="s">moteur D</text>
+      <path d="M520,180 V195" class="thin dash"/>
+      <text x="528" y="198" class="s tw">5V0 : sortie, ne rien brancher</text>
+      <!-- masse de l'alim et du MDD3A -->
+      <path d="M445,180 V190 H200" class="gnd"/>
+      <path d="M200,105 V400" class="gnd"/>
+      <circle cx="200" cy="105" r="3.5" class="dot"/><circle cx="200" cy="190" r="3.5" class="dot"/>
+      <!-- ESP32 et PC -->
+      <rect x="230" y="200" width="130" height="110" rx="6" class="box"/>
+      <text x="278" y="259" text-anchor="middle" class="b">ESP32</text>
+      <text x="352" y="239" text-anchor="end" class="m">5V</text>
+      <text x="352" y="269" text-anchor="end" class="m">3V3</text>
+      <text x="352" y="299" text-anchor="end" class="m">GND</text>
+      <path d="M295,310 V340" style="stroke:#6b7280;stroke-width:5;fill:none"/>
+      <text x="303" y="329" class="s">câble USB</text>
+      <rect x="225" y="340" width="140" height="44" rx="6" class="box"/>
+      <text x="295" y="358" text-anchor="middle" class="b">PC</text>
+      <text x="295" y="374" text-anchor="middle" class="s">alimente l'ESP32 + moniteur</text>
+      <!-- 5 V et 3,3 V -->
+      <path d="M360,235 H470 M470,221 V313 M470,221 H555 M470,267 H555 M470,313 H555" class="v5"/>
+      <circle cx="470" cy="235" r="3" class="dot"/><circle cx="470" cy="267" r="3" class="dot"/>
+      <text x="415" y="229" text-anchor="middle" class="s b tv">5 V</text>
+      <path d="M360,265 H420 V359 H555" class="v5"/>
+      <text x="490" y="353" text-anchor="middle" class="s b tv">3,3 V</text>
+      <path d="M360,295 H390 V400" class="gnd"/>
+      <!-- consommateurs -->
+      <rect x="555" y="210" width="140" height="34" rx="5" class="box"/>
+      <text x="625" y="224" text-anchor="middle" class="b">Encodeur gauche</text>
+      <text x="625" y="238" text-anchor="middle" class="s">fil + et GND</text>
+      <rect x="555" y="256" width="140" height="34" rx="5" class="box"/>
+      <text x="625" y="270" text-anchor="middle" class="b">Encodeur droit</text>
+      <text x="625" y="284" text-anchor="middle" class="s">fil + et GND</text>
+      <rect x="555" y="302" width="140" height="34" rx="5" class="box"/>
+      <text x="625" y="316" text-anchor="middle" class="b">HC-SR04</text>
+      <text x="625" y="330" text-anchor="middle" class="s">VCC et GND</text>
+      <rect x="555" y="348" width="140" height="34" rx="5" class="box"/>
+      <text x="625" y="362" text-anchor="middle" class="b">2 IR de sol</text>
+      <text x="625" y="376" text-anchor="middle" class="s tw">pas encore câblés</text>
+      <path d="M695,235 H708 M695,281 H708 M695,327 H708 M695,373 H708 M708,235 V400" class="gnd"/>
+      <circle cx="708" cy="281" r="3" class="dot"/><circle cx="708" cy="327" r="3" class="dot"/><circle cx="708" cy="373" r="3" class="dot"/>
+      <!-- rangée de masse -->
+      <path d="M200,400 H708" class="rail"/>
+      <circle cx="390" cy="400" r="4" class="dot"/>
+      <text x="454" y="421" text-anchor="middle" class="b">MASSE COMMUNE : une seule rangée de la breadboard</text>
+      <!-- broches -->
+      <circle cx="170" cy="56" r="4" class="pin"/><circle cx="170" cy="105" r="4" class="pin"/>
+      <circle cx="410" cy="56" r="4" class="pin"/><circle cx="410" cy="105" r="4" class="pin"/>
+      <circle cx="580" cy="95" r="4" class="pin"/><circle cx="580" cy="115" r="4" class="pin"/>
+      <circle cx="580" cy="140" r="4" class="pin"/><circle cx="580" cy="160" r="4" class="pin"/>
+      <circle cx="445" cy="180" r="4" class="pin"/><circle cx="520" cy="180" r="4" class="pin"/>
+      <circle cx="360" cy="235" r="4" class="pin"/><circle cx="360" cy="265" r="4" class="pin"/><circle cx="360" cy="295" r="4" class="pin"/>
+      <circle cx="555" cy="221" r="4" class="pin"/><circle cx="555" cy="267" r="4" class="pin"/>
+      <circle cx="555" cy="313" r="4" class="pin"/><circle cx="555" cy="359" r="4" class="pin"/>
+      <circle cx="695" cy="235" r="4" class="pin"/><circle cx="695" cy="281" r="4" class="pin"/>
+      <circle cx="695" cy="327" r="4" class="pin"/><circle cx="695" cy="373" r="4" class="pin"/>
+    </svg>
+    <figcaption>Deux sources : l'alim de labo pour les moteurs, l'USB pour l'ESP32 et les capteurs.
+      Leurs masses sont reliées. Le servo n'est pas branché pour l'instant.</figcaption>
+  </figure>
+  <ul>
+    <li><b>Le courant des moteurs ne passe pas par la breadboard</b> (jusqu'à 2,8 A par moteur bloqué) :
+      fils épais de l'alim directement dans le bornier VB+ / VB−. Un seul fil relie le (−) de l'alim à la rangée de masse.</li>
+    <li><b>Contrôle au multimètre</b> : 5V0 ↔ GND du MDD3A ≈ 5 V (le driver est vivant) ; VB+ ↔ VB− ≈ 6 V.
+      Le 13/10, on lisait 0,1 mV : le MDD3A n'était pas alimenté.</li>
+    <li><b>Le HC-SR04 prend son 5 V sur la broche 5V de l'ESP32</b>, jamais sur l'alim de labo :
+      alimenté par l'alim de labo, il ratait presque tous les échos (15/10).</li>
+    <li><b>Le BAU n'est pas encore câblé.</b> Il se monte en série sur le fil + entre l'alim et VB+ (contact NC).
+      Obligatoire avant tout essai au sol (règle d'or n° 2). En attendant, sur cales, gardez la main sur le
+      bouton de sortie de l'alim.</li>
+    <li><b>Coupez l'alimentation des moteurs</b> pendant les téléversements et avant de changer un fil.</li>
+  </ul>
+</section>
+
+<!-- ============================ PAGE 4 ============================ -->
+<section class="page">
+  <h2>Moteurs, driver MDD3A et encodeurs</h2>
+  <figure>
+    <svg viewBox="0 0 720 290" role="img" aria-label="Commande des moteurs">
+      <!-- ESP32 -->
+      <rect x="20" y="40" width="140" height="200" rx="6" class="box"/>
+      <text x="32" y="62" class="b">ESP32</text>
+      <text x="152" y="94" text-anchor="end" class="m">GPIO 25</text>
+      <text x="152" y="119" text-anchor="end" class="m">GPIO 26</text>
+      <text x="152" y="164" text-anchor="end" class="m">GPIO 33</text>
+      <text x="152" y="189" text-anchor="end" class="m">GPIO 32</text>
+      <text x="152" y="224" text-anchor="end" class="m">GND</text>
+      <!-- MDD3A -->
+      <rect x="290" y="30" width="210" height="230" rx="6" class="box"/>
+      <text x="395" y="52" text-anchor="middle" class="b">MDD3A</text>
+      <text x="395" y="67" text-anchor="middle" class="s">driver moteurs</text>
+      <path d="M395,78 V222" class="lead dash"/>
+      <text x="298" y="94" class="m">M1A</text>
+      <text x="298" y="119" class="m">M1B</text>
+      <text x="298" y="164" class="m">M2A</text>
+      <text x="298" y="189" class="m">M2B</text>
+      <text x="298" y="224" class="m">GND</text>
+      <text x="492" y="99" text-anchor="end" class="m">M1A</text>
+      <text x="492" y="124" text-anchor="end" class="m">M1B</text>
+      <text x="492" y="174" text-anchor="end" class="m">M2A</text>
+      <text x="492" y="199" text-anchor="end" class="m">M2B</text>
+      <text x="342" y="240" text-anchor="middle" class="s b">ENTRÉES</text>
+      <text x="342" y="253" text-anchor="middle" class="s">petites broches</text>
+      <text x="448" y="240" text-anchor="middle" class="s b">SORTIES</text>
+      <text x="448" y="253" text-anchor="middle" class="s">bornier à vis</text>
+      <!-- commandes -->
+      <text x="225" y="82" text-anchor="middle" class="s tc">commandes (fils fins)</text>
+      <path d="M160,90 H290 M160,115 H290 M160,160 H290 M160,185 H290" class="cmd"/>
+      <path d="M160,220 H290" class="gnd"/>
+      <text x="225" y="276" text-anchor="middle" class="s tc">ne pas y toucher pour changer un sens</text>
+      <!-- moteurs -->
+      <rect x="600" y="75" width="110" height="65" rx="6" class="box" style="fill:#fff7ed"/>
+      <text x="655" y="98" text-anchor="middle" class="b">Moteur</text>
+      <text x="655" y="113" text-anchor="middle" class="b">GAUCHE</text>
+      <text x="655" y="129" text-anchor="middle" class="s">FIT0450</text>
+      <rect x="600" y="150" width="110" height="65" rx="6" class="box" style="fill:#fff7ed"/>
+      <text x="655" y="173" text-anchor="middle" class="b">Moteur</text>
+      <text x="655" y="188" text-anchor="middle" class="b">DROIT</text>
+      <text x="655" y="204" text-anchor="middle" class="s">FIT0450</text>
+      <path d="M500,95 H600 M500,120 H600 M500,170 H600 M500,195 H600" class="pwr"/>
+      <text x="550" y="89" text-anchor="middle" class="s">fil 1</text>
+      <text x="550" y="114" text-anchor="middle" class="s">fil 2</text>
+      <text x="550" y="164" text-anchor="middle" class="s">fil 1</text>
+      <text x="550" y="189" text-anchor="middle" class="s">fil 2</text>
+      <!-- annotation -->
+      <path d="M588,240 L556,205" class="pwr" style="stroke-width:1.5" marker-end="url(#arrP)"/>
+      <text x="650" y="240" text-anchor="middle" class="b tp">Roue à l'envers ?</text>
+      <text x="650" y="254" text-anchor="middle" class="s tp">inversez fil 1 et fil 2</text>
+      <text x="650" y="267" text-anchor="middle" class="s tp">ici, alimentation coupée</text>
+      <!-- broches -->
+      <circle cx="160" cy="90" r="4" class="pin"/><circle cx="160" cy="115" r="4" class="pin"/>
+      <circle cx="160" cy="160" r="4" class="pin"/><circle cx="160" cy="185" r="4" class="pin"/><circle cx="160" cy="220" r="4" class="pin"/>
+      <circle cx="290" cy="90" r="4" class="pin"/><circle cx="290" cy="115" r="4" class="pin"/>
+      <circle cx="290" cy="160" r="4" class="pin"/><circle cx="290" cy="185" r="4" class="pin"/><circle cx="290" cy="220" r="4" class="pin"/>
+      <circle cx="500" cy="95" r="4" class="pin"/><circle cx="500" cy="120" r="4" class="pin"/>
+      <circle cx="500" cy="170" r="4" class="pin"/><circle cx="500" cy="195" r="4" class="pin"/>
+      <circle cx="600" cy="95" r="4" class="pin"/><circle cx="600" cy="120" r="4" class="pin"/>
+      <circle cx="600" cy="170" r="4" class="pin"/><circle cx="600" cy="195" r="4" class="pin"/>
+    </svg>
+    <figcaption>L'ESP32 envoie seulement des ordres ; le courant des moteurs vient du MDD3A (VB+ / VB−, page 3).
+      Les boutons de test M1A, M1B, M2A, M2B du MDD3A font tourner un moteur sans l'ESP32 : pratique pour savoir
+      si une panne vient du driver.</figcaption>
+  </figure>
+
+  <figure>
+    <svg viewBox="0 0 720 200" role="img" aria-label="Encodeurs">
+      <rect x="20" y="20" width="140" height="165" rx="6" class="box"/>
+      <text x="32" y="42" class="b">ESP32</text>
+      <text x="152" y="64" text-anchor="end" class="m">GPIO 27</text>
+      <text x="152" y="89" text-anchor="end" class="m">GPIO 14</text>
+      <text x="152" y="139" text-anchor="end" class="m">GPIO 13</text>
+      <text x="152" y="164" text-anchor="end" class="m">GPIO 4</text>
+      <text x="310" y="52" text-anchor="middle" class="s tg">encodeur gauche : A et B</text>
+      <text x="310" y="127" text-anchor="middle" class="s tg">encodeur droit : A et B</text>
+      <path d="M160,60 H460 M160,85 H460 M160,135 H460 M160,160 H460" class="sig"/>
+      <rect x="460" y="40" width="190" height="65" rx="6" class="box"/>
+      <text x="468" y="64" class="m">A</text>
+      <text x="468" y="89" class="m">B</text>
+      <text x="555" y="68" text-anchor="middle" class="b">Encodeur GAUCHE</text>
+      <text x="555" y="84" text-anchor="middle" class="s">dans le moteur gauche</text>
+      <text x="642" y="64" text-anchor="end" class="m">+</text>
+      <text x="642" y="89" text-anchor="end" class="m">GND</text>
+      <rect x="460" y="115" width="190" height="65" rx="6" class="box"/>
+      <text x="468" y="139" class="m">A</text>
+      <text x="468" y="164" class="m">B</text>
+      <text x="555" y="143" text-anchor="middle" class="b">Encodeur DROIT</text>
+      <text x="555" y="159" text-anchor="middle" class="s">dans le moteur droit</text>
+      <text x="642" y="139" text-anchor="end" class="m">+</text>
+      <text x="642" y="164" text-anchor="end" class="m">GND</text>
+      <path d="M650,60 H668 M650,135 H668" class="v5"/>
+      <text x="672" y="64" class="b tv">5 V</text>
+      <text x="672" y="139" class="b tv">5 V</text>
+      <path d="M650,85 H668 M650,160 H668" class="gnd"/>
+      <use href="#gsym" x="668" y="85"/><use href="#gsym" x="668" y="160"/>
+      <circle cx="160" cy="60" r="4" class="pin"/><circle cx="160" cy="85" r="4" class="pin"/>
+      <circle cx="160" cy="135" r="4" class="pin"/><circle cx="160" cy="160" r="4" class="pin"/>
+      <circle cx="460" cy="60" r="4" class="pin"/><circle cx="460" cy="85" r="4" class="pin"/>
+      <circle cx="460" cy="135" r="4" class="pin"/><circle cx="460" cy="160" r="4" class="pin"/>
+      <circle cx="650" cy="60" r="4" class="pin"/><circle cx="650" cy="85" r="4" class="pin"/>
+      <circle cx="650" cy="135" r="4" class="pin"/><circle cx="650" cy="160" r="4" class="pin"/>
+    </svg>
+    <figcaption>Fils directs, sans résistance : A et B mesurés entre 0 et 3,3 V. Les encodeurs s'alimentent en 5 V
+      (broche 5V de l'ESP32), jamais en 3,3 V. Leur GND va sur la masse commune : sans elle, ils comptent tout seuls.</figcaption>
+  </figure>
+
+  <h3>À remplir maintenant que tout marche : la couleur de chaque fil</h3>
+  <p class="small">Le jour où un fil se débranche, on le remet au même endroit sans refaire tous les tests.
+    Marquez aussi chaque fil avec un morceau de scotch (G1, G2, D1, D2, GA, GB, DA, DB).</p>
+  <div class="grid2">
+    <table>
+      <tr><th>Bornier de sortie du MDD3A</th><th>Couleur du fil</th></tr>
+      <tr><td>M1A : moteur gauche, fil 1</td><td class="fillcell"><span class="fill"></span></td></tr>
+      <tr><td>M1B : moteur gauche, fil 2</td><td class="fillcell"><span class="fill"></span></td></tr>
+      <tr><td>M2A : moteur droit, fil 1</td><td class="fillcell"><span class="fill"></span></td></tr>
+      <tr><td>M2B : moteur droit, fil 2</td><td class="fillcell"><span class="fill"></span></td></tr>
+    </table>
+    <table>
+      <tr><th>Broche de l'ESP32</th><th>Couleur du fil</th></tr>
+      <tr><td>GPIO 27 : encodeur gauche A</td><td class="fillcell"><span class="fill"></span></td></tr>
+      <tr><td>GPIO 14 : encodeur gauche B</td><td class="fillcell"><span class="fill"></span></td></tr>
+      <tr><td>GPIO 13 : encodeur droit A</td><td class="fillcell"><span class="fill"></span></td></tr>
+      <tr><td>GPIO 4 : encodeur droit B</td><td class="fillcell"><span class="fill"></span></td></tr>
+    </table>
+  </div>
+  <div class="callout info">
+    <b>Ce câblage va avec ces réglages de <code>pami/src/config.h</code></b> (validés le 15/10, revérifiés le 10/11) :
+    <code>MOTOR_LEFT_INVERTED = true</code> · <code>MOTOR_RIGHT_INVERTED = true</code> ·
+    <code>ENCODER_LEFT_INVERTED = false</code> · <code>ENCODER_RIGHT_INVERTED = true</code>.<br>
+    Ne les changez pas pour compenser un fil : remettez le fil. Sinon, le jour où quelqu'un recâble
+    « comme sur le schéma », le PAMI repart à l'envers.
+  </div>
+  <div class="callout ok">
+    <b>Vécu le 10/11/2026.</b> Après les travaux sur l'ultrason, les deux moteurs tournaient à l'envers.
+    Diagnostic avec la page 7 : étape 1 (encodeurs bons), puis étape 2 (roue qui recule et compteur qui descend).
+    Correction : les 2 fils de chaque moteur inversés sur le bornier de sortie, <b>sans toucher au code</b>.
+    Piège rencontré : une inversion « faite » qui n'avait pas pris. Tirez sur chaque fil après l'avoir vissé.
+  </div>
+</section>
+
+<!-- ============================ PAGE 5 ============================ -->
+<section class="page">
+  <h2>Capteurs : ultrason et IR de sol</h2>
+  <figure>
+    <svg viewBox="0 0 720 320" role="img" aria-label="Capteurs">
+      <rect x="20" y="20" width="140" height="285" rx="6" class="box"/>
+      <text x="32" y="42" class="b">ESP32</text>
+      <text x="152" y="64" text-anchor="end" class="m">GPIO 18</text>
+      <text x="152" y="119" text-anchor="end" class="m">GPIO 19</text>
+      <text x="152" y="194" text-anchor="end" class="m">GPIO 34</text>
+      <text x="152" y="264" text-anchor="end" class="m">GPIO 35</text>
+      <!-- HC-SR04 -->
+      <rect x="500" y="35" width="160" height="105" rx="6" class="box" style="fill:#f0f9ff"/>
+      <text x="508" y="64" class="m">TRIG</text>
+      <text x="508" y="119" class="m">ECHO</text>
+      <text x="652" y="64" text-anchor="end" class="m">VCC</text>
+      <text x="652" y="119" text-anchor="end" class="m">GND</text>
+      <text x="580" y="86" text-anchor="middle" class="b">HC-SR04</text>
+      <text x="580" y="101" text-anchor="middle" class="s">à l'avant, &lt; 70 mm du sol</text>
+      <path d="M660,60 H678" class="v5"/>
+      <text x="682" y="64" class="b tv">5 V</text>
+      <text x="682" y="77" class="s tv">ESP32</text>
+      <path d="M660,115 H678" class="gnd"/><use href="#gsym" x="678" y="115"/>
+      <text x="330" y="52" text-anchor="middle" class="s tc">TRIG : fil direct</text>
+      <path d="M160,60 H500" class="cmd"/>
+      <!-- pont diviseur ECHO -->
+      <path d="M160,115 H380 M420,115 H500" class="sig"/>
+      <rect x="380" y="108" width="40" height="14" class="res"/>
+      <text x="400" y="102" text-anchor="middle" class="s">1 kΩ côté ECHO</text>
+      <text x="460" y="107" text-anchor="middle" class="s tg">≈ 4,3 V</text>
+      <text x="230" y="107" text-anchor="middle" class="s tg">≈ 2,9 V</text>
+      <circle cx="300" cy="115" r="3" class="dot"/>
+      <path d="M300,115 V128 M300,158 V168" class="thin"/>
+      <rect x="293" y="128" width="14" height="30" class="res"/>
+      <use href="#gsym" x="300" y="168"/>
+      <text x="313" y="147" class="s">2 kΩ vers GND</text>
+      <!-- IR gauche -->
+      <rect x="500" y="165" width="160" height="50" rx="6" class="box" style="fill:#f0fdf4"/>
+      <text x="508" y="194" class="m">OUT</text>
+      <text x="584" y="187" text-anchor="middle" class="b">IR de sol gauche</text>
+      <text x="584" y="202" text-anchor="middle" class="s">avant gauche, vers le sol</text>
+      <path d="M660,177 H678" class="v5"/>
+      <text x="682" y="181" class="b tv">3,3 V</text>
+      <path d="M660,203 H678" class="gnd"/><use href="#gsym" x="678" y="203"/>
+      <text x="230" y="182" text-anchor="middle" class="s tg">OUT gauche</text>
+      <path d="M160,190 H500" class="sig"/>
+      <circle cx="420" cy="190" r="3" class="dot"/>
+      <path d="M420,190 V200 M420,224 V230" class="thin"/>
+      <rect x="413" y="200" width="14" height="24" class="res"/>
+      <use href="#gsym" x="420" y="230"/>
+      <text x="433" y="216" class="s">100 kΩ</text>
+      <!-- IR droit -->
+      <rect x="500" y="235" width="160" height="50" rx="6" class="box" style="fill:#f0fdf4"/>
+      <text x="508" y="264" class="m">OUT</text>
+      <text x="584" y="257" text-anchor="middle" class="b">IR de sol droit</text>
+      <text x="584" y="272" text-anchor="middle" class="s">avant droit, vers le sol</text>
+      <path d="M660,247 H678" class="v5"/>
+      <text x="682" y="251" class="b tv">3,3 V</text>
+      <path d="M660,273 H678" class="gnd"/><use href="#gsym" x="678" y="273"/>
+      <text x="230" y="252" text-anchor="middle" class="s tg">OUT droit</text>
+      <path d="M160,260 H500" class="sig"/>
+      <circle cx="420" cy="260" r="3" class="dot"/>
+      <path d="M420,260 V270 M420,294 V298" class="thin"/>
+      <rect x="413" y="270" width="14" height="24" class="res"/>
+      <use href="#gsym" x="420" y="298"/>
+      <text x="433" y="286" class="s">100 kΩ</text>
+      <!-- broches -->
+      <circle cx="160" cy="60" r="4" class="pin"/><circle cx="160" cy="115" r="4" class="pin"/>
+      <circle cx="160" cy="190" r="4" class="pin"/><circle cx="160" cy="260" r="4" class="pin"/>
+      <circle cx="500" cy="60" r="4" class="pin"/><circle cx="500" cy="115" r="4" class="pin"/>
+      <circle cx="660" cy="60" r="4" class="pin"/><circle cx="660" cy="115" r="4" class="pin"/>
+      <circle cx="500" cy="190" r="4" class="pin"/><circle cx="660" cy="177" r="4" class="pin"/><circle cx="660" cy="203" r="4" class="pin"/>
+      <circle cx="500" cy="260" r="4" class="pin"/><circle cx="660" cy="247" r="4" class="pin"/><circle cx="660" cy="273" r="4" class="pin"/>
+    </svg>
+    <figcaption>
+      <b>Ultrason</b> <span class="badge ok">testé le 15/10</span> : ECHO sort ≈ 4,3 V (mesuré sans le pont) : le pont
+      1 kΩ (côté ECHO) / 2 kΩ (vers GND) le ramène à ≈ 2,9 V. <b>Ne jamais l'enlever.</b> Pour mesurer, capteur
+      tourné vers le vide (lignes <code>PAS D'ECHO</code>) : avec un objet devant, le multimètre affiche une moyenne de quelques dizaines de mV.<br>
+      <b>IR de sol</b> <span class="badge todo">pas encore testés</span> : alimentés en 3,3 V (broche 3V3), jamais en 5 V.
+      100 kΩ entre chaque sortie et la masse. Ils repèrent le bord de la zone (D009) ; l'évitement repose sur l'ultrason seul.
+    </figcaption>
+  </figure>
+
+  <h2>Servo, bouton de départ, couleur</h2>
+  <figure>
+    <svg viewBox="0 0 720 220" role="img" aria-label="Servo, bouton de départ et couleur">
+      <rect x="20" y="20" width="140" height="185" rx="6" class="box"/>
+      <text x="32" y="42" class="b">ESP32</text>
+      <text x="152" y="64" text-anchor="end" class="m">GPIO 23</text>
+      <text x="152" y="129" text-anchor="end" class="m">GPIO 16</text>
+      <text x="152" y="184" text-anchor="end" class="m">GPIO 17</text>
+      <!-- servo -->
+      <rect x="500" y="30" width="160" height="65" rx="6" class="box"/>
+      <text x="508" y="64" class="s">orange</text>
+      <text x="652" y="49" text-anchor="end" class="s">rouge</text>
+      <text x="652" y="84" text-anchor="end" class="s">marron</text>
+      <text x="580" y="60" text-anchor="middle" class="b">Servo SG90</text>
+      <text x="575" y="74" text-anchor="middle" class="s">bras du défenseur</text>
+      <path d="M660,45 H678" class="v5"/>
+      <text x="682" y="49" class="b tv">5 V</text>
+      <path d="M660,80 H678" class="gnd"/><use href="#gsym" x="678" y="80"/>
+      <text x="330" y="52" text-anchor="middle" class="s tc">signal PWM 50 Hz</text>
+      <path d="M160,60 H500" class="cmd"/>
+      <!-- bouton de départ -->
+      <text x="300" y="117" text-anchor="middle" class="s tg">relâché = 1, appuyé = 0</text>
+      <path d="M160,125 H437" class="sig"/>
+      <circle cx="440" cy="125" r="3" class="pin"/><circle cx="480" cy="125" r="3" class="pin"/>
+      <path d="M434,112 H486 M460,112 V102 M452,102 H468" class="thin"/>
+      <path d="M483,125 H500" class="gnd"/><use href="#gsym" x="500" y="125"/>
+      <text x="460" y="152" text-anchor="middle" class="s b">bouton de départ</text>
+      <!-- interrupteur couleur -->
+      <text x="300" y="172" text-anchor="middle" class="s tg">ouvert = bleu, fermé = jaune</text>
+      <path d="M160,180 H437" class="sig"/>
+      <circle cx="440" cy="180" r="3" class="pin"/><circle cx="480" cy="180" r="3" class="pin"/>
+      <path d="M442,178 L476,165" class="thin"/>
+      <path d="M483,180 H500" class="gnd"/><use href="#gsym" x="500" y="180"/>
+      <text x="460" y="207" text-anchor="middle" class="s b">interrupteur couleur</text>
+      <circle cx="160" cy="60" r="4" class="pin"/><circle cx="160" cy="125" r="4" class="pin"/><circle cx="160" cy="180" r="4" class="pin"/>
+      <circle cx="500" cy="60" r="4" class="pin"/><circle cx="660" cy="45" r="4" class="pin"/><circle cx="660" cy="80" r="4" class="pin"/>
+    </svg>
+    <figcaption>
+      <b>Bouton de départ</b> <span class="badge ok">GPIO 16 testé le 15/10 (fil vers GND)</span> : pas de résistance,
+      le code active le pull-up interne. Placé loin des roues. La tirette prendra la même broche pour Eurobot.<br>
+      <b>Interrupteur couleur</b> <span class="badge todo">pas encore testé</span> : même principe, sur GPIO 17. Lu seulement avant le départ.<br>
+      <b>Servo</b> <span class="badge todo">pas encore testé</span> : 5 V du régulateur (sur batterie), jamais le 3V3 de l'ESP32.
+      Sur la breadboard : une 2ᵉ sortie de l'alim de labo à 5 V (masse commune), ou pas de servo tant qu'on ne teste pas la mission défenseur.
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ============================ PAGE 6 ============================ -->
+<section class="page">
+  <h2>Toutes les broches de l'ESP32</h2>
+  <table>
+    <tr><th style="width:15%">Broche</th><th style="width:30%">Va sur</th><th style="width:10%">Sens</th><th>Montage</th><th style="width:16%">État</th></tr>
+    <tr><td class="mono">GPIO 25 / 26</td><td>MDD3A entrées M1A / M1B (moteur gauche)</td><td>sortie</td><td>PWM 20 kHz, fil direct</td><td><span class="badge ok">testé le 10/11</span></td></tr>
+    <tr><td class="mono">GPIO 33 / 32</td><td>MDD3A entrées M2A / M2B (moteur droit)</td><td>sortie</td><td>PWM 20 kHz, fil direct</td><td><span class="badge ok">testé le 10/11</span></td></tr>
+    <tr><td class="mono">GPIO 27 / 14</td><td>encodeur gauche A / B</td><td>entrée</td><td>fil direct (0 à 3,3 V mesuré)</td><td><span class="badge ok">testé le 10/11</span></td></tr>
+    <tr><td class="mono">GPIO 13 / 4</td><td>encodeur droit A / B</td><td>entrée</td><td>fil direct</td><td><span class="badge ok">testé le 10/11</span></td></tr>
+    <tr><td class="mono">GPIO 18</td><td>HC-SR04 TRIG</td><td>sortie</td><td>fil direct</td><td><span class="badge ok">testé le 15/10</span></td></tr>
+    <tr><td class="mono">GPIO 19</td><td>HC-SR04 ECHO</td><td>entrée</td><td><b>pont 1 kΩ (côté ECHO) / 2 kΩ (vers GND), obligatoire</b></td><td><span class="badge ok">testé le 15/10</span></td></tr>
+    <tr><td class="mono">GPIO 34 / 35</td><td>IR de sol gauche / droit, OUT</td><td>entrée</td><td>100 kΩ vers la masse ; module alimenté en 3,3 V</td><td><span class="badge todo">pas encore testé</span></td></tr>
+    <tr><td class="mono">GPIO 23</td><td>servo SG90, fil orange</td><td>sortie</td><td>PWM 50 Hz</td><td><span class="badge todo">pas encore testé</span></td></tr>
+    <tr><td class="mono">GPIO 16</td><td>bouton de départ (plus tard : tirette)</td><td>entrée</td><td>pull-up interne, autre patte à GND</td><td><span class="badge ok">testé le 15/10</span></td></tr>
+    <tr><td class="mono">GPIO 17</td><td>interrupteur couleur</td><td>entrée</td><td>pull-up interne, autre patte à GND ; ouvert = bleu</td><td><span class="badge todo">pas encore testé</span></td></tr>
+    <tr><td class="mono">GPIO 39 (VN)</td><td>(optionnel) lecture du BAU</td><td>entrée</td><td>pont 10 kΩ / 4,7 kΩ ; pas lu par le code</td><td>—</td></tr>
+    <tr><td class="mono">GPIO 21 / 22</td><td>réservées : I2C du gyroscope</td><td>—</td><td>plus tard, optionnel</td><td>—</td></tr>
+    <tr><td class="mono">5V</td><td>+ des encodeurs, VCC du HC-SR04 (montage actuel). Sur batterie : arrivée du régulateur 5 V</td><td>alim.</td><td>jamais l'USB et le régulateur en même temps</td><td><span class="badge ok">en service</span></td></tr>
+    <tr><td class="mono">3V3</td><td>VCC des 2 IR de sol</td><td>alim.</td><td>fournie par l'ESP32</td><td>—</td></tr>
+    <tr><td class="mono">GND</td><td>masse commune</td><td>—</td><td>toutes les broches GND sont équivalentes</td><td><span class="badge ok">en service</span></td></tr>
+  </table>
+  <div class="callout">
+    <b>Ne rien brancher sur</b> : GPIO 0, 2, 12, 15 (démarrage de la carte ; GPIO 12 à l'état haut empêche
+    de démarrer) · GPIO 1 et 3 (TX / RX : liaison USB) · SD0 à SD3, CMD, CLK (GPIO 6 à 11 : mémoire flash).
+    GPIO 5 est libre mais c'est aussi une broche de démarrage : à éviter.
+  </div>
+
+  <h3>Les bornes du MDD3A</h3>
+  <table>
+    <tr><th style="width:24%">Borne</th><th style="width:26%">Où sur la carte</th><th>Va sur</th></tr>
+    <tr><td class="mono">VB+ / VB−</td><td>bornier de puissance</td><td>(+) de l'alim à travers le BAU / (−) de l'alim</td></tr>
+    <tr><td class="mono">M1A / M1B (entrées)</td><td>petites broches</td><td>GPIO 25 / GPIO 26</td></tr>
+    <tr><td class="mono">M2A / M2B (entrées)</td><td>petites broches</td><td>GPIO 33 / GPIO 32</td></tr>
+    <tr><td class="mono">GND (entrées)</td><td>petites broches</td><td>masse commune</td></tr>
+    <tr><td class="mono">5V0</td><td>petites broches</td><td><b>rien</b> : c'est une sortie du driver. Témoin : ≈ 5 V entre 5V0 et GND quand le driver est alimenté</td></tr>
+    <tr><td class="mono">M1A / M1B (sorties)</td><td>bornier à vis</td><td>les 2 fils du moteur gauche (fil 1 / fil 2, page 4)</td></tr>
+    <tr><td class="mono">M2A / M2B (sorties)</td><td>bornier à vis</td><td>les 2 fils du moteur droit (fil 1 / fil 2, page 4)</td></tr>
+  </table>
+  <p class="small">Ce que fait le code : entrée A = PWM et B = 0 → la roue tourne dans un sens ; A = 0 et B = PWM → dans l'autre ;
+    A = B = 0 → frein. Une roue qui ne tourne que dans un sens : un seul des deux fils de commande est en cause.</p>
+</section>
+
+<!-- ============================ PAGE 7 ============================ -->
+<section class="page">
+  <h2>Après chaque recâblage : la vérification en 3 minutes</h2>
+  <p>À faire avant toute commande de mouvement, même si « on n'a touché qu'un fil ». Banc de test :
+    <code>pio run -e test_odometrie -t upload -t monitor</code> (BOOT pendant <code>Connecting…</code>), puis EN.</p>
+
+  <h3>Étape 0 : avant d'allumer</h3>
+  <ul>
+    <li>Multimètre en mode « bip » : toutes les masses sonnent entre elles ; pas de bip entre 5V et GND, ni entre VB+ et VB−.</li>
+    <li>Rien sur GPIO 0, 2, 12, 15. Les fils des encodeurs ne touchent pas GPIO 12 ni GPIO 0.</li>
+    <li>Une fois l'alim allumée : 5V0 ↔ GND du MDD3A ≈ 5 V.</li>
+  </ul>
+
+  <h3>Étape 1 : les roues à la main (moteurs arrêtés)</h3>
+  <p class="small">Placez-vous derrière le PAMI, ultrason devant. Tournez une roue à la fois vers l'avant et regardez les compteurs.</p>
+  <table>
+    <tr><th style="width:15%">Roue tournée</th><th style="width:26%">Vous voyez</th><th style="width:27%">Cause</th><th>Correction</th></tr>
+    <tr><td>gauche</td><td><code>ticks G</code> monte (≈ 1920 par tour), D ne bouge pas, cap négatif</td><td class="good">bon</td><td>—</td></tr>
+    <tr><td>gauche</td><td><code>ticks G</code> descend</td><td>fils A et B de l'encodeur gauche échangés</td><td>A sur GPIO 27, B sur GPIO 14</td></tr>
+    <tr><td>gauche</td><td>c'est <code>ticks D</code> qui bouge</td><td>encodeurs croisés entre gauche et droite</td><td>encodeur gauche sur 27 / 14, droit sur 13 / 4</td></tr>
+    <tr><td>droite</td><td><code>ticks D</code> monte, G ne bouge pas, cap positif</td><td class="good">bon</td><td>—</td></tr>
+    <tr><td>droite</td><td><code>ticks D</code> descend</td><td>fils A et B de l'encodeur droit échangés</td><td>A sur GPIO 13, B sur GPIO 4</td></tr>
+    <tr><td>l'une ou l'autre</td><td>aucun compteur ne bouge</td><td>encodeur sans 5 V, sans masse, ou fil A débranché</td><td>+ sur 5V, GND sur la masse commune, fil A bien enfoncé</td></tr>
+    <tr><td>aucune</td><td>les compteurs bougent tout seuls</td><td>masse des encodeurs pas reliée à l'ESP32</td><td>relier les masses (règle n° 2)</td></tr>
+  </table>
+
+  <h3>Étape 2 : sur cales, ligne droite</h3>
+  <p class="small">Tapez <b>Maj + 1</b> (ou 1 sur le pavé numérique). Regardez les roues <b>et</b> les compteurs.</p>
+  <table>
+    <tr><th style="width:38%">Vous voyez</th><th style="width:27%">Cause</th><th>Correction</th></tr>
+    <tr><td>Les 2 roues tournent vers l'avant, <code>ticks G</code> et <code>ticks D</code> montent ensemble, pas de PANNE, arrêt seul après ≈ 4 s</td><td class="good">bon</td><td>—</td></tr>
+    <tr><td><code>PANNE</code> en 0,6 s ; une roue tourne vers l'arrière et son compteur descend</td><td>ce moteur est branché à l'envers</td><td>alim coupée, inverser ses 2 fils sur le <b>bornier à vis de sortie</b> (M1A/M1B gauche, M2A/M2B droit)</td></tr>
+    <tr><td>Une roue tourne vers l'arrière mais son compteur monte, pas de PANNE</td><td>moteur <b>et</b> encodeur de cette roue à l'envers (l'étape 1 aurait dû le voir)</td><td>remettre les fils du moteur, échanger A et B de l'encodeur</td></tr>
+    <tr><td><code>PANNE</code>, aucune roue ne tourne, PWM qui monte, 0 tick, LED du MDD3A éteintes</td><td>MDD3A pas alimenté</td><td>6 V entre VB+ et VB− ; vérifier 5V0 ↔ GND ≈ 5 V</td></tr>
+    <tr><td>Avec <code>test_moteurs</code> : une roue ne tourne que dans un sens (<code>g</code> rien, <code>r</code> tourne)</td><td>un des 2 fils de commande</td><td>GPIO 25 → M1A, 26 → M1B (gauche) ; 33 → M2A, 32 → M2B (droit)</td></tr>
+    <tr><td>Avec <code>test_moteurs</code> : <code>g</code> fait tourner la roue droite</td><td>moteurs sur les mauvais borniers</td><td>moteur gauche sur M1A/M1B, droit sur M2A/M2B</td></tr>
+    <tr><td><code>Touche inconnue</code>, rien ne bouge</td><td>clavier AZERTY : la touche 1 envoie « &amp; »</td><td>Maj + 1, ou le pavé numérique (Verr Num allumé)</td></tr>
+    <tr><td>L'ESP32 redémarre quand les moteurs démarrent (<code>BROWNOUT</code>)</td><td>chute de tension</td><td>courant des moteurs hors breadboard et hors USB ; 100 µF entre VB+ et VB−</td></tr>
+  </table>
+</section>
+
+<!-- ============================ PAGE 8 ============================ -->
+<section class="page">
+  <h2>Plus tard : le montage sur batterie <span class="badge todo" style="font-size:9pt;vertical-align:middle">pas encore monté</span></h2>
+  <figure>
+    <svg viewBox="0 0 720 295" role="img" aria-label="Montage sur batterie">
+      <!-- batterie et interrupteur -->
+      <rect x="20" y="105" width="110" height="80" rx="6" class="box"/>
+      <text x="75" y="130" text-anchor="middle" class="b">Batterie</text>
+      <text x="75" y="146" text-anchor="middle" class="s">2 × LiFePO4</text>
+      <text x="75" y="160" text-anchor="middle" class="s">6,4 V (à choisir)</text>
+      <text x="122" y="129" text-anchor="end" class="b">+</text>
+      <text x="122" y="174" text-anchor="end" class="b">−</text>
+      <rect x="165" y="106" width="90" height="40" rx="5" class="box"/>
+      <text x="210" y="123" text-anchor="middle" class="b">Interrupteur</text>
+      <text x="210" y="138" text-anchor="middle" class="s">général</text>
+      <path d="M130,125 H165 M255,125 H290 M290,125 V55 H340 M290,125 V225 H340" class="pwr"/>
+      <circle cx="290" cy="125" r="3.5" class="dot"/>
+      <!-- régulateur et rail 5 V -->
+      <rect x="340" y="30" width="140" height="60" rx="6" class="box"/>
+      <text x="410" y="53" text-anchor="middle" class="b">Régulateur 5 V</text>
+      <text x="410" y="68" text-anchor="middle" class="s">abaisseur, ≥ 2 A</text>
+      <use href="#gsym" x="410" y="90"/>
+      <path d="M480,55 H700 M525,55 V72 M585,55 V72 M645,55 V72 M700,55 V72" class="v5"/>
+      <circle cx="525" cy="55" r="3" class="dot"/><circle cx="585" cy="55" r="3" class="dot"/><circle cx="645" cy="55" r="3" class="dot"/>
+      <text x="500" y="47" class="s b tv">rail 5 V</text>
+      <circle cx="525" cy="75" r="3" class="pin"/><circle cx="585" cy="75" r="3" class="pin"/>
+      <circle cx="645" cy="75" r="3" class="pin"/><circle cx="700" cy="75" r="3" class="pin"/>
+      <text x="525" y="92" text-anchor="middle" class="s b">ESP32</text>
+      <text x="525" y="105" text-anchor="middle" class="s">broche 5V</text>
+      <text x="585" y="92" text-anchor="middle" class="s b">HC-SR04</text>
+      <text x="585" y="105" text-anchor="middle" class="s">+ 100 µF</text>
+      <text x="645" y="92" text-anchor="middle" class="s b">encodeurs</text>
+      <text x="645" y="105" text-anchor="middle" class="s">G et D</text>
+      <text x="712" y="92" text-anchor="end" class="s b">servo</text>
+      <text x="712" y="105" text-anchor="end" class="s">+ 470 µF</text>
+      <!-- BAU et MDD3A -->
+      <rect x="340" y="205" width="110" height="40" rx="5" style="fill:#fff7ed;stroke:#c2410c;stroke-width:1.6"/>
+      <text x="395" y="222" text-anchor="middle" class="b">BAU</text>
+      <text x="395" y="237" text-anchor="middle" class="s">contact NC</text>
+      <path d="M450,225 H540" class="pwr"/>
+      <path d="M500,225 V238 M490,238 H510 M490,245 H510 M500,245 V262" class="thin"/>
+      <circle cx="500" cy="225" r="3" class="dot"/><circle cx="500" cy="262" r="3" class="dot"/>
+      <text x="486" y="250" text-anchor="end" class="s">100 µF</text>
+      <rect x="540" y="195" width="150" height="90" rx="6" class="box"/>
+      <text x="548" y="229" class="m">VB+</text>
+      <text x="548" y="266" class="m">VB−</text>
+      <text x="630" y="240" text-anchor="middle" class="b">MDD3A</text>
+      <text x="630" y="255" text-anchor="middle" class="s">→ 2 moteurs</text>
+      <path d="M130,170 H200 V262 H540" class="gndp"/>
+      <text x="210" y="284" class="s">masse commune : toutes les GND reliées</text>
+      <circle cx="130" cy="125" r="4" class="pin"/><circle cx="130" cy="170" r="4" class="pin"/>
+      <circle cx="340" cy="55" r="4" class="pin"/><circle cx="480" cy="55" r="4" class="pin"/>
+      <circle cx="540" cy="225" r="4" class="pin"/><circle cx="540" cy="262" r="4" class="pin"/>
+    </svg>
+    <figcaption>Deux branches : le BAU coupe seulement les moteurs, l'ESP32 reste allumé (D003, règle d'or n° 2).</figcaption>
+  </figure>
+  <ul>
+    <li><b>Batterie</b> : 2 éléments LiFePO4 (6,4 V) recommandés, dispensés de sac ignifuge. Pas de pile 9 V :
+      elle ne fournit pas les 2 à 3 A de pointe des moteurs, et 9 V dépasse le maximum des FIT0450 (7,5 V).
+      Au-dessus de 6 V, limiter la PWM (<code>MOTOR_MAX_PWM_PCT</code>).</li>
+    <li><b>Régulateur 5 V séparé</b> : la sortie 5V0 du MDD3A ne suffit pas pour le servo.</li>
+    <li><b>Jamais l'USB et le régulateur en même temps</b> sur l'ESP32 : pour lire le moniteur sur batterie,
+      débranchez d'abord le fil 5 V du régulateur vers l'ESP32.</li>
+    <li><b>HC-SR04 sur un régulateur à découpage</b> : condensateur de 10 à 100 µF (plus 100 nF) au plus près
+      du capteur, puis refaire le test <code>test_ultrason</code> sur batterie.</li>
+  </ul>
+
+  <h2 style="margin-top:12px">Avant la première mise sous tension</h2>
+  <ol>
+    <li><b>Tout se câble hors tension.</b> On ne branche ni ne débranche jamais un fil sous tension.</li>
+    <li><b>Multimètre en mode « bip »</b> : pas de court-circuit entre 5 V et la masse, ni entre VB+ et VB− ;
+      toutes les masses sont reliées.</li>
+    <li><b>Régulateur seul d'abord</b> : sa sortie doit faire 5 V avant de brancher quoi que ce soit derrière.</li>
+    <li><b>Jamais plus de 3,3 V sur une broche de l'ESP32.</b> Les risques : ECHO sans pont, IR alimentés en 5 V par erreur.</li>
+    <li><b>Condensateurs</b> : respecter le sens (bande blanche = patte −).</li>
+    <li><b>Puis la vérification de la page 7</b>, roues à la main d'abord.</li>
+  </ol>
+  <p class="small" style="margin-top:10px">Broches recopiées de <code>docs/materiel.md</code> et de <code>pami/src/config.h</code>.
+    Pièges détaillés : <code>docs/lecons-apprises.md</code>. Décisions citées : D003 (BAU sur la puissance),
+    D007 (bouton de départ, profil labo), D008 (servo), D009 (IR tournés vers le sol).
+    Source de ce document : <code>docs/cablage-pami.html</code>.</p>
+</section>
+
+</body>
+</html>
