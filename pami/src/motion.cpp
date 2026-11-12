@@ -32,8 +32,8 @@ int32_t lastRightTicks = 0;
 uint32_t lastUpdateMs = 0;
 
 float profileSpeedMmS = 0.0f;  // vitesse voulue par le profil en trapèze
-SpeedController leftController;
-SpeedController rightController;
+SpeedController leftController(LEFT_MOTOR_DEADBAND_PCT, LEFT_MOTOR_PCT_PER_MM_S);
+SpeedController rightController(RIGHT_MOTOR_DEADBAND_PCT, RIGHT_MOTOR_PCT_PER_MM_S);
 WheelCommand requested;  // {0, 0} : arrêt
 
 uint32_t stallStartMs = 0;  // début d'une suspicion de roue bloquée (0 = aucune)

@@ -153,6 +153,14 @@ constexpr float TURN_TOLERANCE_MM = 2.0f;
 // Anticipation : PWM nécessaire pour décoller (zone morte) + PWM par mm/s voulu.
 constexpr float MOTOR_DEADBAND_PCT = 10.0f;     // PROVISOIRE : zone morte à mesurer (T002 incomplet)
 constexpr float MOTOR_PCT_PER_MM_S = 0.2f;      // PROVISOIRE : environ 100 % pour 500 mm/s
+// Deux moteurs ne sont jamais identiques : chaque roue a ses propres valeurs.
+// Pour l'instant elles reprennent les valeurs communes ci-dessus, donc rien ne change.
+// Après la mesure au sol (PWM 20, 30, 40, 50 % sur chaque roue), remplacez-les par les valeurs
+// mesurées, avec le numéro du test en commentaire (// Txxx).
+constexpr float LEFT_MOTOR_DEADBAND_PCT = MOTOR_DEADBAND_PCT;
+constexpr float LEFT_MOTOR_PCT_PER_MM_S = MOTOR_PCT_PER_MM_S;
+constexpr float RIGHT_MOTOR_DEADBAND_PCT = MOTOR_DEADBAND_PCT;
+constexpr float RIGHT_MOTOR_PCT_PER_MM_S = MOTOR_PCT_PER_MM_S;
 constexpr float SPEED_KP_PCT_PER_MM_S = 0.05f;  // 100 mm/s d'écart -> 5 % de PWM en plus
 constexpr float SPEED_KI_PCT_PER_MM = 0.3f;     // corrige l'écart qui dure (pente, frottements)
 constexpr float SPEED_INTEGRAL_MAX_PCT = 30.0f;  // l'intégrale ne peut pas « s'emballer »
@@ -316,3 +324,50 @@ constexpr uint32_t TEST_BENCH_ODOMETRY_LOG_PERIOD_MS = 200;
 constexpr uint32_t TEST_BENCH_ODOMETRY_IDLE_LOG_PERIOD_MS = 1000;
 // Banc test_ultrason : une ligne de bilan par seconde (nombre de mesures, sans écho, min, max).
 constexpr uint32_t TEST_BENCH_US_SUMMARY_PERIOD_MS = 1000;
+
+// Banc test_pid : le régulateur de vitesse (logic/speed_controller.h) seul, roue par roue.
+// Échelon et vitesse constante : consigne de départ = vitesse de croisière du match.
+constexpr float TEST_BENCH_PID_STEP_SPEED_MM_S = DRIVE_SPEED_MM_S;
+constexpr float TEST_BENCH_PID_SPEED_STEP_MM_S = 25.0f;   // touches p et m
+constexpr float TEST_BENCH_PID_MAX_SPEED_MM_S = 300.0f;   // FIT0450 sous 6 V : environ 400 mm/s au sol
+constexpr uint32_t TEST_BENCH_PID_STEP_DURATION_MS = 3000;
+constexpr uint32_t TEST_BENCH_PID_CONSTANT_DURATION_MS = 8000;  // le temps de freiner la roue au doigt
+// Le régime établi (moyenne, erreur, ondulation) est mesuré après ce temps : avant, la roue accélère.
+constexpr uint32_t TEST_BENCH_PID_SETTLE_MS = 1500;
+// Escalier : 4 paliers, de quoi tracer la droite « PWM = zone morte + pente × vitesse ».
+// Au sol : 1,5 s × (50 + 100 + 150 + 200) mm/s = 750 mm, sous la limite de 800 mm.
+constexpr float TEST_BENCH_PID_STAIR_SPEEDS_MM_S[] = {50.0f, 100.0f, 150.0f, 200.0f};
+constexpr uint32_t TEST_BENCH_PID_STAIR_DURATION_MS = 1500;
+constexpr uint32_t TEST_BENCH_PID_STAIR_SETTLE_MS = 500;  // début de chaque palier ignoré
+// Sécurité au sol (mode par défaut, sans évitement) : un essai s'arrête après 800 mm parcourus.
+constexpr float TEST_BENCH_PID_FLOOR_MAX_DISTANCE_MM = 800.0f;
+constexpr uint32_t TEST_BENCH_PID_LOG_PERIOD_MS = 200;
+// Critères de réussite (échelon à 150 mm/s, au sol). Montée = temps pour atteindre 90 % de la consigne.
+constexpr float TEST_BENCH_PID_RISE_FRACTION = 0.9f;
+constexpr uint32_t TEST_BENCH_PID_RISE_TIME_MAX_MS = 300;
+constexpr float TEST_BENCH_PID_OVERSHOOT_MAX_PCT = 15.0f;
+constexpr float TEST_BENCH_PID_ERROR_MAX_MM_S = 5.0f;
+// Au-delà, la correction P + I fait une trop grosse part du travail : l'anticipation est à mesurer.
+constexpr float TEST_BENCH_PID_CORRECTION_HINT_PCT = 5.0f;
+
+// Banc test_trajectoire : ligne, rotation et carré aux dimensions tapées au clavier, puis
+// correction de l'étalonnage (diamètre des roues, entraxe) à partir des mesures au mètre ruban.
+constexpr float TEST_BENCH_TRAJ_DEFAULT_DISTANCE_MM = 500.0f;
+constexpr float TEST_BENCH_TRAJ_MIN_DISTANCE_MM = 50.0f;
+constexpr float TEST_BENCH_TRAJ_MAX_DISTANCE_MM = 2000.0f;  // prévoir 2,5 m dégagés devant
+// Un tour complet par défaut : l'erreur d'angle est 4 fois plus visible qu'à 90°.
+constexpr float TEST_BENCH_TRAJ_DEFAULT_ANGLE_DEG = 360.0f;
+constexpr float TEST_BENCH_TRAJ_MAX_ANGLE_DEG = 1080.0f;  // 3 tours
+constexpr float TEST_BENCH_TRAJ_DEFAULT_SQUARE_MM = 300.0f;
+constexpr float TEST_BENCH_TRAJ_MIN_SQUARE_MM = 100.0f;
+constexpr float TEST_BENCH_TRAJ_MAX_SQUARE_MM = 1000.0f;
+// Un essai s'arrête seul s'il dure plus de 2 fois le temps prévu, plus 5 s.
+constexpr uint32_t TEST_BENCH_TRAJ_TIMEOUT_MARGIN_MS = 5000;
+// Critères (repris de test_odometrie) : distance à 1 % près (5 mm sur 500 mm), angle à 5° près
+// par tour, carré refermé à moins de 30 mm. En dessous, l'étalonnage est bon : rien à changer.
+constexpr float TEST_BENCH_TRAJ_DISTANCE_TOLERANCE_PCT = 1.0f;
+constexpr float TEST_BENCH_TRAJ_ANGLE_TOLERANCE_DEG_PER_TURN = 5.0f;
+constexpr float TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM = 30.0f;
+// Au-delà, les essais répétés ne se ressemblent pas assez : patinage ou mécanique à régler
+// avant de toucher aux constantes.
+constexpr float TEST_BENCH_TRAJ_DISPERSION_MAX_PCT = 1.0f;

@@ -263,3 +263,24 @@
   - pare-feu Windows : autoriser le port 55910 (une fois) ;
   - la radio consomme environ 120 mA de plus sur la batterie ;
   - si le Wi-Fi ne répond plus, l'USB et les environnements habituels marchent toujours.
+
+### D011 — Régulateur de vitesse : anticipation par roue + PI, sans terme D
+- **Date** : 12/11/2026
+- **Statut** : adoptée
+- **Contexte** : la branche `PID` apporte un nouveau régulateur. L'équipe se demandait s'il fallait
+  le garder, ou l'ancien « PI » de `pami-firmware-v1`, et comment régler les gains.
+- **Constat** : les deux sont des PI avec anticipation ; aucun n'a de terme D. Le nouveau ajoute une
+  anticipation propre à chaque roue et un anti-emballement de l'intégrale. Avec les réglages actuels,
+  les deux se comportent exactement pareil : l'anticipation par roue vaut encore la valeur commune, et
+  l'anti-emballement ne s'active qu'au-dessus de 240 mm/s.
+- **Décision** :
+  - garder le régulateur de la branche `PID` (fusionné dans `main` le 12/11/2026) ;
+  - pas de terme D ;
+  - régler dans l'ordre : anticipation de chaque roue (escalier de `test_pid`), puis KP / KI seulement si
+    l'échelon échoue, puis l'étalonnage avec `test_trajectoire`.
+- **Pourquoi** :
+  - l'anticipation fait l'essentiel du travail ; mesurée par roue, elle rend les deux roues identiques ;
+  - le terme D amplifierait le bruit de la mesure de vitesse (1 tick en 20 ms = 5 mm/s) ;
+  - la plupart des erreurs de trajectoire viennent de l'étalonnage, pas des gains.
+- **Conséquences** : méthode complète dans `docs/reglage-regulation.md` ; nouveau banc
+  `test_trajectoire` ; correction du diamètre gauche/droite seulement si les mesures la demandent.
