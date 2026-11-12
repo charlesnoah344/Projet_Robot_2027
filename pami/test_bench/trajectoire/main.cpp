@@ -2,9 +2,11 @@
 // puis calcul des corrections d'étalonnage à partir de ce que vous mesurez au mètre ruban.
 //
 // !!! PROGRAMME DE TEST : PAS D'ÉVITEMENT COMPLET. NE JAMAIS L'UTILISER EN MATCH. !!!
-// Après le test, remettre le firmware : pio run -t upload
+// Après le test, remettre le firmware : pio run -t upload (sans fil : pio run -e esp32dev_wifi -t upload)
 //
 // Téléverser : pio run -e test_trajectoire -t upload -t monitor (maintenir BOOT pendant « Connecting »)
+// Sans fil (D010) : pio run -e test_trajectoire_wifi -t upload, puis pio device monitor -e test_trajectoire_wifi.
+//   Téléversement accepté seulement hors essai. Les commandes marchent aussi depuis le moniteur Wi-Fi.
 // Méthode complète (ordre des essais, comment corriger) : docs/reglage-regulation.md
 //
 // CE QUE CE BANC RÉPOND
@@ -59,10 +61,12 @@
 #include <stdlib.h>
 
 #include "config.h"
+#include "console.h"
 #include "encoders.h"
 #include "motion.h"
 #include "motor_driver.h"
 #include "sensors.h"
+#include "wireless.h"
 
 namespace {
 
@@ -145,34 +149,34 @@ void printResetReason() {
     case ESP_RST_WDT: reason = "chien de garde (programme bloque)"; break;
     default: break;
   }
-  Serial.printf("[BANC] Cause du redemarrage : %s\n", reason);
+  Console.printf("[BANC] Cause du redemarrage : %s\n", reason);
 }
 
 void printHelp() {
-  Serial.println("[TRAJ] Commandes : une lettre, un nombre si besoin, puis Entree. Exemples :");
-  Serial.printf("[TRAJ]   l 1000   ligne droite de 1000 mm (%.0f a %.0f)\n", TEST_BENCH_TRAJ_MIN_DISTANCE_MM,
-                TEST_BENCH_TRAJ_MAX_DISTANCE_MM);
-  Serial.println("[TRAJ]   r 90     rotation de 90 deg vers la gauche ; r -90 vers la droite ; r 360 = un tour");
-  Serial.println("[TRAJ]   c 300    carre de 300 mm en tournant a gauche ; c -300 en tournant a droite");
-  Serial.printf("[TRAJ]   v 100    vitesse des lignes droites, en mm/s (%.0f a %.0f)\n", MOTION_MIN_SPEED_MM_S,
-                DRIVE_SPEED_MM_S);
-  Serial.println("[TRAJ]   m 503    MESURE reelle du dernier essai (mm, ou deg pour une rotation)");
-  Serial.println("[TRAJ]   Entree seule : refaire le meme essai    n : nouvelle serie de mesures");
-  Serial.println("[TRAJ]   z : position a zero    i : reglages    h : aide");
-  Serial.println("[TRAJ] Chiffres : pave numerique, ou Maj + touche sur un clavier AZERTY.");
-  Serial.println("[TRAJ] Pendant un essai : N'IMPORTE QUELLE touche = STOP.");
+  Console.println("[TRAJ] Commandes : une lettre, un nombre si besoin, puis Entree. Exemples :");
+  Console.printf("[TRAJ]   l 1000   ligne droite de 1000 mm (%.0f a %.0f)\n", TEST_BENCH_TRAJ_MIN_DISTANCE_MM,
+                 TEST_BENCH_TRAJ_MAX_DISTANCE_MM);
+  Console.println("[TRAJ]   r 90     rotation de 90 deg vers la gauche ; r -90 vers la droite ; r 360 = un tour");
+  Console.println("[TRAJ]   c 300    carre de 300 mm en tournant a gauche ; c -300 en tournant a droite");
+  Console.printf("[TRAJ]   v 100    vitesse des lignes droites, en mm/s (%.0f a %.0f)\n", MOTION_MIN_SPEED_MM_S,
+                 DRIVE_SPEED_MM_S);
+  Console.println("[TRAJ]   m 503    MESURE reelle du dernier essai (mm, ou deg pour une rotation)");
+  Console.println("[TRAJ]   Entree seule : refaire le meme essai    n : nouvelle serie de mesures");
+  Console.println("[TRAJ]   z : position a zero    i : reglages    h : aide");
+  Console.println("[TRAJ] Chiffres : pave numerique, ou Maj + touche sur un clavier AZERTY.");
+  Console.println("[TRAJ] Pendant un essai : N'IMPORTE QUELLE touche = STOP.");
 }
 
 void printSettings() {
-  Serial.printf("[TRAJ] Etalonnage : roue %.2f mm, entraxe %.1f mm, %ld ticks/tour (%.4f mm/tick)\n",
-                WHEEL_DIAMETER_MM, WHEEL_BASE_MM, (long)ENCODER_TICKS_PER_WHEEL_TURN, MM_PER_TICK);
-  Serial.printf("[TRAJ] Vitesses : ligne %.0f mm/s, rotation %.0f mm/s par roue, acceleration %.0f mm/s2\n",
-                lineSpeedMmS, TURN_SPEED_MM_S, MOTION_ACCEL_MM_S2);
-  Serial.printf("[TRAJ] Regulateur : KP %.3f, KI %.3f | anticipation G %.1f %% + %.3f, D %.1f %% + %.3f\n",
-                SPEED_KP_PCT_PER_MM_S, SPEED_KI_PCT_PER_MM, LEFT_MOTOR_DEADBAND_PCT, LEFT_MOTOR_PCT_PER_MM_S,
-                RIGHT_MOTOR_DEADBAND_PCT, RIGHT_MOTOR_PCT_PER_MM_S);
-  Serial.printf("[TRAJ] Derniers choix : ligne %.0f mm, rotation %.0f deg, carre %.0f mm\n", lineDistanceMm,
-                turnAngleDeg, squareSideMm);
+  Console.printf("[TRAJ] Etalonnage : roue %.2f mm, entraxe %.1f mm, %ld ticks/tour (%.4f mm/tick)\n",
+                 WHEEL_DIAMETER_MM, WHEEL_BASE_MM, (long)ENCODER_TICKS_PER_WHEEL_TURN, MM_PER_TICK);
+  Console.printf("[TRAJ] Vitesses : ligne %.0f mm/s, rotation %.0f mm/s par roue, acceleration %.0f mm/s2\n",
+                 lineSpeedMmS, TURN_SPEED_MM_S, MOTION_ACCEL_MM_S2);
+  Console.printf("[TRAJ] Regulateur : KP %.3f, KI %.3f | anticipation G %.1f %% + %.3f, D %.1f %% + %.3f\n",
+                 SPEED_KP_PCT_PER_MM_S, SPEED_KI_PCT_PER_MM, LEFT_MOTOR_DEADBAND_PCT, LEFT_MOTOR_PCT_PER_MM_S,
+                 RIGHT_MOTOR_DEADBAND_PCT, RIGHT_MOTOR_PCT_PER_MM_S);
+  Console.printf("[TRAJ] Derniers choix : ligne %.0f mm, rotation %.0f deg, carre %.0f mm\n", lineDistanceMm,
+                 turnAngleDeg, squareSideMm);
 }
 
 // --- Ce que le PAMI croit avoir fait depuis le début de l'essai (encodeurs) ---
@@ -226,26 +230,26 @@ void startStep(int index) {
 
 void startRun(RunKind kind, uint32_t nowMs) {
   if (motion::isFaulty()) {
-    Serial.println("[TRAJ] Panne en cours : verifiez les encodeurs (roues a la main), puis redemarrez avec EN.");
+    Console.println("[TRAJ] Panne en cours : verifiez les encodeurs (roues a la main), puis redemarrez avec EN.");
     return;
   }
   stepCount = 0;
   if (kind == RunKind::LINE) {
     steps[stepCount++] = {true, lineDistanceMm};
-    Serial.printf("[TRAJ] Essai : ligne droite de %.0f mm a %.0f mm/s. Une touche = STOP.\n", lineDistanceMm,
-                  lineSpeedMmS);
+    Console.printf("[TRAJ] Essai : ligne droite de %.0f mm a %.0f mm/s. Une touche = STOP.\n", lineDistanceMm,
+                   lineSpeedMmS);
   } else if (kind == RunKind::TURN) {
     steps[stepCount++] = {false, turnAngleDeg};
-    Serial.printf("[TRAJ] Essai : rotation de %.0f deg vers la %s. Une touche = STOP.\n", fabsf(turnAngleDeg),
-                  turnAngleDeg > 0.0f ? "gauche" : "droite");
+    Console.printf("[TRAJ] Essai : rotation de %.0f deg vers la %s. Une touche = STOP.\n", fabsf(turnAngleDeg),
+                   turnAngleDeg > 0.0f ? "gauche" : "droite");
   } else {
     const float turnDeg = (squareSideMm > 0.0f) ? 90.0f : -90.0f;
     for (int side = 0; side < 4; side++) {
       steps[stepCount++] = {true, fabsf(squareSideMm)};
       steps[stepCount++] = {false, turnDeg};
     }
-    Serial.printf("[TRAJ] Essai : carre de %.0f mm en tournant a %s. Une touche = STOP.\n", fabsf(squareSideMm),
-                  squareSideMm > 0.0f ? "gauche" : "droite");
+    Console.printf("[TRAJ] Essai : carre de %.0f mm en tournant a %s. Une touche = STOP.\n", fabsf(squareSideMm),
+                   squareSideMm > 0.0f ? "gauche" : "droite");
   }
 
   motion::resetPose();
@@ -260,17 +264,17 @@ void startRun(RunKind kind, uint32_t nowMs) {
   runTimeoutMs = 2 * expectedDurationMs() + TEST_BENCH_TRAJ_TIMEOUT_MARGIN_MS;
   lastLogMs = nowMs;
   if (sensors::isFaulty()) {
-    Serial.println("[TRAJ] ATTENTION : ultrason en panne, pas d'arret devant un obstacle. Main sur l'alim !");
+    Console.println("[TRAJ] ATTENTION : ultrason en panne, pas d'arret devant un obstacle. Main sur l'alim !");
   }
   startStep(0);
 }
 
 void printWheelMargin() {
-  Serial.printf("[TRAJ] PWM max demandee : gauche %.0f %%, droite %.0f %% (marge avant 100 %% : %.0f %%)\n",
-                maxLeftPct, maxRightPct, 100.0f - fmaxf(maxLeftPct, maxRightPct));
+  Console.printf("[TRAJ] PWM max demandee : gauche %.0f %%, droite %.0f %% (marge avant 100 %% : %.0f %%)\n",
+                 maxLeftPct, maxRightPct, 100.0f - fmaxf(maxLeftPct, maxRightPct));
   if (fmaxf(maxLeftPct, maxRightPct) >= 90.0f) {
-    Serial.println("[TRAJ] PWM proche de 100 % : le regulateur n'a plus de reserve (vitesse trop haute,"
-                   " batterie faible ou roue qui frotte).");
+    Console.println("[TRAJ] PWM proche de 100 % : le regulateur n'a plus de reserve (vitesse trop haute,"
+                    " batterie faible ou roue qui frotte).");
   }
 }
 
@@ -283,30 +287,30 @@ void finishRun(uint32_t nowMs) {
 
   if (finished == RunKind::LINE) {
     believedValue = believedDistanceMm();
-    Serial.printf("[TRAJ] ===== Ligne droite de %.0f mm terminee en %.1f s =====\n", lineDistanceMm, seconds);
-    Serial.printf("[TRAJ] Le PAMI croit avoir parcouru %.1f mm (ecart lateral y = %.0f mm, cap %.1f deg).\n",
-                  believedValue, pose.yMm, pose.headingDeg);
+    Console.printf("[TRAJ] ===== Ligne droite de %.0f mm terminee en %.1f s =====\n", lineDistanceMm, seconds);
+    Console.printf("[TRAJ] Le PAMI croit avoir parcouru %.1f mm (ecart lateral y = %.0f mm, cap %.1f deg).\n",
+                   believedValue, pose.yMm, pose.headingDeg);
     printWheelMargin();
-    Serial.println("[TRAJ] -> Mesurez la distance REELLE (meme repere sur le PAMI au depart et a l'arrivee),");
-    Serial.println("[TRAJ]    puis tapez : m <distance en mm>. Notez aussi l'ecart lateral reel (< 10 mm sur 500 mm).");
+    Console.println("[TRAJ] -> Mesurez la distance REELLE (meme repere sur le PAMI au depart et a l'arrivee),");
+    Console.println("[TRAJ]    puis tapez : m <distance en mm>. Notez aussi l'ecart lateral reel (< 10 mm sur 500 mm).");
   } else if (finished == RunKind::TURN) {
     believedValue = believedAngleDeg();
-    Serial.printf("[TRAJ] ===== Rotation de %.0f deg terminee en %.1f s =====\n", fabsf(turnAngleDeg), seconds);
-    Serial.printf("[TRAJ] Le PAMI croit avoir tourne de %.1f deg (x = %.0f mm, y = %.0f mm : il doit rester sur place).\n",
-                  fabsf(believedValue), pose.xMm, pose.yMm);
+    Console.printf("[TRAJ] ===== Rotation de %.0f deg terminee en %.1f s =====\n", fabsf(turnAngleDeg), seconds);
+    Console.printf("[TRAJ] Le PAMI croit avoir tourne de %.1f deg (x = %.0f mm, y = %.0f mm : il doit rester sur place).\n",
+                   fabsf(believedValue), pose.xMm, pose.yMm);
     printWheelMargin();
-    Serial.println("[TRAJ] -> Mesurez l'angle REEL (repere au sol, ou laser sur un mur : 1 deg = 35 mm a 2 m),");
-    Serial.println("[TRAJ]    puis tapez : m <angle en degres>.");
+    Console.println("[TRAJ] -> Mesurez l'angle REEL (repere au sol, ou laser sur un mur : 1 deg = 35 mm a 2 m),");
+    Console.println("[TRAJ]    puis tapez : m <angle en degres>.");
   } else {
     believedValue = sqrtf(pose.xMm * pose.xMm + pose.yMm * pose.yMm);
     lastSquareSideMm = squareSideMm;
-    Serial.printf("[TRAJ] ===== Carre de %.0f mm (a %s) termine en %.1f s =====\n", fabsf(squareSideMm),
-                  squareSideMm > 0.0f ? "gauche" : "droite", seconds);
-    Serial.printf("[TRAJ] Le PAMI croit etre a %.0f mm du depart (x = %.0f, y = %.0f, cap %.1f deg).\n",
-                  believedValue, pose.xMm, pose.yMm, pose.headingDeg);
+    Console.printf("[TRAJ] ===== Carre de %.0f mm (a %s) termine en %.1f s =====\n", fabsf(squareSideMm),
+                   squareSideMm > 0.0f ? "gauche" : "droite", seconds);
+    Console.printf("[TRAJ] Le PAMI croit etre a %.0f mm du depart (x = %.0f, y = %.0f, cap %.1f deg).\n",
+                   believedValue, pose.xMm, pose.yMm, pose.headingDeg);
     printWheelMargin();
-    Serial.println("[TRAJ] -> Mesurez la distance REELLE entre le repere de depart et le PAMI, puis tapez :");
-    Serial.println("[TRAJ]    m <distance en mm>. Notez de quel cote du depart il s'arrete (voir la doc).");
+    Console.println("[TRAJ] -> Mesurez la distance REELLE entre le repere de depart et le PAMI, puis tapez :");
+    Console.println("[TRAJ]    m <distance en mm>. Notez de quel cote du depart il s'arrete (voir la doc).");
   }
   measurableRun = finished;
 }
@@ -317,8 +321,8 @@ void stopRun(const char* reason) {
   measurableRun = RunKind::NONE;  // essai incomplet : pas de mesure possible
   motorDriver::brake();
   const Pose pose = motion::pose();
-  Serial.printf("[TRAJ] STOP (%s). Position calculee : x = %.0f mm, y = %.0f mm, cap = %.1f deg.\n", reason,
-                pose.xMm, pose.yMm, pose.headingDeg);
+  Console.printf("[TRAJ] STOP (%s). Position calculee : x = %.0f mm, y = %.0f mm, cap = %.1f deg.\n", reason,
+                 pose.xMm, pose.yMm, pose.headingDeg);
 }
 
 // À chaque tour de loop() pendant un essai : sécurités, puis étape suivante.
@@ -356,32 +360,32 @@ void advanceRun(uint32_t nowMs) {
 
 void printSeries(const char* what, const Series& series) {
   const float spreadPct = (series.max - series.min) / 2.0f / series.mean() * 100.0f;
-  Serial.printf("[TRAJ] Serie de %lu %s : rapport moyen %.4f (dispersion +/- %.2f %%)\n",
-                (unsigned long)series.count, what, series.mean(), spreadPct);
+  Console.printf("[TRAJ] Serie de %lu %s : rapport moyen %.4f (dispersion +/- %.2f %%)\n",
+                 (unsigned long)series.count, what, series.mean(), spreadPct);
   if (series.count >= 2 && spreadPct > TEST_BENCH_TRAJ_DISPERSION_MAX_PCT) {
-    Serial.println("[TRAJ] Essais trop differents les uns des autres : patinage, roue qui frotte ou repere mal"
-                   " place. A regler avant de changer les constantes.");
+    Console.println("[TRAJ] Essais trop differents les uns des autres : patinage, roue qui frotte ou repere mal"
+                    " place. A regler avant de changer les constantes.");
   }
   if (series.count < 3) {
-    Serial.println("[TRAJ] Refaites l'essai (Entree seule) : 3 a 5 mesures donnent une moyenne fiable.");
+    Console.println("[TRAJ] Refaites l'essai (Entree seule) : 3 a 5 mesures donnent une moyenne fiable.");
   }
 }
 
 void measureLine(float realMm) {
   const float ratio = realMm / believedValue;
   lineRatios.add(ratio);
-  Serial.printf("[TRAJ] Mesure : reel %.0f mm, le PAMI croyait %.1f mm (%+.2f %%).\n", realMm, believedValue,
-                (ratio - 1.0f) * 100.0f);
+  Console.printf("[TRAJ] Mesure : reel %.0f mm, le PAMI croyait %.1f mm (%+.2f %%).\n", realMm, believedValue,
+                 (ratio - 1.0f) * 100.0f);
   printSeries("lignes droites", lineRatios);
   const float meanRatio = lineRatios.mean();
   if (fabsf(meanRatio - 1.0f) * 100.0f <= TEST_BENCH_TRAJ_DISTANCE_TOLERANCE_PCT) {
-    Serial.printf("[TRAJ] Distance bonne a moins de %.0f %% : WHEEL_DIAMETER_MM n'a pas besoin de changer.\n",
-                  TEST_BENCH_TRAJ_DISTANCE_TOLERANCE_PCT);
+    Console.printf("[TRAJ] Distance bonne a moins de %.0f %% : WHEEL_DIAMETER_MM n'a pas besoin de changer.\n",
+                   TEST_BENCH_TRAJ_DISTANCE_TOLERANCE_PCT);
   } else {
     // Le PAMI calcule la distance avec le diamètre : s'il parcourt vraiment plus que ce qu'il croit,
     // sa roue est plus grande que la valeur de config.h, dans le même rapport.
-    Serial.printf("[TRAJ] Diametre conseille : WHEEL_DIAMETER_MM = %.2ff;  (actuel %.2f) // Txxx\n",
-                  WHEEL_DIAMETER_MM * meanRatio, WHEEL_DIAMETER_MM);
+    Console.printf("[TRAJ] Diametre conseille : WHEEL_DIAMETER_MM = %.2ff;  (actuel %.2f) // Txxx\n",
+                   WHEEL_DIAMETER_MM * meanRatio, WHEEL_DIAMETER_MM);
   }
 }
 
@@ -390,44 +394,44 @@ void measureTurn(float realDeg) {
   const float believedDeg = fabsf(believedValue);
   const float ratio = believedDeg / realDeg;
   turnRatios.add(ratio);
-  Serial.printf("[TRAJ] Mesure : reel %.1f deg, le PAMI croyait %.1f deg (ecart %+.1f deg).\n", realDeg,
-                believedDeg, realDeg - believedDeg);
+  Console.printf("[TRAJ] Mesure : reel %.1f deg, le PAMI croyait %.1f deg (ecart %+.1f deg).\n", realDeg,
+                 believedDeg, realDeg - believedDeg);
   if (lineRatios.count == 0) {
-    Serial.println("[TRAJ] Conseil : reglez d'abord le diametre (lignes droites, l ...) : l'angle en depend.");
+    Console.println("[TRAJ] Conseil : reglez d'abord le diametre (lignes droites, l ...) : l'angle en depend.");
   }
   printSeries("rotations", turnRatios);
   const float toleranceDeg = TEST_BENCH_TRAJ_ANGLE_TOLERANCE_DEG_PER_TURN * believedDeg / 360.0f;
   const float meanErrorDeg = believedDeg / turnRatios.mean() - believedDeg;
   if (fabsf(meanErrorDeg) <= toleranceDeg) {
-    Serial.printf("[TRAJ] Angle bon a moins de %.0f deg par tour : WHEEL_BASE_MM n'a pas besoin de changer.\n",
-                  TEST_BENCH_TRAJ_ANGLE_TOLERANCE_DEG_PER_TURN);
+    Console.printf("[TRAJ] Angle bon a moins de %.0f deg par tour : WHEEL_BASE_MM n'a pas besoin de changer.\n",
+                   TEST_BENCH_TRAJ_ANGLE_TOLERANCE_DEG_PER_TURN);
   } else {
     // Angle calculé = arc des roues / entraxe. S'il tourne vraiment plus que ce qu'il croit, son
     // entraxe réel est plus petit que celui de config.h, dans le même rapport.
-    Serial.printf("[TRAJ] Entraxe conseille : WHEEL_BASE_MM = %.1ff;  (actuel %.1f) // Txxx\n",
-                  WHEEL_BASE_MM * turnRatios.mean(), WHEEL_BASE_MM);
+    Console.printf("[TRAJ] Entraxe conseille : WHEEL_BASE_MM = %.1ff;  (actuel %.1f) // Txxx\n",
+                   WHEEL_BASE_MM * turnRatios.mean(), WHEEL_BASE_MM);
   }
 }
 
 void measureSquare(float realGapMm) {
   Series& series = (lastSquareSideMm > 0.0f) ? squaresLeft : squaresRight;
   series.add(realGapMm);
-  Serial.printf("[TRAJ] Mesure : arrive a %.0f mm du depart (le PAMI croyait %.0f mm).\n", realGapMm,
-                believedValue);
-  Serial.printf("[TRAJ] Carres a gauche : %lu, ecart moyen %.0f mm | a droite : %lu, ecart moyen %.0f mm\n",
-                (unsigned long)squaresLeft.count, squaresLeft.mean(), (unsigned long)squaresRight.count,
-                squaresRight.mean());
+  Console.printf("[TRAJ] Mesure : arrive a %.0f mm du depart (le PAMI croyait %.0f mm).\n", realGapMm,
+                 believedValue);
+  Console.printf("[TRAJ] Carres a gauche : %lu, ecart moyen %.0f mm | a droite : %lu, ecart moyen %.0f mm\n",
+                 (unsigned long)squaresLeft.count, squaresLeft.mean(), (unsigned long)squaresRight.count,
+                 squaresRight.mean());
   if (realGapMm > TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM) {
-    Serial.printf("[TRAJ] Plus de %.0f mm : voir docs/reglage-regulation.md, \"carres dans les deux sens\".\n",
-                  TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM);
+    Console.printf("[TRAJ] Plus de %.0f mm : voir docs/reglage-regulation.md, \"carres dans les deux sens\".\n",
+                   TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM);
   } else {
-    Serial.printf("[TRAJ] Retour a moins de %.0f mm du depart : bon.\n", TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM);
+    Console.printf("[TRAJ] Retour a moins de %.0f mm du depart : bon.\n", TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM);
   }
 }
 
 void handleMeasure(bool hasValue, float value) {
   if (!hasValue || value <= 0.0f) {
-    Serial.println("[TRAJ] Tapez la valeur mesuree, par exemple : m 503");
+    Console.println("[TRAJ] Tapez la valeur mesuree, par exemple : m 503");
     return;
   }
   switch (measurableRun) {
@@ -435,7 +439,7 @@ void handleMeasure(bool hasValue, float value) {
     case RunKind::TURN: measureTurn(value); break;
     case RunKind::SQUARE: measureSquare(value); break;
     default:
-      Serial.println("[TRAJ] Pas d'essai termine a mesurer (essai interrompu, ou deja mesure).");
+      Console.println("[TRAJ] Pas d'essai termine a mesurer (essai interrompu, ou deja mesure).");
       return;
   }
   measurableRun = RunKind::NONE;  // une seule mesure par essai
@@ -469,7 +473,7 @@ bool inRange(float value, float minValue, float maxValue, const char* what) {
   if (value >= minValue && value <= maxValue) {
     return true;
   }
-  Serial.printf("[TRAJ] %s : entre %.0f et %.0f.\n", what, minValue, maxValue);
+  Console.printf("[TRAJ] %s : entre %.0f et %.0f.\n", what, minValue, maxValue);
   return false;
 }
 
@@ -489,7 +493,7 @@ void executeLine(uint32_t nowMs) {
   float value = 0.0f;
   const bool hasValue = (*argument != '\0') && parseNumber(argument, value);
   if (*argument != '\0' && !hasValue) {
-    Serial.println("[TRAJ] Nombre illisible. Exemple : l 1000");
+    Console.println("[TRAJ] Nombre illisible. Exemple : l 1000");
     return;
   }
 
@@ -526,12 +530,12 @@ void executeLine(uint32_t nowMs) {
       break;
     case 'v':
       if (!hasValue) {
-        Serial.printf("[TRAJ] Vitesse des lignes droites : %.0f mm/s. Pour changer : v 100\n", lineSpeedMmS);
+        Console.printf("[TRAJ] Vitesse des lignes droites : %.0f mm/s. Pour changer : v 100\n", lineSpeedMmS);
         return;
       }
       if (inRange(value, MOTION_MIN_SPEED_MM_S, DRIVE_SPEED_MM_S, "Vitesse en mm/s")) {
         lineSpeedMmS = value;
-        Serial.printf("[TRAJ] Vitesse des lignes droites : %.0f mm/s\n", lineSpeedMmS);
+        Console.printf("[TRAJ] Vitesse des lignes droites : %.0f mm/s\n", lineSpeedMmS);
       }
       break;
     case 'm':
@@ -542,11 +546,11 @@ void executeLine(uint32_t nowMs) {
       turnRatios = Series();
       squaresLeft = Series();
       squaresRight = Series();
-      Serial.println("[TRAJ] Nouvelle serie : mesures precedentes oubliees.");
+      Console.println("[TRAJ] Nouvelle serie : mesures precedentes oubliees.");
       break;
     case 'z':
       motion::resetPose();
-      Serial.println("[TRAJ] Position remise a zero.");
+      Console.println("[TRAJ] Position remise a zero.");
       break;
     case 'i':
       printSettings();
@@ -556,7 +560,7 @@ void executeLine(uint32_t nowMs) {
       printHelp();
       break;
     default:
-      Serial.println("[TRAJ] Commande inconnue.");
+      Console.println("[TRAJ] Commande inconnue.");
       printHelp();
       break;
   }
@@ -578,7 +582,7 @@ void handleChar(char c, uint32_t nowMs) {
     return;
   }
   if (c == '\r' || c == '\n') {
-    Serial.println();
+    Console.println();
     executeLine(nowMs);
     lineLength = 0;
     return;
@@ -586,7 +590,7 @@ void handleChar(char c, uint32_t nowMs) {
   if (c == '\b' || c == 127) {  // effacer le dernier caractère
     if (lineLength > 0) {
       lineLength--;
-      Serial.print("\b \b");
+      Console.print("\b \b");
     }
     return;
   }
@@ -594,7 +598,7 @@ void handleChar(char c, uint32_t nowMs) {
     return;
   }
   line[lineLength++] = c;
-  Serial.print(c);  // écho : le moniteur n'affiche pas ce qu'on tape
+  Console.print(c);  // écho : le moniteur n'affiche pas ce qu'on tape
 }
 
 // Une ligne de mesures pendant l'essai : vitesse, PWM et position de chaque instant.
@@ -604,10 +608,10 @@ void logMeasures(uint32_t nowMs) {
   float leftMm = 0.0f;
   float rightMm = 0.0f;
   wheelDistancesMm(leftMm, rightMm);
-  Serial.printf("[ODO] t = %4.1f s | roue G %6.0f mm D %6.0f mm | PWM G %4.0f D %4.0f %% | x %5.0f y %5.0f mm"
-                " cap %6.1f deg | US %u mm\n",
-                (nowMs - runStartMs) / 1000.0f, leftMm, rightMm, command.leftPct, command.rightPct, pose.xMm,
-                pose.yMm, pose.headingDeg, sensors::frontDistanceMm());
+  Console.printf("[ODO] t = %4.1f s | roue G %6.0f mm D %6.0f mm | PWM G %4.0f D %4.0f %% | x %5.0f y %5.0f mm"
+                 " cap %6.1f deg | US %u mm\n",
+                 (nowMs - runStartMs) / 1000.0f, leftMm, rightMm, command.leftPct, command.rightPct, pose.xMm,
+                 pose.yMm, pose.headingDeg, sensors::frontDistanceMm());
 }
 
 }  // namespace
@@ -617,10 +621,10 @@ void setup() {
   motorDriver::begin();
 
   Serial.begin(SERIAL_BAUD);
-  Serial.println();
-  Serial.println("[BANC] ===== BANC DE TEST DES TRAJECTOIRES (ligne, rotation, carre) =====");
-  Serial.println("[BANC] PAS D'EVITEMENT COMPLET : NE JAMAIS UTILISER EN MATCH.");
-  Serial.println("[BANC] Apres le test : pio run -t upload (remet le firmware).");
+  Console.println();
+  Console.println("[BANC] ===== BANC DE TEST DES TRAJECTOIRES (ligne, rotation, carre) =====");
+  Console.println("[BANC] PAS D'EVITEMENT COMPLET : NE JAMAIS UTILISER EN MATCH.");
+  Console.println("[BANC] Apres le test : remettre le firmware (pio run -t upload, ou -e esp32dev_wifi).");
   printResetReason();
 
   encoders::begin();
@@ -629,14 +633,15 @@ void setup() {
 
   printSettings();
   printHelp();
-  Serial.println("[TRAJ] Moteurs arretes. Premier essai sur cales, par exemple : l 300 puis Entree.");
+  Console.println("[TRAJ] Moteurs arretes. Premier essai sur cales, par exemple : l 300 puis Entree.");
+  wireless::begin();
 }
 
 void loop() {
   const uint32_t nowMs = millis();
 
-  while (Serial.available() > 0) {
-    handleChar((char)Serial.read(), nowMs);
+  while (Console.available() > 0) {
+    handleChar((char)Console.read(), nowMs);
   }
 
   sensors::update(nowMs);
@@ -648,12 +653,12 @@ void loop() {
     faultReported = true;
     running = RunKind::NONE;
     measurableRun = RunKind::NONE;
-    Serial.println("[TRAJ] PANNE : roue bloquee ou encodeur inverse. Tout est arrete.");
-    Serial.println("[TRAJ] Verifiez le sens des encodeurs (roues a la main), puis redemarrez avec EN.");
+    Console.println("[TRAJ] PANNE : roue bloquee ou encodeur inverse. Tout est arrete.");
+    Console.println("[TRAJ] Verifiez le sens des encodeurs (roues a la main), puis redemarrez avec EN.");
   }
   if (sensors::isFaulty() && !sensorWarningPrinted) {
     sensorWarningPrinted = true;
-    Serial.println("[TRAJ] Ultrason en panne (aucune mesure) : le banc ne s'arretera pas devant un obstacle.");
+    Console.println("[TRAJ] Ultrason en panne (aucune mesure) : le banc ne s'arretera pas devant un obstacle.");
   }
 
   // Pas de safety dans ce banc : rien ne bloque la commande (false). Hors essai, freins serrés.
@@ -669,4 +674,6 @@ void loop() {
       logMeasures(nowMs);
     }
   }
+
+  wireless::update(nowMs, running == RunKind::NONE);  // téléversement seulement hors essai
 }

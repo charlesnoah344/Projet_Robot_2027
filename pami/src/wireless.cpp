@@ -68,12 +68,13 @@ void reportLostMessages() {
                  (unsigned long)lostBytes);
 }
 
-// Touches tapées dans le moniteur Wi-Fi. On garde les caractères imprimables et Entrée :
-// un vrai client telnet envoie aussi des octets de négociation, qu'on ignore.
+// Touches tapées dans le moniteur Wi-Fi. On garde les caractères imprimables, Entrée et l'effacement
+// (8 et 127, pour corriger une commande de test_trajectoire). Un vrai client telnet envoie aussi des
+// octets de négociation (240 à 255, puis un code d'option), qu'on ignore.
 void receiveKeys() {
   while (telnetClient.available() > 0) {
     const int c = telnetClient.read();
-    if ((c >= 32 && c <= 126) || c == '\r' || c == '\n') {
+    if ((c >= 32 && c <= 127) || c == '\r' || c == '\n' || c == '\b') {
       const uint8_t byte = (uint8_t)c;
       Console.wifiInput().push(&byte, 1);
     }

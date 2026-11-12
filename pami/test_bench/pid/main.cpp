@@ -1,9 +1,11 @@
 // Banc de test du régulateur de vitesse des roues (logic/speed_controller.h).
 //
 // !!! PROGRAMME DE TEST : AUCUN ÉVITEMENT. NE JAMAIS L'UTILISER EN MATCH. !!!
-// Après le test, remettre le firmware : pio run -t upload
+// Après le test, remettre le firmware : pio run -t upload (sans fil : pio run -e esp32dev_wifi -t upload)
 //
 // Téléverser : pio run -e test_pid -t upload -t monitor (maintenir BOOT pendant « Connecting »)
+// Sans fil (D010) : pio run -e test_pid_wifi -t upload, puis pio device monitor -e test_pid_wifi.
+//   Téléversement accepté seulement hors essai. Les touches marchent aussi depuis le moniteur Wi-Fi.
 // Méthode complète (à quoi sert chaque essai, ordre des réglages) : docs/reglage-regulation.md
 //
 // CE QUE CE BANC TESTE
@@ -76,9 +78,11 @@
 #include <esp_system.h>
 
 #include "config.h"
+#include "console.h"
 #include "encoders.h"
 #include "logic/speed_controller.h"
 #include "motor_driver.h"
+#include "wireless.h"
 
 namespace {
 
@@ -185,31 +189,31 @@ void printResetReason() {
     case ESP_RST_WDT: reason = "chien de garde (programme bloque)"; break;
     default: break;
   }
-  Serial.printf("[BANC] Cause du redemarrage : %s\n", reason);
+  Console.printf("[BANC] Cause du redemarrage : %s\n", reason);
 }
 
 void printSettings() {
-  Serial.printf("[BANC] Regulateur : KP %.3f %%/(mm/s), KI %.3f %%/mm, integrale max %.0f %%,"
-                " cycle %lu ms, PWM max %d %%\n",
-                SPEED_KP_PCT_PER_MM_S, SPEED_KI_PCT_PER_MM, SPEED_INTEGRAL_MAX_PCT,
-                (unsigned long)MOTION_PERIOD_MS, MOTOR_MAX_PWM_PCT);
-  Serial.printf("[BANC] Anticipation : gauche %.1f %% + %.3f %%/(mm/s) | droite %.1f %% + %.3f %%/(mm/s)\n",
-                DEADBAND_PCT[LEFT], PCT_PER_MM_S[LEFT], DEADBAND_PCT[RIGHT], PCT_PER_MM_S[RIGHT]);
-  Serial.printf("[BANC] Prochain essai : %s, %.0f mm/s, %s, %s\n", selectionName(), speedMmS,
-                direction > 0.0f ? "en avant" : "en arriere", modeName());
+  Console.printf("[BANC] Regulateur : KP %.3f %%/(mm/s), KI %.3f %%/mm, integrale max %.0f %%,"
+                 " cycle %lu ms, PWM max %d %%\n",
+                 SPEED_KP_PCT_PER_MM_S, SPEED_KI_PCT_PER_MM, SPEED_INTEGRAL_MAX_PCT,
+                 (unsigned long)MOTION_PERIOD_MS, MOTOR_MAX_PWM_PCT);
+  Console.printf("[BANC] Anticipation : gauche %.1f %% + %.3f %%/(mm/s) | droite %.1f %% + %.3f %%/(mm/s)\n",
+                 DEADBAND_PCT[LEFT], PCT_PER_MM_S[LEFT], DEADBAND_PCT[RIGHT], PCT_PER_MM_S[RIGHT]);
+  Console.printf("[BANC] Prochain essai : %s, %.0f mm/s, %s, %s\n", selectionName(), speedMmS,
+                 direction > 0.0f ? "en avant" : "en arriere", modeName());
 }
 
 void printHelp() {
-  Serial.println("[BANC] Commandes (une lettre, sans Entree) :");
-  Serial.println("[BANC] REGLER (rien ne tourne) :");
-  Serial.println("[BANC]   g / d / a = choisir la roue gauche seule / la roue droite seule / les deux");
-  Serial.println("[BANC]   p / m (ou + / -) = V plus / moins 25 mm/s     n = sens avant / arriere");
-  Serial.println("[BANC]   k = au sol / sur cales   v = courbes CSV   i = reglages   h = aide");
-  Serial.println("[BANC] LANCER UN ESSAI (les roues tournent) :");
-  Serial.println("[BANC]   e = echelon 0 -> V pendant 3 s (montee, depassement, erreur)");
-  Serial.println("[BANC]   s = escalier 50, 100, 150, 200 mm/s (mesure l'anticipation, AU SOL)");
-  Serial.println("[BANC]   c = vitesse constante V pendant 8 s (freiner la roue au doigt)");
-  Serial.println("[BANC] Pendant un essai : N'IMPORTE QUELLE touche = STOP.");
+  Console.println("[BANC] Commandes (une lettre, sans Entree) :");
+  Console.println("[BANC] REGLER (rien ne tourne) :");
+  Console.println("[BANC]   g / d / a = choisir la roue gauche seule / la roue droite seule / les deux");
+  Console.println("[BANC]   p / m (ou + / -) = V plus / moins 25 mm/s     n = sens avant / arriere");
+  Console.println("[BANC]   k = au sol / sur cales   v = courbes CSV   i = reglages   h = aide");
+  Console.println("[BANC] LANCER UN ESSAI (les roues tournent) :");
+  Console.println("[BANC]   e = echelon 0 -> V pendant 3 s (montee, depassement, erreur)");
+  Console.println("[BANC]   s = escalier 50, 100, 150, 200 mm/s (mesure l'anticipation, AU SOL)");
+  Console.println("[BANC]   c = vitesse constante V pendant 8 s (freiner la roue au doigt)");
+  Console.println("[BANC] Pendant un essai : N'IMPORTE QUELLE touche = STOP.");
 }
 
 // Consigne (sans signe) à l'instant elapsedMs de l'essai. Renvoie false quand l'essai est fini.
@@ -325,14 +329,14 @@ bool fitFeedForward(const WheelState& w, float& deadbandPct, float& pctPerMmS) {
 
 void printStepReport(int i, bool withVerdict) {
   const WheelState& w = wheels[i];
-  Serial.printf("[PID] Roue %s, consigne %.0f mm/s :\n", WHEEL_NAMES[i], speedMmS);
+  Console.printf("[PID] Roue %s, consigne %.0f mm/s :\n", WHEEL_NAMES[i], speedMmS);
   if (w.riseTimeMs >= 0) {
-    Serial.printf("[PID]   montee a 90 %% : %ld ms\n", (long)w.riseTimeMs);
+    Console.printf("[PID]   montee a 90 %% : %ld ms\n", (long)w.riseTimeMs);
   } else {
-    Serial.println("[PID]   montee a 90 % : jamais atteinte");
+    Console.println("[PID]   montee a 90 % : jamais atteinte");
   }
   const float overshootPct = fmaxf(0.0f, (w.peakMmS - speedMmS) / speedMmS * 100.0f);
-  Serial.printf("[PID]   depassement : %.0f %% (pointe a %.0f mm/s)\n", overshootPct, w.peakMmS);
+  Console.printf("[PID]   depassement : %.0f %% (pointe a %.0f mm/s)\n", overshootPct, w.peakMmS);
 
   float errorMmS = 0.0f;
   if (w.steadyCount > 0) {
@@ -340,65 +344,65 @@ void printStepReport(int i, bool withVerdict) {
     const float meanPwmPct = w.steadyPwmSumPct / w.steadyCount;
     const float meanCorrectionPct = w.steadyCorrectionSumPct / w.steadyCount;
     errorMmS = meanMmS - speedMmS;
-    Serial.printf("[PID]   regime etabli : moyenne %.0f mm/s (erreur %+.1f mm/s), min %.0f, max %.0f\n",
-                  meanMmS, errorMmS, w.steadyMinMmS, w.steadyMaxMmS);
-    Serial.printf("[PID]   PWM moyenne %.1f %% = anticipation %.1f %% + correction P+I %+.1f %%\n",
-                  meanPwmPct, meanPwmPct - meanCorrectionPct, meanCorrectionPct);
+    Console.printf("[PID]   regime etabli : moyenne %.0f mm/s (erreur %+.1f mm/s), min %.0f, max %.0f\n",
+                   meanMmS, errorMmS, w.steadyMinMmS, w.steadyMaxMmS);
+    Console.printf("[PID]   PWM moyenne %.1f %% = anticipation %.1f %% + correction P+I %+.1f %%\n",
+                   meanPwmPct, meanPwmPct - meanCorrectionPct, meanCorrectionPct);
     if (fabsf(meanCorrectionPct) > TEST_BENCH_PID_CORRECTION_HINT_PCT) {
-      Serial.println("[PID]   La correction fait une grosse part du travail : mesurez l'anticipation"
-                     " au sol (touche s).");
+      Console.println("[PID]   La correction fait une grosse part du travail : mesurez l'anticipation"
+                      " au sol (touche s).");
     }
   } else {
-    Serial.println("[PID]   regime etabli : non atteint (essai coupe avant 1,5 s)");
+    Console.println("[PID]   regime etabli : non atteint (essai coupe avant 1,5 s)");
   }
 
   if (withVerdict) {
     const bool riseOk = w.riseTimeMs >= 0 && (uint32_t)w.riseTimeMs <= TEST_BENCH_PID_RISE_TIME_MAX_MS;
     const bool overshootOk = overshootPct <= TEST_BENCH_PID_OVERSHOOT_MAX_PCT;
     const bool errorOk = w.steadyCount > 0 && fabsf(errorMmS) <= TEST_BENCH_PID_ERROR_MAX_MM_S;
-    Serial.printf("[PID]   -> montee %s (<= %lu ms) | depassement %s (<= %.0f %%) | erreur %s (<= %.0f mm/s)\n",
-                  riseOk ? "OK" : "ECHEC", (unsigned long)TEST_BENCH_PID_RISE_TIME_MAX_MS,
-                  overshootOk ? "OK" : "ECHEC", TEST_BENCH_PID_OVERSHOOT_MAX_PCT,
-                  errorOk ? "OK" : "ECHEC", TEST_BENCH_PID_ERROR_MAX_MM_S);
+    Console.printf("[PID]   -> montee %s (<= %lu ms) | depassement %s (<= %.0f %%) | erreur %s (<= %.0f mm/s)\n",
+                   riseOk ? "OK" : "ECHEC", (unsigned long)TEST_BENCH_PID_RISE_TIME_MAX_MS,
+                   overshootOk ? "OK" : "ECHEC", TEST_BENCH_PID_OVERSHOOT_MAX_PCT,
+                   errorOk ? "OK" : "ECHEC", TEST_BENCH_PID_ERROR_MAX_MM_S);
   }
 }
 
 void printStairReport(int i) {
   const WheelState& w = wheels[i];
-  Serial.printf("[PID] Roue %s :\n", WHEEL_NAMES[i]);
+  Console.printf("[PID] Roue %s :\n", WHEEL_NAMES[i]);
   for (int k = 0; k < STAIR_COUNT; k++) {
     if (w.stairCount[k] == 0) {
-      Serial.printf("[PID]   palier %3.0f mm/s : non mesure (essai coupe)\n",
-                    TEST_BENCH_PID_STAIR_SPEEDS_MM_S[k]);
+      Console.printf("[PID]   palier %3.0f mm/s : non mesure (essai coupe)\n",
+                     TEST_BENCH_PID_STAIR_SPEEDS_MM_S[k]);
       continue;
     }
-    Serial.printf("[PID]   palier %3.0f mm/s : mesure %4.0f mm/s, PWM %5.1f %%\n",
-                  TEST_BENCH_PID_STAIR_SPEEDS_MM_S[k], w.stairSpeedSumMmS[k] / w.stairCount[k],
-                  w.stairPwmSumPct[k] / w.stairCount[k]);
+    Console.printf("[PID]   palier %3.0f mm/s : mesure %4.0f mm/s, PWM %5.1f %%\n",
+                   TEST_BENCH_PID_STAIR_SPEEDS_MM_S[k], w.stairSpeedSumMmS[k] / w.stairCount[k],
+                   w.stairPwmSumPct[k] / w.stairCount[k]);
   }
   float deadbandPct = 0.0f;
   float pctPerMmS = 0.0f;
   if (!fitFeedForward(w, deadbandPct, pctPerMmS)) {
-    Serial.println("[PID]   Pas assez de paliers mesures pour calculer l'anticipation.");
+    Console.println("[PID]   Pas assez de paliers mesures pour calculer l'anticipation.");
     return;
   }
-  Serial.printf("[PID]   Anticipation mesuree : zone morte %.1f %%, pente %.3f %%/(mm/s)"
-                "  (actuel : %.1f %% et %.3f)\n",
-                deadbandPct, pctPerMmS, DEADBAND_PCT[i], PCT_PER_MM_S[i]);
+  Console.printf("[PID]   Anticipation mesuree : zone morte %.1f %%, pente %.3f %%/(mm/s)"
+                 "  (actuel : %.1f %% et %.3f)\n",
+                 deadbandPct, pctPerMmS, DEADBAND_PCT[i], PCT_PER_MM_S[i]);
   if (onStands) {
-    Serial.println("[PID]   SUR CALES, la roue n'a pas de charge : ne pas reporter. Refaire au sol.");
+    Console.println("[PID]   SUR CALES, la roue n'a pas de charge : ne pas reporter. Refaire au sol.");
   } else if (direction < 0.0f) {
-    Serial.println("[PID]   En marche arriere : a comparer avec la marche avant (config.h n'a qu'une"
-                   " valeur par roue).");
+    Console.println("[PID]   En marche arriere : a comparer avec la marche avant (config.h n'a qu'une"
+                    " valeur par roue).");
   } else {
-    Serial.printf("[PID]   A reporter dans config.h : %s = %.1ff; et %s = %.3ff;  // Txxx\n",
-                  DEADBAND_NAMES[i], deadbandPct, SLOPE_NAMES[i], pctPerMmS);
+    Console.printf("[PID]   A reporter dans config.h : %s = %.1ff; et %s = %.3ff;  // Txxx\n",
+                   DEADBAND_NAMES[i], deadbandPct, SLOPE_NAMES[i], pctPerMmS);
   }
 }
 
 void printReport(TestKind kind) {
-  Serial.printf("[PID] ===== BILAN : %s, %s, %s =====\n", testName(kind),
-                direction > 0.0f ? "en avant" : "en arriere", onStands ? "sur cales" : "au sol");
+  Console.printf("[PID] ===== BILAN : %s, %s, %s =====\n", testName(kind),
+                 direction > 0.0f ? "en avant" : "en arriere", onStands ? "sur cales" : "au sol");
   for (int i = 0; i < 2; i++) {
     if (!wheels[i].active) {
       continue;
@@ -414,7 +418,7 @@ void printReport(TestKind kind) {
 
 void startTest(TestKind kind, uint32_t nowMs) {
   if (faulty) {
-    Serial.println("[BANC] Panne en cours : verifiez les encodeurs (roues a la main), puis redemarrez avec EN.");
+    Console.println("[BANC] Panne en cours : verifiez les encodeurs (roues a la main), puis redemarrez avec EN.");
     return;
   }
   int32_t ticks[2];
@@ -431,14 +435,14 @@ void startTest(TestKind kind, uint32_t nowMs) {
   lastCycleMs = nowMs;
   lastLogMs = nowMs;
   if (kind == TestKind::STAIRS) {
-    Serial.printf("[BANC] Essai : escalier, %s, %s, %s. Une touche = STOP.\n", selectionName(),
-                  direction > 0.0f ? "en avant" : "en arriere", modeName());
+    Console.printf("[BANC] Essai : escalier, %s, %s, %s. Une touche = STOP.\n", selectionName(),
+                   direction > 0.0f ? "en avant" : "en arriere", modeName());
   } else {
-    Serial.printf("[BANC] Essai : %s a %.0f mm/s, %s, %s, %s. Une touche = STOP.\n", testName(kind),
-                  speedMmS, selectionName(), direction > 0.0f ? "en avant" : "en arriere", modeName());
+    Console.printf("[BANC] Essai : %s a %.0f mm/s, %s, %s, %s. Une touche = STOP.\n", testName(kind),
+                   speedMmS, selectionName(), direction > 0.0f ? "en avant" : "en arriere", modeName());
   }
   if (csvOutput) {
-    Serial.println("CSV;t_ms;cibleG;mesureG;pwmG;cibleD;mesureD;pwmD");
+    Console.println("CSV;t_ms;cibleG;mesureG;pwmG;cibleD;mesureD;pwmD");
   }
 }
 
@@ -449,24 +453,24 @@ void stopTest(const char* reason, uint32_t nowMs) {
     wheels[i].pct = 0.0f;
   }
   motorDriver::brake();
-  Serial.printf("[BANC] Fin de l'essai (%s) apres %.1f s.\n", reason, (nowMs - testStartMs) / 1000.0f);
+  Console.printf("[BANC] Fin de l'essai (%s) apres %.1f s.\n", reason, (nowMs - testStartMs) / 1000.0f);
   printReport(finished);
 }
 
 void printLiveLine(uint32_t elapsedMs) {
-  Serial.printf("[PID] t = %4.1f s | G cible %4.0f mesure %4.0f PWM %4.0f %% | D cible %4.0f mesure %4.0f"
-                " PWM %4.0f %%\n",
-                elapsedMs / 1000.0f, wheels[LEFT].targetMmS, smoothedMmS(wheels[LEFT]),
-                wheels[LEFT].pct, wheels[RIGHT].targetMmS, smoothedMmS(wheels[RIGHT]),
-                wheels[RIGHT].pct);
+  Console.printf("[PID] t = %4.1f s | G cible %4.0f mesure %4.0f PWM %4.0f %% | D cible %4.0f mesure %4.0f"
+                 " PWM %4.0f %%\n",
+                 elapsedMs / 1000.0f, wheels[LEFT].targetMmS, smoothedMmS(wheels[LEFT]),
+                 wheels[LEFT].pct, wheels[RIGHT].targetMmS, smoothedMmS(wheels[RIGHT]),
+                 wheels[RIGHT].pct);
 }
 
 // Valeurs brutes, en entiers : un tableur français les lit sans problème de virgule.
 void printCsvLine(uint32_t elapsedMs) {
-  Serial.printf("CSV;%lu;%ld;%ld;%ld;%ld;%ld;%ld\n", (unsigned long)elapsedMs,
-                lroundf(wheels[LEFT].targetMmS), lroundf(wheels[LEFT].measuredMmS),
-                lroundf(wheels[LEFT].pct), lroundf(wheels[RIGHT].targetMmS),
-                lroundf(wheels[RIGHT].measuredMmS), lroundf(wheels[RIGHT].pct));
+  Console.printf("CSV;%lu;%ld;%ld;%ld;%ld;%ld;%ld\n", (unsigned long)elapsedMs,
+                 lroundf(wheels[LEFT].targetMmS), lroundf(wheels[LEFT].measuredMmS),
+                 lroundf(wheels[LEFT].pct), lroundf(wheels[RIGHT].targetMmS),
+                 lroundf(wheels[RIGHT].measuredMmS), lroundf(wheels[RIGHT].pct));
 }
 
 // Un cycle du régulateur, toutes les MOTION_PERIOD_MS, comme motion en match.
@@ -511,9 +515,9 @@ void runCycle(uint32_t nowMs) {
     if (isStalledTooLong(w, nowMs)) {
       faulty = true;
       stopTest("PANNE", nowMs);
-      Serial.printf("[BANC] PANNE roue %s : beaucoup de PWM, mais la roue n'avance pas dans le bon sens.\n",
-                    WHEEL_NAMES[i]);
-      Serial.println("[BANC] Roue bloquee ou encodeur inverse : verifiez (roues a la main), puis EN.");
+      Console.printf("[BANC] PANNE roue %s : beaucoup de PWM, mais la roue n'avance pas dans le bon sens.\n",
+                     WHEEL_NAMES[i]);
+      Console.println("[BANC] Roue bloquee ou encodeur inverse : verifiez (roues a la main), puis EN.");
       return;
     }
     const float travelledMm = fabsf((ticks[i] - w.startTicks) * MM_PER_TICK);
@@ -532,20 +536,20 @@ void runCycle(uint32_t nowMs) {
 // Attention : dans test_moteurs, g, d et a font tourner les roues. Ici, elles ne font que
 // choisir les roues : on le rappelle après chaque réglage.
 void printLaunchHint() {
-  Serial.println("[BANC]   -> reglage enregistre, rien ne tourne. LANCER : e (echelon), s (escalier)"
-                 " ou c (vitesse constante).");
+  Console.println("[BANC]   -> reglage enregistre, rien ne tourne. LANCER : e (echelon), s (escalier)"
+                  " ou c (vitesse constante).");
 }
 
 void changeSpeed(float deltaMmS) {
   speedMmS = constrain(speedMmS + deltaMmS, TEST_BENCH_PID_SPEED_STEP_MM_S, TEST_BENCH_PID_MAX_SPEED_MM_S);
-  Serial.printf("[BANC] Vitesse de l'echelon et de la vitesse constante : %.0f mm/s\n", speedMmS);
+  Console.printf("[BANC] Vitesse de l'echelon et de la vitesse constante : %.0f mm/s\n", speedMmS);
   printLaunchHint();
 }
 
 void selectWheels(bool left, bool right) {
   selected[LEFT] = left;
   selected[RIGHT] = right;
-  Serial.printf("[BANC] Roues testees : %s\n", selectionName());
+  Console.printf("[BANC] Roues testees : %s\n", selectionName());
   printLaunchHint();
 }
 
@@ -571,24 +575,24 @@ void handleKey(char key, uint32_t nowMs) {
     case '-': changeSpeed(-TEST_BENCH_PID_SPEED_STEP_MM_S); break;
     case 'n':
       direction = -direction;
-      Serial.printf("[BANC] Sens : %s\n", direction > 0.0f ? "en avant" : "EN ARRIERE");
+      Console.printf("[BANC] Sens : %s\n", direction > 0.0f ? "en avant" : "EN ARRIERE");
       printLaunchHint();
       break;
     case 'k':
       onStands = !onStands;
-      Serial.printf("[BANC] Mode : %s\n", modeName());
+      Console.printf("[BANC] Mode : %s\n", modeName());
       printLaunchHint();
       break;
     case 'v':
       csvOutput = !csvOutput;
-      Serial.printf("[BANC] Courbes CSV (une ligne toutes les %lu ms) : %s\n",
-                    (unsigned long)MOTION_PERIOD_MS, csvOutput ? "oui" : "non");
+      Console.printf("[BANC] Courbes CSV (une ligne toutes les %lu ms) : %s\n",
+                     (unsigned long)MOTION_PERIOD_MS, csvOutput ? "oui" : "non");
       break;
     case 'i': printSettings(); break;
     case 'h':
     case '?': printHelp(); break;
     default:
-      Serial.println("[BANC] Touche inconnue (ce banc n'utilise que des lettres).");
+      Console.println("[BANC] Touche inconnue (ce banc n'utilise que des lettres).");
       printHelp();
       break;
   }
@@ -601,10 +605,10 @@ void setup() {
   motorDriver::begin();
 
   Serial.begin(SERIAL_BAUD);
-  Serial.println();
-  Serial.println("[BANC] ===== BANC DE TEST DU REGULATEUR DE VITESSE (PID) =====");
-  Serial.println("[BANC] PAS D'EVITEMENT : NE JAMAIS UTILISER EN MATCH.");
-  Serial.println("[BANC] Apres le test : pio run -t upload (remet le firmware).");
+  Console.println();
+  Console.println("[BANC] ===== BANC DE TEST DU REGULATEUR DE VITESSE (PID) =====");
+  Console.println("[BANC] PAS D'EVITEMENT : NE JAMAIS UTILISER EN MATCH.");
+  Console.println("[BANC] Apres le test : remettre le firmware (pio run -t upload, ou -e esp32dev_wifi).");
   printResetReason();
 
   encoders::begin();
@@ -613,14 +617,15 @@ void setup() {
 
   printSettings();
   printHelp();
-  Serial.println("[BANC] Moteurs arretes. Premier essai : PAMI sur cales, k puis e.");
+  Console.println("[BANC] Moteurs arretes. Premier essai : PAMI sur cales, k puis e.");
+  wireless::begin();
 }
 
 void loop() {
   const uint32_t nowMs = millis();
 
-  while (Serial.available() > 0) {
-    handleKey((char)Serial.read(), nowMs);
+  while (Console.available() > 0) {
+    handleKey((char)Console.read(), nowMs);
   }
 
   if (nowMs - lastCycleMs >= MOTION_PERIOD_MS) {
@@ -631,4 +636,6 @@ void loop() {
     lastLogMs = nowMs;
     printLiveLine(nowMs - testStartMs);
   }
+
+  wireless::update(nowMs, test == TestKind::NONE);  // téléversement seulement hors essai
 }
