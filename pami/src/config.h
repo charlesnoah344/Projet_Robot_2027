@@ -330,3 +330,25 @@ constexpr float TEST_BENCH_PID_OVERSHOOT_MAX_PCT = 15.0f;
 constexpr float TEST_BENCH_PID_ERROR_MAX_MM_S = 5.0f;
 // Au-delà, la correction P + I fait une trop grosse part du travail : l'anticipation est à mesurer.
 constexpr float TEST_BENCH_PID_CORRECTION_HINT_PCT = 5.0f;
+
+// Banc test_trajectoire : ligne, rotation et carré aux dimensions tapées au clavier, puis
+// correction de l'étalonnage (diamètre des roues, entraxe) à partir des mesures au mètre ruban.
+constexpr float TEST_BENCH_TRAJ_DEFAULT_DISTANCE_MM = 500.0f;
+constexpr float TEST_BENCH_TRAJ_MIN_DISTANCE_MM = 50.0f;
+constexpr float TEST_BENCH_TRAJ_MAX_DISTANCE_MM = 2000.0f;  // prévoir 2,5 m dégagés devant
+// Un tour complet par défaut : l'erreur d'angle est 4 fois plus visible qu'à 90°.
+constexpr float TEST_BENCH_TRAJ_DEFAULT_ANGLE_DEG = 360.0f;
+constexpr float TEST_BENCH_TRAJ_MAX_ANGLE_DEG = 1080.0f;  // 3 tours
+constexpr float TEST_BENCH_TRAJ_DEFAULT_SQUARE_MM = 300.0f;
+constexpr float TEST_BENCH_TRAJ_MIN_SQUARE_MM = 100.0f;
+constexpr float TEST_BENCH_TRAJ_MAX_SQUARE_MM = 1000.0f;
+// Un essai s'arrête seul s'il dure plus de 2 fois le temps prévu, plus 5 s.
+constexpr uint32_t TEST_BENCH_TRAJ_TIMEOUT_MARGIN_MS = 5000;
+// Critères (repris de test_odometrie) : distance à 1 % près (5 mm sur 500 mm), angle à 5° près
+// par tour, carré refermé à moins de 30 mm. En dessous, l'étalonnage est bon : rien à changer.
+constexpr float TEST_BENCH_TRAJ_DISTANCE_TOLERANCE_PCT = 1.0f;
+constexpr float TEST_BENCH_TRAJ_ANGLE_TOLERANCE_DEG_PER_TURN = 5.0f;
+constexpr float TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM = 30.0f;
+// Au-delà, les essais répétés ne se ressemblent pas assez : patinage ou mécanique à régler
+// avant de toucher aux constantes.
+constexpr float TEST_BENCH_TRAJ_DISPERSION_MAX_PCT = 1.0f;
