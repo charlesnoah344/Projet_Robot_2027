@@ -4,6 +4,7 @@
 // Après le test, remettre le firmware : pio run -t upload
 //
 // Téléverser : pio run -e test_pid -t upload -t monitor (maintenir BOOT pendant « Connecting »)
+// Méthode complète (à quoi sert chaque essai, ordre des réglages) : docs/reglage-regulation.md
 //
 // CE QUE CE BANC TESTE
 // Le VRAI régulateur du match (classe SpeedController, valeurs de config.h), seul : chaque roue

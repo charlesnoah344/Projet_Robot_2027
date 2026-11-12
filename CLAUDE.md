@@ -32,6 +32,7 @@ Phase actuelle : développement du PAMI (petit robot secondaire). Le robot princ
 - `docs/journal-tests.md` — résultats des tests sur le matériel réel.
 - `docs/homologation.md` — checklist d'homologation (créée par /homologation).
 - `docs/plan-logiciel-pami.md` — plan du firmware du PAMI défenseur (grille du labo), schéma de câblage, ordre des étapes.
+- `docs/reglage-regulation.md` — méthode de réglage de la régulation et de l'étalonnage (bancs `test_pid` et `test_trajectoire`).
 - `pami/` — firmware du PAMI (ESP32, C++, framework Arduino, PlatformIO). Voir `pami/CLAUDE.md`.
 
 ## Commandes
