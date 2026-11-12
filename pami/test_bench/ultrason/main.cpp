@@ -1,9 +1,10 @@
 // Banc de test de l'ultrason HC-SR04 : chaque mesure, brute et filtrée.
 //
 // !!! PROGRAMME DE TEST : AUCUN MOUVEMENT, AUCUN ÉVITEMENT. NE JAMAIS L'UTILISER EN MATCH. !!!
-// Après le test, remettre le firmware : pio run -t upload
+// Après le test, remettre le firmware : pio run -t upload (sans fil : pio run -e esp32dev_wifi -t upload)
 //
 // Téléverser : pio run -e test_ultrason -t upload -t monitor (maintenir BOOT pendant « Connecting »)
+// Sans fil (D010) : pio run -e test_ultrason_wifi -t upload, puis pio device monitor -e test_ultrason_wifi.
 //
 // Ce banc utilise le VRAI code du firmware (sensors.cpp) : ce qu'on mesure ici, c'est ce que voit
 // l'évitement en match. Les moteurs restent freinés en permanence.
@@ -48,8 +49,10 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "console.h"
 #include "motor_driver.h"
 #include "sensors.h"
+#include "wireless.h"
 
 namespace {
 
@@ -71,10 +74,10 @@ uint16_t summaryMaxMm = 0;
 bool faultReported = false;
 
 void printHelp() {
-  Serial.println("[BANC] Commandes (une touche, sans Entree) :");
-  Serial.println("[BANC]   v = afficher / masquer chaque mesure (le bilan par seconde reste)");
-  Serial.println("[BANC]   r = mode de reference (methode classique pulseIn, sans notre code)");
-  Serial.println("[BANC]   h = cette aide");
+  Console.println("[BANC] Commandes (une touche, sans Entree) :");
+  Console.println("[BANC]   v = afficher / masquer chaque mesure (le bilan par seconde reste)");
+  Console.println("[BANC]   r = mode de reference (methode classique pulseIn, sans notre code)");
+  Console.println("[BANC]   h = cette aide");
 }
 
 void resetSummary(uint32_t nowMs) {
@@ -108,13 +111,13 @@ void handleNewMeasure(const sensors::UltrasoundRaw& raw) {
     return;
   }
   if (raw.noEcho) {
-    Serial.printf("[US] #%lu | PAS D'ECHO (%lu us) | brute %4u mm | filtree %4u mm\n",
-                  (unsigned long)raw.measures, (unsigned long)raw.echoUs, raw.rawMm,
-                  sensors::frontDistanceMm());
+    Console.printf("[US] #%lu | PAS D'ECHO (%lu us) | brute %4u mm | filtree %4u mm\n",
+                   (unsigned long)raw.measures, (unsigned long)raw.echoUs, raw.rawMm,
+                   sensors::frontDistanceMm());
   } else {
-    Serial.printf("[US] #%lu | echo %5lu us | brute %4u mm | filtree %4u mm\n",
-                  (unsigned long)raw.measures, (unsigned long)raw.echoUs, raw.rawMm,
-                  sensors::frontDistanceMm());
+    Console.printf("[US] #%lu | echo %5lu us | brute %4u mm | filtree %4u mm\n",
+                   (unsigned long)raw.measures, (unsigned long)raw.echoUs, raw.rawMm,
+                   sensors::frontDistanceMm());
   }
 }
 
@@ -123,16 +126,16 @@ void printSummary(uint32_t nowMs) {
   const uint32_t measures = raw.measures - summaryStartMeasures;
   const uint32_t triggers = raw.triggers - summaryStartTriggers;
   if (summaryValid > 0) {
-    Serial.printf("[BILAN] %lu mesures (%lu envois) | %lu sans echo | brute min %u max %u moy %lu mm"
-                  " | filtree %u mm\n",
-                  (unsigned long)measures, (unsigned long)triggers, (unsigned long)summaryNoEcho,
-                  summaryMinMm, summaryMaxMm, (unsigned long)(summarySumMm / summaryValid),
-                  sensors::frontDistanceMm());
+    Console.printf("[BILAN] %lu mesures (%lu envois) | %lu sans echo | brute min %u max %u moy %lu mm"
+                   " | filtree %u mm\n",
+                   (unsigned long)measures, (unsigned long)triggers, (unsigned long)summaryNoEcho,
+                   summaryMinMm, summaryMaxMm, (unsigned long)(summarySumMm / summaryValid),
+                   sensors::frontDistanceMm());
   } else {
-    Serial.printf("[BILAN] %lu mesures (%lu envois) | %lu sans echo | aucune distance valide"
-                  " | filtree %u mm\n",
-                  (unsigned long)measures, (unsigned long)triggers, (unsigned long)summaryNoEcho,
-                  sensors::frontDistanceMm());
+    Console.printf("[BILAN] %lu mesures (%lu envois) | %lu sans echo | aucune distance valide"
+                   " | filtree %u mm\n",
+                   (unsigned long)measures, (unsigned long)triggers, (unsigned long)summaryNoEcho,
+                   sensors::frontDistanceMm());
   }
   resetSummary(nowMs);
 }
@@ -153,12 +156,12 @@ void referenceMeasure(uint32_t nowMs) {
   const unsigned long durationUs = pulseIn(PIN_US_ECHO, HIGH, 70000UL);
   referenceCount++;
   if (durationUs == 0) {
-    Serial.printf("[REF] #%lu | aucune impulsion ECHO en 70 ms\n", (unsigned long)referenceCount);
+    Console.printf("[REF] #%lu | aucune impulsion ECHO en 70 ms\n", (unsigned long)referenceCount);
   } else if (durationUs > US_MAX_ECHO_US) {
-    Serial.printf("[REF] #%lu | PAS D'ECHO (%lu us)\n", (unsigned long)referenceCount, durationUs);
+    Console.printf("[REF] #%lu | PAS D'ECHO (%lu us)\n", (unsigned long)referenceCount, durationUs);
   } else {
-    Serial.printf("[REF] #%lu | echo %5lu us | %4u mm\n", (unsigned long)referenceCount, durationUs,
-                  (unsigned)(durationUs * US_MM_PER_ECHO_US));
+    Console.printf("[REF] #%lu | echo %5lu us | %4u mm\n", (unsigned long)referenceCount, durationUs,
+                   (unsigned)(durationUs * US_MM_PER_ECHO_US));
   }
 }
 
@@ -169,33 +172,37 @@ void setup() {
   motorDriver::begin();
 
   Serial.begin(SERIAL_BAUD);
-  Serial.println();
-  Serial.println("[BANC] ===== BANC DE TEST ULTRASON =====");
-  Serial.println("[BANC] Aucun mouvement. Apres le test : pio run -t upload (remet le firmware).");
-  Serial.printf("[BANC] Mesure toutes les %lu ms. Pas d'echo apres %lu us = %u mm affiches.\n",
-                (unsigned long)US_PERIOD_MS, (unsigned long)US_MAX_ECHO_US, US_NO_OBSTACLE_MM);
+  Console.println();
+  Console.println("[BANC] ===== BANC DE TEST ULTRASON =====");
+  Console.println("[BANC] Aucun mouvement. Apres le test : remettre le firmware (pio run -t upload, ou -e esp32dev_wifi).");
+  Console.printf("[BANC] Mesure toutes les %lu ms. Pas d'echo apres %lu us = %u mm affiches.\n",
+                 (unsigned long)US_PERIOD_MS, (unsigned long)US_MAX_ECHO_US, US_NO_OBSTACLE_MM);
   printHelp();
 
   sensors::begin();
   resetSummary(millis());
+  wireless::begin();
 }
 
 void loop() {
   const uint32_t nowMs = millis();
 
-  while (Serial.available() > 0) {
-    const char key = (char)Serial.read();
+  while (Console.available() > 0) {
+    const char key = (char)Console.read();
     if (key == 'v' || key == 'V') {
       showEachMeasure = !showEachMeasure;
-      Serial.printf("[BANC] Affichage de chaque mesure : %s\n", showEachMeasure ? "oui" : "non");
+      Console.printf("[BANC] Affichage de chaque mesure : %s\n", showEachMeasure ? "oui" : "non");
     } else if (key == 'r' || key == 'R') {
       referenceMode = !referenceMode;
-      Serial.printf("[BANC] Mode de reference (pulseIn, sans notre code) : %s\n",
-                    referenceMode ? "OUI" : "non, retour au code du firmware");
+      Console.printf("[BANC] Mode de reference (pulseIn, sans notre code) : %s\n",
+                     referenceMode ? "OUI" : "non, retour au code du firmware");
     } else if (key == 'h' || key == 'H' || key == '?') {
       printHelp();
     }
   }
+
+  // Avant le « return » du mode de référence : le Wi-Fi est servi dans les deux modes.
+  wireless::update(nowMs, true);  // aucun moteur ne tourne : téléversement toujours accepté
 
   if (referenceMode) {
     referenceMeasure(nowMs);
@@ -212,8 +219,8 @@ void loop() {
 
   if (sensors::isFaulty() && !faultReported) {
     faultReported = true;
-    Serial.println("[BANC] Aucune mesure pendant 1 s : verifier VCC 5 V, GND commun, TRIG, ECHO et le pont.");
-    Serial.println("[BANC] Le banc continue de mesurer : les lignes reprennent des que l'echo revient.");
+    Console.println("[BANC] Aucune mesure pendant 1 s : verifier VCC 5 V, GND commun, TRIG, ECHO et le pont.");
+    Console.println("[BANC] Le banc continue de mesurer : les lignes reprennent des que l'echo revient.");
   }
 
   if (nowMs - summaryStartMs >= TEST_BENCH_US_SUMMARY_PERIOD_MS) {
