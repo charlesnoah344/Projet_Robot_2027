@@ -218,3 +218,48 @@
   - le potentiomètre des IR se règle pour que la LED change d'état au passage sol → zone ;
   - si l'encadrant juge la couverture insuffisante : ajouter un 2ᵉ ultrason, ou deux ultrasons orientés
     un peu vers l'extérieur.
+
+### D010 — Wi-Fi en point d'accès pour téléverser et lire les messages sans câble
+- **Date** : 12/11/2026
+- **Statut** : adoptée
+- **Contexte** : le PAMI roule sur batterie. Brancher l'USB pour chaque téléversement ou pour lire
+  le moniteur devient pénible, surtout pendant les essais au sol.
+- **Options envisagées** :
+  - Bluetooth classique : le PAMI apparaît comme un port COM, mais PlatformIO ne sait pas téléverser
+    par Bluetooth. L'USB resterait nécessaire pour chaque téléversement ;
+  - Wi-Fi, PAMI et PC sur le partage de connexion d'un téléphone : le PC garde internet, mais il faut
+    ce téléphone à chaque séance, et l'adresse du PAMI peut changer ;
+  - Wi-Fi, le PAMI crée son propre réseau (point d'accès) : marche partout, adresse fixe 192.168.4.1.
+- **Décision** :
+  - point d'accès « PAMI-1 », WPA2 ; nom et mot de passe dans `wifi_secrets.h`, ignoré par git ;
+  - téléversement sans fil par ArduinoOTA (`upload_protocol = espota`, environnements `*_wifi`) ;
+  - moniteur par telnet, port 23 (`pio device monitor -e esp32dev_wifi`) ;
+  - `Console` remplace `Serial` partout : chaque message part sur l'USB et sur le Wi-Fi ;
+  - tous les programmes (firmware et bancs) gardent le Wi-Fi, sinon téléverser un banc sans Wi-Fi
+    couperait la liaison.
+- **Pourquoi** :
+  - seul le Wi-Fi permet de téléverser sans câble avec PlatformIO ;
+  - point d'accès : aucune box ni téléphone nécessaire, au labo comme à la coupe.
+- **Sécurité et règles d'or** :
+  - envoi des messages en `MSG_DONTWAIT` : `WiFiClient::write()` peut bloquer jusqu'à 10 s quand le
+    réseau est lent (règle d'or n° 4). Si le PC ne suit pas, les messages attendent dans un tampon de
+    32 Ko, puis sont perdus (et comptés), mais `loop()` n'attend jamais ;
+  - téléversement accepté seulement PAMI immobile : avant le départ ou après la fin (firmware), hors
+    essai (bancs). Au début d'un téléversement, `loop()` est figée : les freins sont serrés par
+    `motorDriver::brake()`. C'est la seule exception au chemin « safety → driver » ;
+  - le firmware ne lit aucune touche : on ne peut pas piloter le PAMI à distance.
+- **Règles en jeu** :
+  - règlement général F.6 : « aucune communication avec l'extérieur de la table pendant le match » ;
+  - règlement général F.5 : Wi-Fi 5 GHz recommandé plutôt que 2,4 GHz. L'ESP32 ne fait que du
+    2,4 GHz ; c'est une recommandation, et notre radio sera coupée pendant les matchs Eurobot.
+- **Profil labo** : `WIFI_ON_DURING_MATCH = true`, pour lire les messages en direct pendant les essais.
+  **Eurobot : `false`** (dans la liste « À REMPLACER AVANT TOUT MATCH EUROBOT » de `pami/CLAUDE.md`).
+  La radio s'éteint alors au départ et se rallume à la fin ; les messages du match attendent dans le
+  tampon et s'affichent à la reconnexion.
+- **Question pour la FAQ** (www.eurobot.org/faq) : « Le point d'accès Wi-Fi d'un PAMI peut-il rester
+  actif entre sa mise en place et le retrait du cordon, s'il est coupé pendant tout le match ? »
+- **Conséquences** :
+  - le tout premier téléversement d'un programme avec Wi-Fi se fait par USB ;
+  - pare-feu Windows : autoriser le port 55910 (une fois) ;
+  - la radio consomme environ 120 mA de plus sur la batterie ;
+  - si le Wi-Fi ne répond plus, l'USB et les environnements habituels marchent toujours.
