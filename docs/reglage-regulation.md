@@ -2,7 +2,8 @@
 
 > **Pour qui** : toute l'équipe, et surtout la personne chargée des essais.
 > **Bancs utilisés** : `test_pid` (la vitesse de chaque roue) et `test_trajectoire` (ce que le PAMI fait
-> vraiment). Les deux sont sur la branche `PID`, jusqu'à sa fusion avec `pami-firmware-v1`.
+> vraiment). Tous deux marchent par USB ou sans câble (`test_pid_wifi`, `test_trajectoire_wifi`,
+> voir `docs/guide-pratique-pami.md`, « Sans câble »).
 > **Règle d'or des réglages** : du bas vers le haut, un seul réglage à la fois, 3 mesures à chaque fois.
 
 ## 1. Ce qu'on régule : la chaîne de commande
@@ -38,8 +39,9 @@ Il y a deux étages, plus un réglage qui n'est pas de la régulation :
 
 ## 2. PI ou PID ?
 
-Nos deux versions (branche `PID` et branche `pami-firmware-v1`) ont **le même régulateur** :
-**anticipation + P + I**. Aucune n'a de terme D. Leurs seules différences :
+Avant la fusion du 12/11/2026, on avait deux versions : celle de la branche `PID` et celle de
+`pami-firmware-v1`. Elles ont **le même régulateur** : **anticipation + P + I**. Aucune n'a de terme D.
+Leurs seules différences :
 
 | Différence | Effet aujourd'hui |
 |---|---|
@@ -52,8 +54,9 @@ anticipation (10 + 0,2 × v) + P (0,05 × v) + I (30 max) = 40 + 0,25 × v.
 Elle n'atteint 100 % qu'à partir de **v = 240 mm/s**. Or on roule à 150 mm/s (90 en rotation).
 
 **Conclusion** : aujourd'hui, les deux se comportent exactement pareil. Les comparer sur le PAMI
-donnerait les mêmes bilans. On garde la version de la branche `PID` : c'est la même, plus deux
-améliorations qui serviront plus tard (anticipation mesurée par roue, vitesses plus hautes, batterie).
+donnerait les mêmes bilans. On a gardé la version de la branche `PID` (c'est celle de `main`) : c'est
+la même, plus deux améliorations qui serviront plus tard (anticipation mesurée par roue, vitesses plus
+hautes, batterie).
 
 **Pourquoi pas de terme D** :
 - le D réagit à la *variation* de l'erreur. Or notre mesure de vitesse est bruitée : 1 tick (0,1 mm)
@@ -70,7 +73,8 @@ améliorations qui serviront plus tard (anticipation mesurée par roue, vitesses
 
 ### 3.1 `test_pid` : échelon, escalier, vitesse constante, courbes
 
-`pio run -e test_pid -t upload -t monitor`. Les touches g / d / a **choisissent** les roues
+Par USB : `pio run -e test_pid -t upload -t monitor`. Sans câble : `pio run -e test_pid_wifi -t upload`,
+puis `pio device monitor -e test_pid_wifi`. Les touches g / d / a **choisissent** les roues
 (rien ne tourne) ; e, s et c **lancent** un essai.
 
 **L'échelon (`e`) : « la roue atteint-elle sa vitesse vite, sans la dépasser, et la tient-elle ? »**
@@ -117,8 +121,9 @@ améliorations qui serviront plus tard (anticipation mesurée par roue, vitesses
 
 ### 3.2 `test_trajectoire` : ce que le PAMI fait vraiment
 
-`pio run -e test_trajectoire -t upload -t monitor`. On tape une commande, puis Entrée (chiffres :
-pavé numérique, ou Maj sur un clavier AZERTY) :
+Par USB : `pio run -e test_trajectoire -t upload -t monitor`. Sans câble :
+`pio run -e test_trajectoire_wifi -t upload`, puis `pio device monitor -e test_trajectoire_wifi`.
+On tape une commande, puis Entrée (chiffres : pavé numérique, ou Maj sur un clavier AZERTY) :
 
 | Commande | Effet |
 |---|---|
