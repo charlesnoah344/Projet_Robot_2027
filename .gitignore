@@ -4,3 +4,6 @@ pami/.vscode/
 # Fichiers personnels Claude Code
 CLAUDE.local.md
 .claude/settings.local.json
+
+# Mot de passe du réseau Wi-Fi du PAMI (D010) : reste dans l'équipe
+pami/src/wifi_secrets.h
