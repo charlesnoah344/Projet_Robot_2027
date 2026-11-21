@@ -374,6 +374,17 @@ constexpr float TEST_BENCH_PID_ERROR_MAX_MM_S = 5.0f;
 // Au-delà, la correction P + I fait une trop grosse part du travail : l'anticipation est à mesurer.
 constexpr float TEST_BENCH_PID_CORRECTION_HINT_PCT = 5.0f;
 
+// Banc test_parcours : aller à un point tapé au clavier, comme en match, avec UN SEUL ultrason (GPIO 15).
+// Côté de départ écrit en dur pour ce banc (le firmware de match, lui, lit l'interrupteur GPIO 27).
+// true = départ à GAUCHE de la table : le détour se fait par la DROITE du PAMI, vers le centre.
+constexpr bool TEST_BENCH_PARCOURS_START_ON_LEFT = true;
+constexpr uint32_t TEST_BENCH_PARCOURS_COUNTDOWN_MS = 10000;  // attente entre « p x y » et le départ
+constexpr uint32_t TEST_BENCH_PARCOURS_MAX_RUN_MS = 30000;    // un trajet s'arrête seul après 30 s
+constexpr float TEST_BENCH_PARCOURS_MAX_COORD_MM = 2000.0f;   // x et y tapés : entre -2000 et 2000 mm
+constexpr uint32_t TEST_BENCH_PARCOURS_LOG_PERIOD_MS = 500;   // une ligne de suivi toutes les 0,5 s
+// Après l'arrivée, on attend l'arrêt complet (glissement au freinage) avant d'afficher la position.
+constexpr uint32_t TEST_BENCH_PARCOURS_SETTLE_MS = 500;
+
 // Banc test_trajectoire : ligne, rotation et carré aux dimensions tapées au clavier, puis
 // correction de l'étalonnage (diamètre des roues, entraxe) à partir des mesures au mètre ruban.
 constexpr float TEST_BENCH_TRAJ_DEFAULT_DISTANCE_MM = 500.0f;

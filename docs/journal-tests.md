@@ -449,3 +449,62 @@
 - **Conclusion et suite** : corriger la fin de mouvement dans `motion` (attendre l'arrêt réel avant de
   déclarer le mouvement fini, et couper plus tôt de la longueur du glissement), puis refaire l'entraxe
   (4 × `r 90` et `r 360`) et les carrés.
+
+### T012 — Premier ultrason sur le PCB 2026 5EO (banc test_ultrason)
+- **Date** : 21/11/2026
+- **Testeurs** : l'équipe
+- **Programme utilisé** : `pami/test_bench/ultrason` (environnement `test_ultrason_wifi`), TRIG commun GPIO 21.
+- **Montage** : un seul HC-SR04 (le deuxième n'est pas encore là). Vérifications faites par l'équipe avant
+  de brancher (pont diviseur, 5 V, ordre des broches).
+- **Protocole** : capteur sur le connecteur de GPIO 2 (« gauche »), puis sur celui de GPIO 15 (« droit ») ;
+  boîte à 10, 15, 20 et 30 cm, puis boîte retirée.
+- **Critère de réussite** : boîte vue à ± 10 mm de 10 à 100 cm, 0 « sans écho », environ 16 mesures/s.
+- **Résultat** : partiel. Le capteur marche sur le connecteur de GPIO 15 ; le connecteur de GPIO 2 ne
+  donne rien.
+- **Mesures** :
+  - connecteur GPIO 2 : 0 mesure pour 16 à 17 envois par seconde. ECHO reste à l'état bas en
+    permanence (sinon le banc ralentirait à environ 8 envois par seconde) ;
+  - connecteur GPIO 15 : 16 à 17 mesures par seconde, aucune perdue, 0 « sans écho » ;
+
+    | Boîte annoncée | Distance lue (filtrée) | Écart |
+    |---|---|---|
+    | 10 cm | 114 à 115 mm | +15 mm |
+    | 15 cm | 159 à 166 mm (≈ 162) | +12 mm |
+    | 20 cm | 201 à 214 mm (≈ 208) | +8 mm |
+    | 30 cm | 295 à 306 mm (≈ 300) | 0 |
+    | boîte retirée | 504 à 521 mm (un objet vers 51 cm) | — |
+
+  - quelques mesures isolées très longues (876 et 981 mm) pendant le retrait de la boîte : refusées par
+    le filtre de montée, la distance filtrée est restée vers 506 à 577 mm ;
+  - le bilan annonce bien « FREINERAIT (D) » sous 150 mm et plus au-dessus.
+- **Analyse** :
+  - le capteur, le TRIG commun (GPIO 21), l'alimentation des capteurs et la lecture sur GPIO 15
+    fonctionnent ; la mesure est très stable (± 1 mm sur un objet fixe) ;
+  - l'écart de +12 à +15 mm à 10 et 15 cm est à confirmer : il dépend d'où la distance de la boîte a été
+    mesurée (face avant des cylindres du capteur, ou bord du PAMI ?). S'il est réel, le PAMI verrait les
+    obstacles proches un peu plus loin qu'ils ne sont, et s'arrêterait vers 135 mm au lieu de 150 mm ;
+  - le connecteur de GPIO 2 reste à diagnostiquer avant l'arrivée du deuxième capteur : liaison, pont
+    diviseur, LED de la carte sur GPIO 2, ou broche abîmée.
+- **Conclusion et suite** :
+  - premier ultrason validé sur le connecteur de GPIO 15 ;
+  - remesurer 10 et 15 cm depuis la face avant du capteur ;
+  - diagnostiquer le connecteur de GPIO 2 (multimètre : tension sur GPIO 2 capteur branché vers le vide,
+    mode de référence `r`) ;
+  - le test « rien devant pendant 10 s » (échos croisés) se fera avec les deux capteurs.
+- **Complément (même séance), distances remesurées depuis la face avant du capteur** (connecteur GPIO 15,
+  bilans par seconde avec la touche `v`) :
+
+  | Boîte | Distance lue (bilan) | Écart |
+  |---|---|---|
+  | 10 cm | 101 mm (100 à 102), puis 98 à 100 mm | ≈ 0 |
+  | 15 cm | 149 à 152 mm | ≈ 0 |
+  | 20 cm | 192 à 199 mm (≈ 195) | −5 mm |
+  | 30 cm | 291 à 304 mm (≈ 294) | −6 mm |
+  | vers 5 cm | 42 à 59 mm | mesure encore : zone aveugle plus courte que 5 cm |
+  | boîte retirée | 576 à 589 mm | objet vers 58 cm |
+
+  - l'écart de +12 à +15 mm de la première série venait du repère de mesure : il disparaît depuis la face
+    du capteur. **Critère ± 10 mm respecté de 10 à 30 cm** ; 16 à 17 mesures/s, 0 écho raté ;
+  - à 150 mm pile, la ligne `[BILAN]` alterne entre « FREINERAIT » et non : elle compare au seuil sans
+    marge. `safety`, lui, ne relâche qu'au-delà de 180 mm (`OBSTACLE_CLEAR_MARGIN_MM`) : pas de va-et-vient en match ;
+  - **ultrason validé sur le connecteur GPIO 15, TRIG commun GPIO 21 validé.** Reste : le connecteur GPIO 2.

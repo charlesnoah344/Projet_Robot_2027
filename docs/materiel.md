@@ -40,9 +40,9 @@ Broches utilisables d'après le pinout : 2, 4, 5, 12 à 19, 21 à 23, 25 à 27, 
 | Moteur droit M2A / M2B | GPIO 19 / 18 | Même logique que le moteur gauche | [ ] |
 | Encodeur gauche A / B | GPIO 25 / 26 | « COD G B » / « COD G V » sur le pinout. Interruption sur A. Pull-up interne activé | [ ] |
 | Encodeur droit A / B | GPIO 5 / 17 | « COD D B » / « COD D V » sur le pinout. Interruption sur A. Pull-up interne activé | [ ] |
-| TRIG des 2 ultrasons | GPIO 21 | **Commun aux deux capteurs** : ils émettent toujours en même temps (D015) | [ ] |
-| ECHO ultrason gauche | GPIO 2 | Broche de démarrage : ECHO au repos à l'état bas, sans risque. Sur certaines cartes, GPIO 2 porte aussi une LED : vérifier que l'écho est bien lu | [ ] |
-| ECHO ultrason droit | GPIO 15 | Broche de démarrage : ECHO au repos à l'état bas, sans risque | [ ] |
+| TRIG des 2 ultrasons | GPIO 21 | **Commun aux deux capteurs** : ils émettent toujours en même temps (D015) | [x] T012 |
+| ECHO ultrason gauche | GPIO 2 | Broche de démarrage : ECHO au repos à l'état bas, sans risque. Sur certaines cartes, GPIO 2 porte aussi une LED : vérifier que l'écho est bien lu. **T012 : aucun écho lu sur ce connecteur** (le même capteur marche sur GPIO 15) : à diagnostiquer | [ ] |
+| ECHO ultrason droit | GPIO 15 | Broche de démarrage : ECHO au repos à l'état bas, sans risque | [x] T012 |
 | Servomoteur (bras) | GPIO 13 | Piloté par LEDC, canal 4 (D008). Alimentation « Servo + » du PCB, jamais le 3V3 de l'ESP32 | [ ] |
 | Interrupteur de côté (gauche / droite) | GPIO 27 | **Pas sur le pinout : à câbler** entre GPIO 27 et 3,3 V. Pull-down : ouvert = 0 = GAUCHE, fermé = 1 = DROITE (D014, D015). Marquer « G » et « D » à côté de l'interrupteur | [ ] |
 | Accéléromètre I2C SDA / SCL | GPIO 22 / 23 | Prévu sur le PCB (« Accel + » sur le 3,3 V). **Pas encore utilisé** par le firmware (D004 : optionnel) | [ ] |

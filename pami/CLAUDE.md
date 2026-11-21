@@ -98,6 +98,9 @@ Le minuteur est vérifié à chaque tour de `loop()` et a priorité sur tous les
   - Compiler : `pio run -e test_xxx`.
   - Téléverser : `pio run -e test_xxx -t upload`.
   - Après un banc de test, **toujours re-téléverser le firmware** (`pio run -t upload`).
+  - `test_parcours` : aller à un point tapé au moniteur (`p 600 -200`), 10 s d'attente, évitement et détour
+    vers le centre comme en match, mais avec **un seul ultrason (GPIO 15)** et le côté écrit en dur
+    (`TEST_BENCH_PARCOURS_START_ON_LEFT`). Banc seulement : le firmware de match exige les deux ultrasons.
 - `*_wifi` (D010) : les mêmes programmes, téléversés et lus sans câble, PC connecté au réseau du PAMI.
   `pio run -e esp32dev_wifi -t upload`, `pio device monitor -e esp32dev_wifi`.
   Tout nouveau programme pour l'ESP32 doit inclure `${wireless.src}` et appeler `wireless::begin()`
