@@ -45,11 +45,13 @@ void begin() {
   pinMode(PIN_ENCODER_RIGHT_B, mode);
 
   // CHANGE : fronts montants ET descendants de A, soit 2 ticks par impulsion.
+  // Les interruptions sont très rapides, donc on ne fait rien de lourd dedans.
   attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_LEFT_A), onLeftA, CHANGE);
   attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_RIGHT_A), onRightA, CHANGE);
 }
 
 void read(int32_t& leftTicks, int32_t& rightTicks) {
+  // Lecture atomique : on bloque les interruptions le temps de lire les compteurs.
   portENTER_CRITICAL(&countersMux);
   leftTicks = leftCount;
   rightTicks = rightCount;

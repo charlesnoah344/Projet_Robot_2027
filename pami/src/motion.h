@@ -26,7 +26,7 @@ void begin();
 void update(uint32_t nowMs, bool commandBlocked);
 
 // Avance tout droit de distanceMm (> 0). Remplace le mouvement en cours.
-// speedMmS : vitesse de croisière ; plus lente pour l'approche de la zone.
+// speedMmS : vitesse de croisière (DRIVE_SPEED_MM_S par défaut).
 void driveDistance(float distanceMm, float speedMmS = DRIVE_SPEED_MM_S);
 
 // Tourne sur place de angleDeg. Positif = vers la gauche (sens inverse des aiguilles d'une montre).

@@ -1,22 +1,24 @@
 # Firmware du PAMI
 
-ESP32, C++ avec le framework Arduino, projet PlatformIO.
-Objectif actuel : le PAMI **défenseur** évalué au Mechatronics Lab. Plan complet, schéma de câblage
-et ordre des étapes : `docs/plan-logiciel-pami.md`.
+ESP32, C++ avec le framework Arduino, projet PlatformIO, sur le PCB « Test PCB 2026 5EO » (D015).
+Objectif actuel : atteindre la **douve la plus proche** par l'odométrie, en partant du côté gauche ou
+droit de la table (D014), évalué d'abord au Mechatronics Lab. Plan d'origine et ordre des étapes :
+`docs/plan-logiciel-pami.md` (écrit pour le défenseur, en partie dépassé par D012 à D014).
 Pour écrire ou modifier du code ici, suis la skill `firmware-pami`.
 
-> ## ⚠ Profil labo D007 — À REMPLACER AVANT TOUT MATCH EUROBOT
+> ## ⚠ Profil labo D007 / D013 — À REMPLACER AVANT TOUT MATCH EUROBOT
 > Le minuteur suit la grille du labo, pas Eurobot :
-> - départ : bouton-poussoir externe sur GPIO 16, jamais automatique à l'allumage ;
+> - départ : commande `go` tapée dans le moniteur (Wi-Fi ou USB, D013), jamais automatique à l'allumage ;
 > - immobile jusqu'à 5 s après le départ, arrêt total à 14,5 s.
 > Toutes les autres règles d'or s'appliquent : évitement toujours actif, commandes moteurs via `safety`.
 >
 > Avant tout match Eurobot ou homologation :
-> - tirette (cordon ≥ 500 mm) sur GPIO 16, à la place du bouton ;
+> - départ par un cordon (≥ 500 mm) ou par le robot principal : le départ par Wi-Fi est **interdit**
+>   (règlement général F.6). Le PCB n'a pas de broche prévue pour un cordon ;
 > - `MATCH_MOVE_ALLOWED_MS = 85300` et `MATCH_STOP_MS = 99500` ;
 > - `WIFI_ON_DURING_MATCH = false` : radio coupée pendant le match (règlement général F.6, D010) ;
 > - test au chronomètre ;
-> - D007 marquée « remplacée ».
+> - D007 et D013 marquées « remplacées ».
 
 ## Ce que le PAMI doit respecter
 Résumé de : règlement général F.7 et règles 2027 E.4. Détails dans `docs/`.
@@ -39,18 +41,21 @@ Résumé de : règlement général F.7 et règles 2027 E.4. Détails dans `docs/
 ```
 src/
   main.cpp          setup() + loop() : appelle chaque couche, sans jamais bloquer
-  config.h          broches (recopiées de docs/materiel.md), seuils, vitesses, durées
-  match_timer.*     minuteur global : départ (bouton GPIO 16, puis tirette), mouvement de 5 s
+  config.h          broches (recopiées de docs/materiel.md), seuils, vitesses, durées, douves
+  match_timer.*     minuteur global : départ (commande « go », D013), mouvement de 5 s
                     à 14,5 s, arrêt total à 14,5 s (profil labo D007)
   motor_driver.*    bas niveau du driver MDD3A (PWM 20 kHz, frein). Seul safety l'appelle
   encoders.*        comptage des ticks des 2 encodeurs (interruptions), conversion en mm
-  sensors.*         ultrason (évitement, médiane des 3 dernières mesures, détection de panne)
-                    + 2 capteurs IR tournés vers le sol (bord de la zone, D009)
+  sensors.*         2 ultrasons avant (gauche, droit), TRIG commun : ils émettent ensemble.
+                    Médiane des 3 dernières mesures, filtre de montée, détection de panne (D012, D015)
   motion.*          déplacements mesurés par les encodeurs (voir ci-dessous)
-  safety.*          filtre de sécurité : dernière étape avant le driver moteurs
-  mission.*         liste d'étapes du trajet (points de passage) + miroir selon la couleur
-  color.*           sélecteur de couleur, lu avant le départ puis verrouillé
-  arm.*             bras du défenseur (servo SG90), détaché à la fin
+  safety.*          filtre de sécurité : dernière étape avant le driver moteurs. Obstacle si
+                    l'ultrason gauche OU le droit voit quelque chose (D012)
+  mission.*         liste d'étapes du trajet (points de passage) + miroir selon le côté.
+                    Mission MOAT : va à la douve la plus proche (D014)
+  side.*            interrupteur de côté (gauche / droite de la table), lu avant le départ puis
+                    verrouillé (D014)
+  arm.*             bras (servo SG90), détaché à la fin
   state_machine.*   machine à états (voir ci-dessous)
   console.*         objet Console : remplace Serial pour les messages et les touches (USB + Wi-Fi)
   wireless.*        Wi-Fi (D010) : point d'accès 192.168.4.1, moniteur telnet, téléversement sans
@@ -77,6 +82,9 @@ test_bench/         programmes de test isolés par composant (voir la skill banc
 **Machine à états** (détails dans `docs/plan-logiciel-pami.md`, § 3)
 - `WAIT_START → WAIT_DELAY (5 s) → MISSION ⇄ AVOID_STOP / DETOUR → DEFEND`,
   plus `END` (14,5 s) et `FAULT` (panne).
+- `DETOUR` contourne toujours par le centre de la table : par la droite pour un départ à gauche,
+  par la gauche pour un départ à droite (D014).
+- `DEFEND` : arrivé dans la douve, immobile, bras prêt à toucher un PAMI adverse.
 - Pas de marche arrière : les capteurs ne regardent que vers l'avant, et `safety` refuse le recul.
 
 Chemin des commandes moteur : `state_machine → motion → safety → motor_driver`.
@@ -105,16 +113,21 @@ Le code des étapes A à H est écrit avant les tests (choix de l'équipe) : « 
 « validé ». Ce qu'il faut tester à chaque étape : `docs/plan-logiciel-pami.md`, § 9.
 - [x] 1. Projet PlatformIO + squelette des couches : compilation OK, minuteur et bouton BOOT (T001)
 - [ ] 2. Moteurs + driver : sens de rotation OK (T002), reste la zone morte, l'arrêt net et le BAU
-- [ ] A. Bouton de départ GPIO 16 + minuteur labo 5 s / 14,5 s
+- [ ] PCB 2026 5EO (D015) : sens des moteurs (`test_moteurs`) et des encodeurs (`test_odometrie`)
+      revérifiés ; les 2 ultrasons ne s'entendent pas (`test_ultrason`, protocole 6)
+- [ ] A. Départ par la commande `go` (D013) + minuteur labo 5 s / 14,5 s
 - [ ] B. Encodeurs Hall : comptage, ticks par tour de roue, mm par tick
-- [ ] C. Ultrason + filtre de sécurité : arrêt devant un obstacle, distance de freinage
+- [ ] C. 2 ultrasons + filtre de sécurité : arrêt devant un obstacle vu par G seul, puis par D seul,
+      distance de freinage
 - [ ] D. `motion` : ligne droite régulée, rotation mesurée
 - [ ] E. Odométrie + mission « carré »
-- [ ] F. Évitement par l'ultrason : arrêt, détour, contournement
-- [ ] G. Sélecteur de couleur + miroir
-- [ ] H. Mission défenseur : bord de zone vu par les capteurs de sol, bras qui touche l'adversaire
+- [ ] F. Évitement : arrêt, détour vers le centre de la table, contournement
+- [ ] G. Interrupteur de côté gauche / droite + miroir (D014)
+- [ ] H. Mission MOAT : douve la plus proche atteinte à moins de 30 mm, bras qui touche l'adversaire
+      (positions des douves à relever sur le plan de la table)
 - [ ] Arrêt d'urgence câblé et testé
-- [ ] **Profil Eurobot : tirette + attente de 85,3 s (remplace D007) — obligatoire avant tout match Eurobot**
+- [ ] **Profil Eurobot : départ par cordon ou par le robot principal + attente de 85,3 s
+      (remplace D007 et D013) — obligatoire avant tout match Eurobot**
 - [ ] (Optionnel) Gyroscope : lecture du cap, dérive mesurée
 
 ## Valeurs calibrées

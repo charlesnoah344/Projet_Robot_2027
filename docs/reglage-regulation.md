@@ -148,8 +148,9 @@ compare :
 Les mesures s'accumulent en **série** : moyenne, dispersion, et la valeur conseillée de
 `WHEEL_DIAMETER_MM` (lignes) ou de `WHEEL_BASE_MM` (rotations).
 
-Sécurité : pendant les lignes droites, le PAMI s'arrête à 150 mm d'un obstacle vu par l'ultrason. Ce
-n'est pas l'évitement du match : gardez la main sur l'arrêt d'urgence.
+Sécurité : ce banc n'utilise pas les ultrasons (21/11/2026), comme `test_odometrie` et `test_pid`.
+Rien n'arrête le PAMI devant un obstacle : place dégagée, n'importe quelle touche = STOP, et gardez la
+main sur l'arrêt d'urgence.
 
 ## 4. La campagne de réglage, dans l'ordre
 
@@ -223,6 +224,12 @@ Une ligne droite ne suffit pas à séparer deux erreurs qui se ressemblent : rou
 différents, et entraxe faux. Le carré dans les deux sens les sépare :
 1. `c 300`, 5 fois, en notant **de quel côté** du repère de départ le PAMI s'arrête ;
 2. `c -300`, 5 fois, idem.
+
+Le côté se tape avec le **signe** de la mesure : `m 12` si le PAMI s'arrête à 12 mm **à gauche** du
+départ, `m -8` s'il s'arrête à 8 mm **à droite**, `m 0` s'il est pile dessus. Gauche et droite se
+voient de derrière le PAMI posé au départ, en regardant dans son sens de départ. Dès 3 carrés dans
+chaque sens, le banc donne la lecture ci-dessous tout seul.
+Pour les rotations, le signe ne compte pas : après `r -360`, `m -357` et `m 357` donnent le même résultat.
 
 Lecture :
 - les deux sens finissent **du même côté** du départ : les deux roues n'ont pas le même diamètre ;

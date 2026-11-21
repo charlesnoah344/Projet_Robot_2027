@@ -10,11 +10,11 @@ namespace arm {
 
 namespace {
 
-bool attached = false;
-bool released = false;
+bool attached = false; // le servo est alimenté et reçoit du PWM (il peut bouger)
+bool released = false; // le servo est coupé après la défense
 bool deployed = false;
 
-// Rapport cyclique pour un angle : on convertit l'angle en largeur d'impulsion (µs),
+// Rapport cyclique pour un angle : on convertit l'angle en largeur d'impulsion (µs) compréhensible par l'ESP32,
 // puis en fraction de la période de 20 ms.
 uint32_t dutyForAngle(float angleDeg) {
   const float pulseUs =

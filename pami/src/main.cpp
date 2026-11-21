@@ -1,19 +1,18 @@
-// Firmware du PAMI défenseur, profil labo (voir docs/plan-logiciel-pami.md).
+// Firmware du PAMI, profil labo (voir docs/plan-logiciel-pami.md et D012 à D014).
 //
 // loop() ne bloque jamais : chaque couche fait un petit travail puis rend la main.
 // Ordre des couches à chaque tour :
-//   1. minuteur (prioritaire sur tout) ;
-//   2. capteurs ;
+//   1. minuteur (prioritaire sur tout), qui lit aussi la commande de départ (D013) ;
+//   2. capteurs (2 ultrasons) et interrupteur de côté ;
 //   3. machine à états ;
 //   4. motion ;
 //   5. safety, qui pilote le driver ;
 //   6. bras (coupé dès la fin du temps) ;
-//   7. Wi-Fi (D010) : envoie les messages, accepte un téléversement PAMI immobile. Il ne commande
-//      rien, et le firmware ne lit aucune touche : on ne peut pas piloter le PAMI à distance.
+//   7. Wi-Fi (D010) : envoie les messages, accepte un téléversement PAMI immobile. La seule
+//      commande lue est le départ : on ne peut pas piloter le PAMI à distance.
 #include <Arduino.h>
 
 #include "arm.h"
-#include "color.h"
 #include "config.h"
 #include "console.h"
 #include "encoders.h"
@@ -22,6 +21,7 @@
 #include "motor_driver.h"
 #include "safety.h"
 #include "sensors.h"
+#include "side.h"
 #include "state_machine.h"
 #include "wireless.h"
 
@@ -43,12 +43,12 @@ void logStatus(uint32_t nowMs) {
     int32_t leftTicks = 0;
     int32_t rightTicks = 0;
     encoders::read(leftTicks, rightTicks);
-    // sol G/D : 1 = surface claire sous le capteur, 0 = surface foncée (réglage des IR de sol).
     Console.printf(
-        "[MAIN] %lu tours/s | etat %s | t = %.1f s | US %u mm | ticks G %ld D %ld | sol G %d D %d\n",
+        "[MAIN] %lu tours/s | etat %s | t = %.1f s | cote %s | US G %u D %u mm | ticks G %ld D %ld\n",
         (unsigned long)loopsPerSecond, stateName(stateMachine::state()),
-        matchTimer::elapsedMs(nowMs) / 1000.0f, sensors::frontDistanceMm(), (long)leftTicks,
-        (long)rightTicks, sensors::floorLeftReflects(), sensors::floorRightReflects());
+        matchTimer::elapsedMs(nowMs) / 1000.0f, sideName(side::current()),
+        sensors::distanceMm(sensors::UltrasoundId::LEFT),
+        sensors::distanceMm(sensors::UltrasoundId::RIGHT), (long)leftTicks, (long)rightTicks);
   }
   loopCount = 0;
   lastLogMs = nowMs;
@@ -62,16 +62,17 @@ void setup() {
 
   Serial.begin(SERIAL_BAUD);
   Console.println();
-  Console.println("[MAIN] PAMI ECAMlibur - firmware defenseur");
-  // Rappel à chaque démarrage : ce profil ne convient pas à un match Eurobot (D007).
+  Console.println("[MAIN] PAMI ECAMlibur - firmware (PCB)");
+  // Rappel à chaque démarrage : ce profil ne convient pas à un match Eurobot (D007, D013).
   Console.printf("[TIME] Profil LABO (D007) : mouvement a %.1f s, arret total a %.1f s.\n",
                  MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
-  Console.println("[TIME] Pour Eurobot : 85,3 s et 99,5 s, avec la tirette.");
+  Console.println("[TIME] Pour Eurobot : 85,3 s et 99,5 s, depart par cordon ou par le robot"
+                  " (depart Wi-Fi interdit, F.6).");
 
   arm::begin();  // servo sans PWM : il ne bouge pas
   encoders::begin();
   sensors::begin();
-  color::begin();
+  side::begin();
   motion::begin();
   matchTimer::begin();
   stateMachine::begin();
@@ -84,7 +85,7 @@ void loop() {
 
   matchTimer::update(nowMs);
   sensors::update(nowMs);
-  color::update(nowMs);
+  side::update(nowMs);
   stateMachine::update(nowMs);
   motion::update(nowMs, safety::isBlocking());
   safety::apply(motion::command(), nowMs);

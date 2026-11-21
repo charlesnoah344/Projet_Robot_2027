@@ -9,10 +9,10 @@
 
 namespace mission {
 
-// Démarre la mission, avec la couleur verrouillée au départ.
+// Démarre la mission, avec le côté de départ verrouillé au départ.
 // id : la mission à jouer. Le firmware de match prend ACTIVE_MISSION ; le banc de test
 // test_odometrie choisit la sienne au clavier.
-void start(TeamColor color, MissionId id = ACTIVE_MISSION);
+void start(StartSide side, MissionId id = ACTIVE_MISSION);
 
 // À appeler à chaque tour de loop() pendant l'état MISSION.
 // Lance le mouvement suivant quand le précédent est terminé.
@@ -21,7 +21,7 @@ void update();
 // Vrai quand toutes les étapes sont faites.
 bool isFinished();
 
-// Vrai quand la mission arrive à l'étape DEFEND (dans la zone, bien orienté).
+// Vrai quand la mission arrive à l'étape DEFEND (mission MOAT : dans la douve).
 bool isDefendReached();
 
 }  // namespace mission

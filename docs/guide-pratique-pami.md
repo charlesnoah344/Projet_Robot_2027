@@ -57,7 +57,7 @@ Le PC n'a plus internet tant qu'il y est connecté : c'est normal.
 | Voir les messages sans fil | `pio device monitor -e esp32dev_wifi` (Ctrl+C pour quitter) |
 | Un banc de test sans fil | `pio run -e test_odometrie_wifi -t upload`, puis `pio device monitor -e test_odometrie_wifi` |
 
-- **Le téléversement n'est accepté que PAMI immobile** : avant l'appui sur le bouton de départ, ou
+- **Le téléversement n'est accepté que PAMI immobile** : avant la commande de départ `go`, ou
   après la fin (14,5 s) ; dans un banc, hors essai. Sinon PlatformIO affiche
   `No response from the ESP` : attendez l'arrêt, puis recommencez.
 - À la connexion, le moniteur affiche d'abord les messages gardés en mémoire, puis la suite en direct.
@@ -70,6 +70,12 @@ Le PC n'a plus internet tant qu'il y est connecté : c'est normal.
 - **Avant un match Eurobot** : `WIFI_ON_DURING_MATCH = false` dans `config.h` (règlement général F.6).
 
 ## 3. Câbler
+> **Depuis le PCB (D012, puis « Test PCB 2026 5EO », D015), les signaux sont câblés sur la carte.** Le tableau de câblage ci-dessous
+> décrit l'ancien montage sur plaque d'essai : ses broches ne sont plus à jour. Broches actuelles :
+> `docs/materiel.md`. Les capteurs IR, le bouton de départ et l'interrupteur de couleur n'existent plus ;
+> il y a 2 ultrasons (gauche, droit, TRIG commun) et un interrupteur de côté gauche / droite, à câbler
+> entre GPIO 27 et 3,3 V (il n'est pas sur le pinout du PCB).
+
 **Règle n° 1 : on câble hors tension (USB débranché, alimentation de labo éteinte), et on vérifie
 avant d'allumer.**
 
@@ -86,7 +92,7 @@ Masse commune : GND ESP32 = GND MDD3A = (−) alim de labo = GND des capteurs
 - L'ESP32 est alimenté **seulement par l'USB**. On n'utilise pas encore la sortie 5 V du MDD3A.
 - Le BAU coupe les moteurs, pas l'ESP32 (D003). Les capteurs restent donc alimentés.
 
-### Tableau de câblage
+### Tableau de câblage (ancien montage sur plaque d'essai, avant le PCB : obsolète)
 | Composant | Fil | Va sur | Attention |
 |---|---|---|---|
 | MDD3A, connecteur 6 broches | M1A / M1B | GPIO 25 / 26 | commande du moteur gauche |
@@ -158,20 +164,23 @@ Notez ces mesures dans `docs/journal-tests.md`.
 
 Ordre des étapes et ce qu'il faut vérifier à chacune : `docs/plan-logiciel-pami.md`, § 6 et § 9.
 
-**Test de l'étape A** (ESP32 seul en USB, bouton de départ câblé sur GPIO 16) :
-- [ ] Au démarrage : « Profil LABO (D007) », puis « Pret : appuyez sur le bouton de depart ».
-- [ ] Pendant 30 s sans toucher à rien, l'état reste `WAIT_START`.
-- [ ] Un appui bref sur le bouton affiche `DEPART !` et `WAIT_DELAY`. Lancez le chronomètre en même temps.
+**Test de l'étape A** (PAMI sur cales, moniteur Wi-Fi ou USB ouvert, D013) :
+- [ ] Au démarrage : « Profil LABO (D007) », puis « Pret : tapez go puis Entree ».
+- [ ] Pendant 30 s sans rien taper, l'état reste `WAIT_START`.
+- [ ] Basculer l'interrupteur de côté affiche `[COTE] Depart a GAUCHE` / `DROITE` (D014).
+- [ ] `g` puis Entrée, puis `stop` puis Entrée : « Commande inconnue », aucun départ.
+- [ ] `go` puis Entrée affiche `DEPART !`, `Cote verrouille` et `WAIT_DELAY`. Lancez le chronomètre
+      en même temps.
 - [ ] `MISSION` apparaît à 5,0 s (± 0,1 s) au chronomètre.
-- [ ] Un 2ᵉ appui ne fait rien.
+- [ ] Un 2ᵉ `go` affiche « Depart deja donne : commande ignoree ».
+- [ ] Basculer l'interrupteur après le départ ne change plus le côté.
 - [ ] `FIN` et `END` apparaissent à 14,5 s (± 0,1 s).
-- [ ] Bouton maintenu enfoncé pendant l'allumage (appui sur EN) : aucun départ.
+- [ ] Redémarrage (appui sur EN) : aucun départ sans nouvelle commande `go`.
 - [ ] Toujours au moins 1000 tours/s. Refaites le tout 3 fois.
 
 ## 6. Points d'attention sur la carte réelle
 **Ce qui peut détruire du matériel**
-- Jamais plus de 3,3 V sur une broche de l'ESP32. Les risques : ECHO du HC-SR04, encodeurs en 5 V,
-  IR alimentés en 5 V par erreur.
+- Jamais plus de 3,3 V sur une broche de l'ESP32. Les risques : ECHO des HC-SR04, encodeurs en 5 V.
 - Pas de court-circuit : câblez hors tension, isolez les fils dénudés, vérifiez avant d'allumer.
 - Ne branchez ni ne débranchez jamais un fil sous tension.
 - N'alimentez pas l'ESP32 par deux sources à la fois (USB + un 5 V extérieur).
@@ -180,7 +189,8 @@ Ordre des étapes et ce qu'il faut vérifier à chacune : `docs/plan-logiciel-pa
 **Ce qui empêche la carte de démarrer ou de téléverser**
 - BOOT (GPIO 0) appuyé au moment du reset : la carte passe en mode téléversement et le programme
   ne tourne pas. C'est normal.
-- GPIO 12 à l'état haut au démarrage empêche la carte de démarrer : ne branchez rien dessus.
+- GPIO 12 à l'état haut au démarrage empêche la carte de démarrer. Sur le
+  pinout du PCB 2026 5EO, elle est libre : ne branchez rien dessus.
 - GPIO 6 à 11 (mémoire flash) et GPIO 1 et 3 (port USB) : ne branchez rien dessus.
 - Moniteur série ouvert : téléversement impossible.
 
@@ -189,11 +199,6 @@ Ordre des étapes et ce qu'il faut vérifier à chacune : `docs/plan-logiciel-pa
   Pistes : limite de courant trop basse, masse mal serrée, condensateur à ajouter près du MDD3A,
   rampes d'accélération (étape 4).
 - **Masse pas commune** : mesures aléatoires, moteurs qui ne répondent pas.
-- **GPIO 34 et 35 n'ont pas de pull-up interne.** Sans la résistance de 100 kΩ, un capteur de sol
-  débranché donne des valeurs au hasard, et pourrait « voir » un faux bord de zone.
-- **Capteurs de sol IR** : ils voient la différence entre une surface claire et une surface foncée,
-  pas les couleurs. Réglez le potentiomètre pour que la LED du module change d'état pile au passage
-  du sol à la zone, sous l'éclairage de la salle.
 - **HC-SR04** :
   - il ne voit rien à moins de 2 ou 3 cm ;
   - il voit mal les objets en biais ou mous ;

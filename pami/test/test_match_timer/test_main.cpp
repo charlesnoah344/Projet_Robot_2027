@@ -1,71 +1,79 @@
-// Tests de la logique du minuteur : bouton de départ et calcul du temps de match.
+// Tests de la logique du minuteur : commande de départ (D013) et calcul du temps de match.
 // Sur PC : pio test -e native. Sur l'ESP32 branché en USB : pio test -e logic_esp32.
 #include <unity.h>
 
 #include "logic/match_clock.h"
-#include "logic/start_button.h"
+#include "logic/start_command.h"
 
 void setUp() {}
 void tearDown() {}
 
-// ---------- Bouton de départ ----------
-
-// Cas normal : bouton relâché à l'allumage, puis appui franc.
-void test_start_after_release_then_press() {
-  StartButtonDetector button(50);
-  TEST_ASSERT_FALSE(button.update(false, 0));
-  TEST_ASSERT_FALSE(button.update(false, 60));  // relâché depuis 60 ms : armé
-  TEST_ASSERT_TRUE(button.isArmed());
-  TEST_ASSERT_FALSE(button.update(true, 100));  // appui, pas encore stable
-  TEST_ASSERT_TRUE(button.update(true, 150));   // appui stable depuis 50 ms : départ
-}
-
-// Bouton maintenu dès l'allumage : aucun départ tant qu'il n'a pas été relâché.
-void test_no_start_when_held_at_power_on() {
-  StartButtonDetector button(50);
-  for (uint32_t t = 0; t <= 5000; t += 10) {
-    TEST_ASSERT_FALSE(button.update(true, t));
+// Envoie une ligne entière au détecteur, caractère par caractère, et renvoie le dernier résultat
+// différent de NONE (NONE si aucun).
+CommandResult typeText(StartCommandDetector& detector, const char* text) {
+  CommandResult last = CommandResult::NONE;
+  for (const char* c = text; *c != '\0'; c++) {
+    const CommandResult result = detector.feed(*c);
+    if (result != CommandResult::NONE) {
+      last = result;
+    }
   }
-  TEST_ASSERT_FALSE(button.isArmed());
-  TEST_ASSERT_FALSE(button.update(false, 5010));  // relâché
-  TEST_ASSERT_FALSE(button.update(false, 5060));  // armé
-  TEST_ASSERT_FALSE(button.update(true, 5100));
-  TEST_ASSERT_TRUE(button.update(true, 5150));
+  return last;
 }
 
-// Un rebond plus court que l'anti-rebond ne lance pas le départ.
-void test_short_bounce_is_ignored() {
-  StartButtonDetector button(50);
-  button.update(false, 0);
-  button.update(false, 60);
-  TEST_ASSERT_FALSE(button.update(true, 100));
-  TEST_ASSERT_FALSE(button.update(true, 120));
-  TEST_ASSERT_FALSE(button.update(false, 130));  // relâché après 30 ms seulement
-  TEST_ASSERT_FALSE(button.update(false, 300));
+// ---------- Commande de départ ----------
+
+// Cas normal : « go » puis Entrée (le moniteur envoie \r\n).
+void test_go_then_enter_starts() {
+  StartCommandDetector detector;
+  TEST_ASSERT_EQUAL(CommandResult::NONE, typeText(detector, "go"));  // pas encore Entrée
+  TEST_ASSERT_FALSE(detector.hasStarted());
+  TEST_ASSERT_EQUAL(CommandResult::START, typeText(detector, "\r\n"));
+  TEST_ASSERT_TRUE(detector.hasStarted());
 }
 
-// Un seul départ par allumage : un deuxième appui est ignoré.
-void test_second_press_is_ignored() {
-  StartButtonDetector button(50);
-  button.update(false, 0);
-  button.update(false, 60);
-  button.update(true, 100);
-  TEST_ASSERT_TRUE(button.update(true, 150));
-  TEST_ASSERT_FALSE(button.update(true, 500));   // toujours appuyé
-  TEST_ASSERT_FALSE(button.update(false, 600));  // relâché
-  TEST_ASSERT_FALSE(button.update(false, 700));
-  TEST_ASSERT_FALSE(button.update(true, 800));   // nouvel appui
-  TEST_ASSERT_FALSE(button.update(true, 900));
+// Majuscules et espaces ne comptent pas.
+void test_case_and_spaces_are_ignored() {
+  StartCommandDetector upper;
+  TEST_ASSERT_EQUAL(CommandResult::START, typeText(upper, "GO\n"));
+  StartCommandDetector spaced;
+  TEST_ASSERT_EQUAL(CommandResult::START, typeText(spaced, "  go  \r"));
 }
 
-// Le bouton marche aussi quand millis() repasse par zéro pendant l'appui.
-void test_start_across_millis_overflow() {
-  StartButtonDetector button(50);
-  const uint32_t t0 = 0xFFFFFF00UL;
-  button.update(false, t0);
-  button.update(false, t0 + 60);
-  TEST_ASSERT_FALSE(button.update(true, 0xFFFFFFF0UL));
-  TEST_ASSERT_TRUE(button.update(true, 0x00000030UL));  // 64 ms plus tard, après le passage à zéro
+// Les caractères arrivent en plusieurs fois (un tour de loop() par touche) : ça marche quand même.
+void test_command_split_over_several_calls() {
+  StartCommandDetector detector;
+  TEST_ASSERT_EQUAL(CommandResult::NONE, typeText(detector, "g"));
+  TEST_ASSERT_EQUAL(CommandResult::NONE, typeText(detector, "o"));
+  TEST_ASSERT_EQUAL(CommandResult::START, typeText(detector, "\n"));
+}
+
+// Une touche seule, un autre mot ou un mot trop long ne lancent pas le PAMI.
+void test_other_lines_do_not_start() {
+  StartCommandDetector detector;
+  TEST_ASSERT_EQUAL(CommandResult::UNKNOWN, typeText(detector, "g\n"));
+  TEST_ASSERT_EQUAL(CommandResult::UNKNOWN, typeText(detector, "goo\n"));
+  TEST_ASSERT_EQUAL(CommandResult::UNKNOWN, typeText(detector, "stop\n"));
+  TEST_ASSERT_EQUAL(CommandResult::UNKNOWN, typeText(detector, "gogogogogogogogogogogogogo\n"));
+  TEST_ASSERT_FALSE(detector.hasStarted());
+  // Après des lignes refusées, la bonne commande marche toujours.
+  TEST_ASSERT_EQUAL(CommandResult::START, typeText(detector, "go\n"));
+}
+
+// Entrée seule : rien ne se passe.
+void test_empty_line_does_nothing() {
+  StartCommandDetector detector;
+  TEST_ASSERT_EQUAL(CommandResult::NONE, typeText(detector, "\r\n\r\n"));
+  TEST_ASSERT_FALSE(detector.hasStarted());
+}
+
+// Un seul départ par allumage : un deuxième « go » est ignoré.
+void test_second_go_is_ignored() {
+  StartCommandDetector detector;
+  TEST_ASSERT_EQUAL(CommandResult::START, typeText(detector, "go\n"));
+  TEST_ASSERT_EQUAL(CommandResult::IGNORED, typeText(detector, "go\n"));
+  TEST_ASSERT_EQUAL(CommandResult::IGNORED, typeText(detector, "stop\n"));
+  TEST_ASSERT_TRUE(detector.hasStarted());
 }
 
 // ---------- Temps de match ----------
@@ -88,11 +96,12 @@ void test_match_clock_across_millis_overflow() {
 
 int runAllTests() {
   UNITY_BEGIN();
-  RUN_TEST(test_start_after_release_then_press);
-  RUN_TEST(test_no_start_when_held_at_power_on);
-  RUN_TEST(test_short_bounce_is_ignored);
-  RUN_TEST(test_second_press_is_ignored);
-  RUN_TEST(test_start_across_millis_overflow);
+  RUN_TEST(test_go_then_enter_starts);
+  RUN_TEST(test_case_and_spaces_are_ignored);
+  RUN_TEST(test_command_split_over_several_calls);
+  RUN_TEST(test_other_lines_do_not_start);
+  RUN_TEST(test_empty_line_does_nothing);
+  RUN_TEST(test_second_go_is_ignored);
   RUN_TEST(test_match_over_at_stop_time);
   RUN_TEST(test_match_clock_across_millis_overflow);
   return UNITY_END();

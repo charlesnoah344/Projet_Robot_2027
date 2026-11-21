@@ -1,4 +1,4 @@
-// États de la machine à états du PAMI défenseur (voir docs/plan-logiciel-pami.md, § 3).
+// États de la machine à états du PAMI (voir docs/plan-logiciel-pami.md, § 3, et D014).
 #pragma once
 
 enum class PamiState {
@@ -7,7 +7,7 @@ enum class PamiState {
   MISSION,     // suit les étapes de la mission (points de passage)
   AVOID_STOP,  // obstacle devant : arrêté, attend qu'il s'en aille
   DETOUR,      // obstacle toujours là : petit détour du côté libre
-  DEFEND,      // arrivé dans la zone : immobile, le bras touche l'adversaire à portée
+  DEFEND,      // arrivé dans la douve : immobile, le bras touche l'adversaire à portée
   END,         // fin du temps (14,5 s) : tout est arrêté, définitivement
   FAULT        // capteur en panne : arrêt jusqu'au redémarrage de la carte
 };

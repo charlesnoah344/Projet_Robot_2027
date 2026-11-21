@@ -14,8 +14,8 @@ namespace safety {
 // Reçoit la commande demandée par motion et décide de ce qui est vraiment envoyé aux moteurs.
 void apply(const WheelCommand& requested, uint32_t nowMs);
 
-// Vrai si un obstacle est devant, plus proche que le seuil d'arrêt (avec marge de libération).
-// La machine à états s'en sert pour passer en AVOID_STOP.
+// Vrai si l'ultrason gauche OU l'ultrason droit voit un obstacle plus proche que le seuil d'arrêt
+// (avec marge de libération). La machine à états s'en sert pour passer en AVOID_STOP.
 bool obstacleAhead();
 
 // Vrai si safety a dû bloquer la dernière commande (utile pour les logs et pour motion).

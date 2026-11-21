@@ -18,11 +18,10 @@
 // Pour le comportement complet en déplacement (trapèze, cap) : banc test_odometrie.
 //
 // MATÉRIEL ET MONTAGE
-// - Comme test_odometrie : ESP32 en USB ; MDD3A, M1A/M1B sur GPIO 25/26, M2A/M2B sur GPIO 33/32 ;
-//   encodeurs, gauche A/B sur GPIO 27/14, droit sur 13/4 ; alim de labo à 6 V sur VB+/VB- ;
-//   masse commune.
-// - Avant tout : vérification de la page 7 du PDF de câblage (chaque roue tournée à la main vers
-//   l'avant fait monter son compteur).
+// - Comme test_odometrie, sur le PCB 2026 5EO (D015) : MDD3A, M1A/M1B sur GPIO 32/33, M2A/M2B sur
+//   GPIO 19/18 ; encodeurs, gauche A/B sur GPIO 25/26, droit sur 5/17 ; alim de labo à 6 V sur VB+/VB-.
+// - Avant tout : chaque roue tournée à la main vers l'avant fait monter son compteur
+//   (banc test_odometrie, protocole 1).
 //
 // SÉCURITÉ
 // - Au démarrage, rien ne bouge. Mode AU SOL par défaut : chaque essai s'arrête après 800 mm.

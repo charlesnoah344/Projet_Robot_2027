@@ -1,4 +1,4 @@
-// Machine à états du PAMI défenseur (voir docs/plan-logiciel-pami.md, § 3).
+// Machine à états du PAMI (voir docs/plan-logiciel-pami.md, § 3, et D014).
 //
 // WAIT_START -> WAIT_DELAY -> MISSION <-> AVOID_STOP / DETOUR -> DEFEND, et END à 14,5 s.
 #pragma once

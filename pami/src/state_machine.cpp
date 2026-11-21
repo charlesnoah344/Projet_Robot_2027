@@ -3,7 +3,6 @@
 #include <Arduino.h>
 
 #include "arm.h"
-#include "color.h"
 #include "config.h"
 #include "console.h"
 #include "logic/avoidance.h"
@@ -12,6 +11,7 @@
 #include "motion.h"
 #include "safety.h"
 #include "sensors.h"
+#include "side.h"
 
 namespace stateMachine {
 
@@ -46,11 +46,13 @@ bool stopIfObstacle(uint32_t nowMs) {
 
 void startDetour(uint32_t nowMs) {
   detourCount++;
-  const float side = chooseDetourSide(color::current());
+  // Toujours vers le centre de la table : à droite si on est parti de la gauche, et inversement.
+  const float detourSide = chooseDetourSide(side::current());
   if (DEBUG_LOGS) {
-    Console.printf("[FSM] Detour %u par la %s\n", detourCount, side > 0.0f ? "gauche" : "droite");
+    Console.printf("[FSM] Detour %u par la %s (vers le centre)\n", detourCount,
+                   detourSide > 0.0f ? "gauche" : "droite");
   }
-  motion::turnAngle(side * DETOUR_TURN_DEG);
+  motion::turnAngle(detourSide * DETOUR_TURN_DEG);
   detourPhase = DetourPhase::TURNING;
   enter(PamiState::DETOUR, nowMs);
 }
@@ -86,7 +88,7 @@ void update(uint32_t nowMs) {
   switch (current) {
     case PamiState::WAIT_START:
       if (matchTimer::isStarted()) {
-        color::lock();  // la couleur ne peut plus changer jusqu'à la fin
+        side::lock();  // le côté ne peut plus changer jusqu'à la fin
         enter(PamiState::WAIT_DELAY, nowMs);
       }
       break;
@@ -94,7 +96,7 @@ void update(uint32_t nowMs) {
     case PamiState::WAIT_DELAY:
       // Immobile tant que les 5 s ne sont pas écoulées.
       if (matchTimer::isMoveAllowed()) {
-        mission::start(color::current());
+        mission::start(side::current());
         enter(PamiState::MISSION, nowMs);
       }
       break;
@@ -129,10 +131,12 @@ void update(uint32_t nowMs) {
       if (!motion::isDone()) {
         break;
       }
+      // On fait le virage
       if (detourPhase == DetourPhase::TURNING) {
         // Quart de tour fini : pas de côté.
         motion::driveDistance(DETOUR_SIDE_MM);
-        detourPhase = DetourPhase::SIDESTEP;
+    // On avance sur le côté
+        detourPhase = DetourPhase::SIDESTEP; 
       } else {
         // Niveau 3 : la mission vise de nouveau son point et contourne ainsi l'obstacle.
         enter(PamiState::MISSION, nowMs);
@@ -140,7 +144,7 @@ void update(uint32_t nowMs) {
       break;
 
     case PamiState::DEFEND:
-      // Immobile dans la zone. Un adversaire à portée du bras : on le déploie, et il reste déployé.
+      // Immobile dans la douve. Un adversaire à portée du bras : on le déploie, et il reste déployé.
       // L'évitement reste actif : safety interdit toujours d'avancer vers l'adversaire.
       if (sensors::frontDistanceMm() < ARM_TRIGGER_DISTANCE_MM) {
         arm::deploy();

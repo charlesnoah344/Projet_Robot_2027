@@ -3,6 +3,17 @@
 > Plan adopté le 09/10/2026. Il guide l'écriture du firmware du PAMI pour l'évaluation du labo.
 > Le brochage de référence reste `docs/materiel.md` : ce plan propose, `materiel.md` décide.
 > Rien de ce qui est décrit ici n'est validé tant que ce n'est pas testé sur le vrai PAMI (§ 9).
+>
+> **Mis à jour en partie le 18/11/2026.** Ce plan a été écrit pour le défenseur, avec un câblage sur
+> plaque d'essai. Depuis :
+> - **D012** : câblage sur PCB (nouvelles broches), 2 ultrasons combinés par un OU, plus de capteurs IR ;
+> - **D015** : nouveau PCB « Test PCB 2026 5EO » : nouvelles broches, TRIG commun aux 2 ultrasons ;
+> - **D013** : départ par la commande `go` tapée dans le moniteur, au lieu du bouton sur GPIO 16 ;
+> - **D014** : interrupteur de côté gauche / droite au lieu de la couleur ; mission « douve la plus
+>   proche » par l'odométrie au lieu de l'approche de zone par les capteurs de sol ; détour vers le
+>   centre de la table.
+> Les passages de ce plan sur les broches, les IR, le bouton de départ, la couleur et l'étape
+> `REACH_ZONE` sont donc dépassés : `docs/decisions.md` et `docs/comprendre-le-code.md` font foi.
 
 ## Contexte
 La grille d'évaluation du labo fixe ce que le PAMI doit savoir faire :

@@ -4,9 +4,11 @@
 #include "mission_step.h"
 
 // Renvoie +1 pour contourner par la gauche, -1 par la droite.
-// Aucun capteur ne dit de quel côté l'obstacle est le plus court à contourner (les IR regardent
-// le sol, D009) : on prend un côté fixe. La gauche pour le bleu ; la droite pour le jaune, dont
-// le trajet est le miroir de celui du bleu.
-inline float chooseDetourSide(TeamColor color) {
-  return (color == TeamColor::BLUE) ? 1.0f : -1.0f;
+// Le détour se fait toujours vers le CENTRE de la table (D014) : on n'a pas envie de se coincer
+// contre une bordure. Parti du côté gauche de la table, le PAMI a le centre à sa droite ; parti du
+// côté droit, il l'a à sa gauche. C'est aussi le miroir l'un de l'autre, comme les trajets.
+// Limite : c'est juste tant que le PAMI ne s'est pas retourné de plus de 90° par rapport à son cap
+// de départ. À vérifier quand les vraies positions des douves seront connues.
+inline float chooseDetourSide(StartSide side) {
+  return (side == StartSide::LEFT) ? -1.0f : 1.0f;
 }

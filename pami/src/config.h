@@ -38,44 +38,43 @@ constexpr uint32_t WIFI_UPDATE_PERIOD_MS = 10;
 constexpr bool WIFI_ON_DURING_MATCH = true;
 
 // ---------------------------------------------------------------------------
-// Broches (copie de docs/materiel.md)
+// Broches du PCB « Test PCB 2026 5EO » (copie de docs/materiel.md, D015)
 // ---------------------------------------------------------------------------
 // Driver moteurs MDD3A : 2 entrées par moteur (D006).
-constexpr uint8_t PIN_MOTOR_LEFT_A = 25;   // M1A
-constexpr uint8_t PIN_MOTOR_LEFT_B = 26;   // M1B
-constexpr uint8_t PIN_MOTOR_RIGHT_A = 33;  // M2A
-constexpr uint8_t PIN_MOTOR_RIGHT_B = 32;  // M2B
+constexpr uint8_t PIN_MOTOR_LEFT_A = 32;   // M1A
+constexpr uint8_t PIN_MOTOR_LEFT_B = 33;   // M1B
+constexpr uint8_t PIN_MOTOR_RIGHT_A = 19;  // M2A
+constexpr uint8_t PIN_MOTOR_RIGHT_B = 18;  // M2B
 
-// Encodeurs à effet Hall (étape B). Branchement direct : signaux mesurés entre 0 et 3,3 V.
-constexpr uint8_t PIN_ENCODER_LEFT_A = 27;
-constexpr uint8_t PIN_ENCODER_LEFT_B = 14;
-constexpr uint8_t PIN_ENCODER_RIGHT_A = 13;
-constexpr uint8_t PIN_ENCODER_RIGHT_B = 4;
+// Encodeurs à effet Hall (« COD G B / COD G V » et « COD D B / COD D V » sur le pinout).
+constexpr uint8_t PIN_ENCODER_LEFT_A = 25;
+constexpr uint8_t PIN_ENCODER_LEFT_B = 26;
+constexpr uint8_t PIN_ENCODER_RIGHT_A = 5;   // broche de démarrage : sans risque avec le pull-up
+constexpr uint8_t PIN_ENCODER_RIGHT_B = 17;
 
-// Ultrason HC-SR04 (étape C). ECHO passe par un pont diviseur 5 V -> 3,3 V.
-constexpr uint8_t PIN_US_TRIG = 18;
-constexpr uint8_t PIN_US_ECHO = 19;
+// Deux ultrasons HC-SR04, à l'avant gauche et à l'avant droit (D012).
+// Le PCB relie leurs deux TRIG à la même broche (D015) : ils émettent toujours en même temps.
+// Chacun a sa propre broche ECHO.
+constexpr uint8_t PIN_US_TRIG = 21;
+constexpr uint8_t PIN_US_LEFT_ECHO = 2;    // broche de démarrage : ECHO est bas au repos, sans risque
+constexpr uint8_t PIN_US_RIGHT_ECHO = 15;  // broche de démarrage : idem
 
-// Capteurs de sol IR (D009) : tournés vers le sol, à l'avant, pour repérer le bord de la zone.
-// Sortie à l'état bas = le sol renvoie la lumière IR (surface claire).
-constexpr uint8_t PIN_FLOOR_LEFT = 34;
-constexpr uint8_t PIN_FLOOR_RIGHT = 35;
+// Interrupteur de côté (D014), avec résistance de tirage vers la masse (pull-down) :
+// ouvert = état bas = départ à GAUCHE de la table ; fermé = état haut = départ à DROITE.
+// Pas prévu sur le pinout du PCB : à câbler entre GPIO 27 et 3,3 V (D015).
+// PROVISOIRE : vérifier sur le PAMI, puis marquer « G » et « D » à côté de l'interrupteur.
+constexpr uint8_t PIN_SIDE_SELECTOR = 27;
 
-// Départ : bouton-poussoir externe, l'autre patte à GND. Appui = état bas (D007).
-// Le bouton BOOT de la carte n'est pas accessible sur le PAMI monté.
-// Plus tard, la tirette prendra cette même broche : tirette en place = état bas, retirée = état haut.
-constexpr uint8_t PIN_START_BUTTON = 16;
+// Départ : plus de bouton ni de tirette. Commande START_COMMAND tapée dans le moniteur (D013).
 
-// Sélecteur de couleur : interrupteur, l'autre patte à GND. Ouvert = bleu, fermé = jaune.
-constexpr uint8_t PIN_COLOR_SELECTOR = 17;
+// Servo SG90 du bras (piloté par LEDC, D008).
+constexpr uint8_t PIN_SERVO = 13;
 
-// Servo SG90 du bras du défenseur (piloté par LEDC, D008).
-constexpr uint8_t PIN_SERVO = 23;
+// Accéléromètre I2C prévu sur le PCB. Pas encore utilisé (D004 : optionnel, plus tard).
+constexpr uint8_t PIN_I2C_SDA = 22;
+constexpr uint8_t PIN_I2C_SCL = 23;
 
-// Pas encore utilisées.
-constexpr uint8_t PIN_EMERGENCY_STOP_SENSE = 39;  // lecture de l'état du BAU (optionnel)
-constexpr uint8_t PIN_I2C_SDA = 21;               // gyroscope (optionnel)
-constexpr uint8_t PIN_I2C_SCL = 22;
+// Lecture du BAU (optionnelle) : broche à définir (docs/materiel.md).
 
 // ---------------------------------------------------------------------------
 // Moteurs (driver MDD3A)
@@ -93,10 +92,11 @@ constexpr uint8_t LEDC_CHANNEL_MOTOR_RIGHT_B = 3;
 // true si la roue tourne à l'envers quand on lui demande d'avancer.
 // L'AVANT du PAMI est le côté de l'ultrason. Gauche et droite se voient depuis l'arrière,
 // en regardant vers l'ultrason. On corrige ici plutôt que de recâbler.
-// true / true depuis le 15/10/2026 : avec false, une commande « avancer » faisait partir le PAMI
-// à l'opposé de l'ultrason (l'avant avait été jugé sans repère à l'essai T002).
+// Gauche true / droite false : valeurs du premier PCB (D012), gardées pour le PCB 2026 5EO (D015).
+// Le sens dépend du branchement des moteurs sur le driver, pas des broches de l'ESP32.
+// À REVÉRIFIER avec le banc test_moteurs : chaque roue doit tourner vers l'avant (côté ultrasons).
 constexpr bool MOTOR_LEFT_INVERTED = true;
-constexpr bool MOTOR_RIGHT_INVERTED = true;
+constexpr bool MOTOR_RIGHT_INVERTED = false;
 // PWM maximale autorisée, appliquée par motor_driver, même dans les bancs de test.
 // Alimentation de labo à 6 V = tension nominale des FIT0450 : 100 %.
 // À revoir avec la batterie : avec 8,4 V, il faudra environ 70 % pour rester vers 6 V en moyenne.
@@ -107,20 +107,26 @@ constexpr int MOTOR_MAX_PWM_PCT = 100;
 // ---------------------------------------------------------------------------
 // 960 impulsions par tour de roue et par voie (fiche DFRobot). On compte les 2 fronts de la voie A :
 // 1920 ticks par tour. PROVISOIRE : à vérifier en tournant une roue 10 tours à la main.
+// Le « 1400 » du programme de test du premier PCB ne s'applique pas ici : il comptait 4 fronts par
+// impulsion, pas 2, et sa valeur n'a jamais été étalonnée.
 constexpr int32_t ENCODER_TICKS_PER_WHEEL_TURN = 1920;
-// 60 mm : diamètre donné par l'équipe (09/10/2026).
-// À affiner avec la ligne droite de 1 m et le test du carré (étapes D et E) : quelques dixièmes
-// de mm d'écart (pneu écrasé par le poids du PAMI) donnent déjà plusieurs mm d'erreur par mètre.
-constexpr float WHEEL_DIAMETER_MM = 60.0f;
+// Diamètre « effectif » : celui qui fait correspondre les ticks à la distance vraiment parcourue
+// (pneu écrasé par le poids du PAMI, et imprécision des 1920 ticks par tour compris).
+// 60 mm au départ (diamètre donné par l'équipe). 59,4 mm mesurés avec test_trajectoire :
+// 5 lignes de 950 mm et 3 de 300 mm, droite « réel = 0,990 × cru − 7,6 mm » (± 0,3 mm). // T006
+// Les 7,6 mm perdus à chaque ligne, quelle que soit sa longueur, ne viennent pas du diamètre :
+// voir T006 dans docs/journal-tests.md.
+constexpr float WHEEL_DIAMETER_MM = 59.4f;  // T006
 // Distance parcourue par la roue pour un tick : périmètre de la roue / ticks par tour.
 constexpr float MM_PER_TICK = 3.14159265f * WHEEL_DIAMETER_MM / ENCODER_TICKS_PER_WHEEL_TURN;
-// false : mesuré par l'équipe, les voies A et B alternent entre 0 et 3,3 V toutes seules
-// (encodeur alimenté en 5 V). Branchement direct, sans pont diviseur ni pull-up.
-constexpr bool ENCODER_USE_INTERNAL_PULLUP = false;
-// true si le compteur diminue quand on fait tourner la roue vers l'AVANT (côté ultrason) à la main.
+// true depuis le premier PCB (D012), comme dans le programme de test de l'équipe.
+// Sans risque si la sortie de l'encodeur est déjà en 0 / 3,3 V (mesure de l'équipe, montage d'avant) ;
+// indispensable si le PCB laisse la sortie « en l'air » à l'état haut.
+constexpr bool ENCODER_USE_INTERNAL_PULLUP = true;
+// true si le compteur diminue quand on fait tourner la roue vers l'AVANT (côté ultrasons) à la main.
 // On corrige ici plutôt que de recâbler.
-// Gauche false / droite true depuis le 15/10/2026, en même temps que le sens des moteurs :
-// roue gauche tournée vers l'avant réel à la main -> ticks G descendait avec l'ancien réglage.
+// Gauche false / droite true depuis le 15/10/2026. Avec le PCB 2026 5EO (D015), l'ordre des voies
+// A / B a pu changer : À REVÉRIFIER (banc test_odometrie, protocole 1).
 constexpr bool ENCODER_LEFT_INVERTED = false;
 constexpr bool ENCODER_RIGHT_INVERTED = true;
 
@@ -130,8 +136,13 @@ constexpr bool ENCODER_RIGHT_INVERTED = true;
 // Toutes ces valeurs sont PROVISOIRES : à régler aux étapes D et E, sur le vrai PAMI.
 // Écart entre les points de contact des deux roues. Sert à mesurer les angles :
 // angle (rad) = (distance roue droite - distance roue gauche) / WHEEL_BASE_MM.
-// 100 mm : entraxe donné par l'équipe (09/10/2026). À affiner avec la mission ROTATION et le carré.
-constexpr float WHEEL_BASE_MM = 100.0f;
+// Entraxe « effectif » : celui qui fait correspondre les ticks à l'angle vraiment tourné (les pneus
+// frottent un peu en tournant sur place : il est souvent un peu plus grand que l'entraxe mesuré à la règle).
+// 100 mm au départ (donné par l'équipe). 101,6 mm mesurés avec test_trajectoire : r 360 et r -360,
+// 3 fois chacun, angle réel comparé à l'angle cru PAMI arrêté. // T007
+// Attention : le PAMI tourne 4° de moins vers la gauche que vers la droite (102,2 / 101,0 mm) ;
+// l'entraxe, lui, ne peut corriger que la moyenne. Voir T007 dans docs/journal-tests.md.
+constexpr float WHEEL_BASE_MM = 101.6f;  // T007
 // La régulation tourne toutes les 20 ms : assez souvent pour corriger, assez rarement pour que
 // chaque mesure de vitesse compte plusieurs ticks.
 constexpr uint32_t MOTION_PERIOD_MS = 20;
@@ -151,16 +162,21 @@ constexpr float TURN_TOLERANCE_MM = 2.0f;
 
 // Régulateur de vitesse de chaque roue : PWM = anticipation + correction proportionnelle + intégrale.
 // Anticipation : PWM nécessaire pour décoller (zone morte) + PWM par mm/s voulu.
-constexpr float MOTOR_DEADBAND_PCT = 10.0f;     // PROVISOIRE : zone morte à mesurer (T002 incomplet)
-constexpr float MOTOR_PCT_PER_MM_S = 0.2f;      // PROVISOIRE : environ 100 % pour 500 mm/s
+// Valeurs communes de départ, remplacées par les valeurs mesurées de chaque roue ci-dessous (T004).
+// Elles ne servent plus que de valeurs par défaut au constructeur de SpeedController.
+constexpr float MOTOR_DEADBAND_PCT = 10.0f;     // PROVISOIRE, avant mesure
+constexpr float MOTOR_PCT_PER_MM_S = 0.2f;      // PROVISOIRE, avant mesure
 // Deux moteurs ne sont jamais identiques : chaque roue a ses propres valeurs.
-// Pour l'instant elles reprennent les valeurs communes ci-dessus, donc rien ne change.
-// Après la mesure au sol (PWM 20, 30, 40, 50 % sur chaque roue), remplacez-les par les valeurs
-// mesurées, avec le numéro du test en commentaire (// Txxx).
-constexpr float LEFT_MOTOR_DEADBAND_PCT = MOTOR_DEADBAND_PCT;
-constexpr float LEFT_MOTOR_PCT_PER_MM_S = MOTOR_PCT_PER_MM_S;
-constexpr float RIGHT_MOTOR_DEADBAND_PCT = MOTOR_DEADBAND_PCT;
-constexpr float RIGHT_MOTOR_PCT_PER_MM_S = MOTOR_PCT_PER_MM_S;
+// Mesurées au sol avec l'escalier de test_pid (moyenne de 3 essais, alim de labo 6 V, PCB 2026 5EO).
+// Valables entre 65 et 205 mm/s (vitesses réellement mesurées pendant l'escalier) : en dessous,
+// le frottement au démarrage peut demander plus que la droite ne le prévoit. // T004
+// Si la tension change (batterie), refaire l'escalier.
+constexpr float LEFT_MOTOR_DEADBAND_PCT = 1.5f;    // T004 (essais : 1,2 / 1,6 / 1,6)
+// Pentes : valeurs de T004 × 60 / 59,4. Elles avaient été mesurées en mm/s calculés avec un diamètre de
+// 60 mm ; avec 59,4 mm (T006), la même rotation de roue vaut 1 % de mm/s en moins. // T006
+constexpr float LEFT_MOTOR_PCT_PER_MM_S = 0.194f;  // T004 (essais : 0,195 / 0,191 / 0,191) × 60/59,4
+constexpr float RIGHT_MOTOR_DEADBAND_PCT = 1.1f;   // T004 (essais : 1,0 / 1,0 / 1,2)
+constexpr float RIGHT_MOTOR_PCT_PER_MM_S = 0.198f; // T004 (essais : 0,197 / 0,197 / 0,195) × 60/59,4
 constexpr float SPEED_KP_PCT_PER_MM_S = 0.05f;  // 100 mm/s d'écart -> 5 % de PWM en plus
 constexpr float SPEED_KI_PCT_PER_MM = 0.3f;     // corrige l'écart qui dure (pente, frottements)
 constexpr float SPEED_INTEGRAL_MAX_PCT = 30.0f;  // l'intégrale ne peut pas « s'emballer »
@@ -178,40 +194,43 @@ constexpr uint32_t STALL_TIME_MS = 600;
 // ---------------------------------------------------------------------------
 // Missions (logic/missions.h)
 // ---------------------------------------------------------------------------
-// Une mission par démonstration de la grille du labo.
+// Trois missions de réglage (grille du labo), et la mission de match.
 enum class MissionId {
   STRAIGHT_LINE,  // ligne droite de STRAIGHT_LINE_LENGTH_MM
   ROTATION,       // un tour complet sur place, par quarts de tour
   SQUARE,         // carré de SQUARE_SIDE_MM de côté, retour au départ
-  DEFENDER        // va dans la zone, puis défend avec le bras
+  MOAT            // va à la douve la plus proche (MOATS_MM), puis y reste, bras prêt (D014)
 };
 // La mission jouée. Pour en changer : modifier cette ligne, puis recompiler et téléverser.
-// Ordre conseillé pour les tests : STRAIGHT_LINE, ROTATION, SQUARE, puis DEFENDER.
+// Ordre conseillé pour les tests : STRAIGHT_LINE, ROTATION, SQUARE, puis MOAT.
+// Pas MOAT tant que MOATS_MM contient des positions de test.
 constexpr MissionId ACTIVE_MISSION = MissionId::STRAIGHT_LINE;
 
 // Il n'y a que 9,5 s de mouvement (de 5 s à 14,5 s) : chaque mission doit tenir dedans,
 // avec de la marge pour un détour. PROVISOIRE : à ajuster d'après les vitesses réelles.
 // Raccourcies pour les essais d'odométrie au sol (13/10/2026) : 1000 -> 500 mm, 250 -> 200 mm.
-constexpr float STRAIGHT_LINE_LENGTH_MM = 500.0f;
+constexpr float STRAIGHT_LINE_LENGTH_MM = 250.0f;
 constexpr float SQUARE_SIDE_MM = 200.0f;
-// Mission défenseur, dans le repère de départ (x devant, y à gauche), écrite pour le bleu.
-// PROVISOIRE : à fixer quand on connaîtra la table et la zone de l'évaluation.
-// 1. Point d'approche, à environ 10 cm AVANT le bord de la zone (atteint par l'odométrie).
-constexpr float DEFENDER_APPROACH_X_MM = 600.0f;
-constexpr float DEFENDER_APPROACH_Y_MM = 300.0f;
-// 2. Cap de l'approche : la direction dans laquelle se trouve la zone, vue du point d'approche.
-constexpr float DEFENDER_APPROACH_HEADING_DEG = 0.0f;
-// 3. Approche lente jusqu'au bord de la zone, vu par les capteurs de sol (étape REACH_ZONE).
-// 4. Cap à prendre une fois dans la zone, pour que l'ultrason et le bras regardent vers l'adversaire.
-constexpr float DEFENDER_FACING_DEG = 0.0f;
-
-// Approche de la zone (étape REACH_ZONE, D009).
-// Lent : à 80 mm/s, le PAMI s'arrête en moins d'un centimètre après avoir vu le bord.
-constexpr float ZONE_APPROACH_SPEED_MM_S = 80.0f;
-// Une fois le bord vu, on avance encore de 50 mm pour être dans la zone (0 = s'arrêter sur le bord).
-constexpr float ZONE_ENTRY_MM = 50.0f;
-// Si aucun bord n'est vu après 300 mm, on s'arrête quand même : on ne roule jamais sans fin.
-constexpr float ZONE_SEARCH_MAX_MM = 300.0f;
+// Mission douve (D014). Les 3 douves, dans le repère d'un départ à GAUCHE de la table :
+// départ en (0, 0), x vers l'avant du PAMI au départ, y vers sa gauche (logic/odometry.h).
+// Pour un départ à droite, les points sont mis en miroir (y -> -y) par forSide() : on ne les écrit
+// qu'une fois (règle d'or n° 5).
+// Le PAMI va à la douve la plus proche de son point de départ, puis y reste (étape DEFEND).
+// Il compte s'il a une partie de lui dans une douve adverse à la fin du match (règles 2027, E.4) :
+// visez un point assez à l'intérieur de la douve pour qu'une erreur d'odométrie de quelques
+// centimètres ne l'en fasse pas sortir.
+// PROVISOIRE : positions de test (la plus proche n'est volontairement pas la première de la liste).
+// À remplacer par les vraies positions, mesurées sur le plan de la table.
+struct MoatPoint {
+  float xMm;
+  float yMm;
+};
+constexpr MoatPoint MOATS_MM[] = {
+    {1200.0f, 300.0f},  // douve 0
+    {600.0f, -200.0f},  // douve 1 : la plus proche (632 mm)
+    {900.0f, 0.0f},     // douve 2
+};
+constexpr uint8_t MOAT_COUNT = sizeof(MOATS_MM) / sizeof(MOATS_MM[0]);
 
 // Point atteint à moins de 30 mm. Cap atteint à moins de 3°.
 // Si le PAMI est mal orienté, il se retourne vers le point avant d'avancer.
@@ -219,10 +238,16 @@ constexpr float GOTO_REACHED_TOLERANCE_MM = 30.0f;
 constexpr float HEADING_TOLERANCE_DEG = 3.0f;
 
 // ---------------------------------------------------------------------------
-// Ultrason HC-SR04 et sécurité
+// Ultrasons HC-SR04 (gauche et droit, D012) et sécurité
 // ---------------------------------------------------------------------------
-// Au moins 60 ms entre deux mesures : l'écho de la mesure précédente doit avoir disparu.
+// Les deux capteurs partagent leur TRIG (D015) : ils émettent ensemble, toutes les 60 ms au moins.
+// 60 ms : le son précédent et ses échos doivent avoir disparu. Chaque capteur mesure donc environ
+// 16 fois par seconde.
 constexpr uint32_t US_PERIOD_MS = 60;
+// Un ECHO resté haut aussi longtemps n'est pas normal (58 ms au plus sans écho pour nos modules) :
+// on déclenche quand même. Ce capteur ne répondra pas et sera déclaré en panne au bout de
+// SENSOR_FAULT_TIMEOUT_MS, mais l'autre continue de mesurer : le diagnostic reste clair.
+constexpr uint32_t US_ECHO_STUCK_MS = 2 * US_PERIOD_MS;
 // Impulsion de déclenchement demandée par la fiche du HC-SR04.
 constexpr uint32_t US_TRIGGER_PULSE_US = 10;
 // Écho plus long que 12 000 µs (environ 2 m) : « rien dans la portée ». C'est normal, pas une panne.
@@ -232,8 +257,8 @@ constexpr uint16_t US_NO_OBSTACLE_MM = 2000;
 // Le son fait 343 m/s, soit 0,343 mm/µs. Il fait l'aller-retour : 0,1715 mm par µs d'écho.
 constexpr float US_MM_PER_ECHO_US = 0.1715f;
 // Filtre de sécurité (logic/rise_filter.h) : une distance qui s'allonge de plus de 50 mm d'un coup
-// doit être vue 4 fois de suite (environ 0,25 s) avant d'être crue. Une distance qui diminue est crue
-// tout de suite. Réglé sur les mesures du 15/10/2026 (banc test_ultrason) : jusqu'à 3 échos ratés de
+// doit être vue 4 fois de suite par le même capteur (environ 0,25 s) avant d'être crue.
+// Une distance qui diminue est crue tout de suite. Réglé sur les mesures du 15/10/2026 (banc test_ultrason) : jusqu'à 3 échos ratés de
 // suite devant un PAMI immobile, ou un saut vers le mur du fond.
 constexpr uint16_t US_RISE_THRESHOLD_MM = 50;
 constexpr uint8_t US_RISE_CONFIRM_COUNT = 4;
@@ -241,16 +266,12 @@ constexpr uint8_t US_RISE_CONFIRM_COUNT = 4;
 // Sécurité par défaut : panne = obstacle, le PAMI s'arrête.
 constexpr uint32_t SENSOR_FAULT_TIMEOUT_MS = 1000;
 
-// Obstacle plus proche que ce seuil devant : safety freine, quel que soit l'état.
-// PROVISOIRE, volontairement large : à régler d'après la distance de freinage mesurée (étape C).
+// Obstacle plus proche que ce seuil devant l'un OU l'autre ultrason : safety freine, quel que soit
+// l'état. PROVISOIRE, volontairement large : à régler d'après la distance de freinage mesurée.
 constexpr uint16_t OBSTACLE_STOP_DISTANCE_MM = 150;
 // L'obstacle n'est considéré parti qu'au-delà de seuil + 30 mm.
 // Sans cette marge, une mesure qui oscille autour du seuil ferait avancer et freiner en boucle.
 constexpr uint16_t OBSTACLE_CLEAR_MARGIN_MM = 30;
-
-// Capteurs de sol IR (sortie tout-ou-rien) : lus toutes les 10 ms.
-// On garde l'avis d'au moins 2 des 3 dernières lectures : un parasite isolé est ignoré.
-constexpr uint32_t FLOOR_SENSOR_PERIOD_MS = 10;
 
 // ---------------------------------------------------------------------------
 // Évitement (états AVOID_STOP et DETOUR)
@@ -259,7 +280,8 @@ constexpr uint32_t FLOOR_SENSOR_PERIOD_MS = 10;
 // Niveau 2, évite : obstacle toujours là après 1 s -> détour. Ce délai laisse à un robot qui passe
 // le temps de s'en aller.
 constexpr uint32_t AVOID_WAIT_MS = 1000;
-// Le détour : quart de tour (à gauche pour le bleu, à droite pour le jaune), puis pas de côté.
+// Le détour : quart de tour vers le centre de la table (à droite pour un départ à gauche, à gauche
+// pour un départ à droite, D014), puis pas de côté.
 constexpr float DETOUR_TURN_DEG = 90.0f;
 constexpr float DETOUR_SIDE_MM = 200.0f;  // PROVISOIRE : un peu plus que la largeur d'un PAMI
 // Niveau 3, contourne : après le détour, la mission vise de nouveau son point.
@@ -267,7 +289,7 @@ constexpr float DETOUR_SIDE_MM = 200.0f;  // PROVISOIRE : un peu plus que la lar
 constexpr uint8_t AVOID_MAX_DETOURS = 3;
 
 // ---------------------------------------------------------------------------
-// Bras du défenseur (servo SG90, D008)
+// Bras du PAMI (servo SG90, D008)
 // ---------------------------------------------------------------------------
 // Servo piloté directement par le générateur PWM de l'ESP32 (LEDC), sans bibliothèque :
 // ESP32Servo choisirait elle-même un canal et pourrait prendre celui d'un moteur (canaux 0 à 3).
@@ -288,25 +310,27 @@ constexpr float ARM_DEPLOYED_DEG = 90.0f;  // déployé vers l'avant
 constexpr uint16_t ARM_TRIGGER_DISTANCE_MM = 60;
 
 // ---------------------------------------------------------------------------
-// Sélecteur de couleur
+// Interrupteur de côté (D014)
 // ---------------------------------------------------------------------------
 // Lu toutes les 100 ms avant le départ : un interrupteur ne change pas plus vite.
-constexpr uint32_t COLOR_READ_PERIOD_MS = 100;
+constexpr uint32_t SIDE_READ_PERIOD_MS = 100;
 
 // ---------------------------------------------------------------------------
 // Minuteur de match
 // ---------------------------------------------------------------------------
 // Profil labo (D007, grille du Mechatronics Lab) : départ après 5 s, arrêt après 15 s.
-// Les deux durées comptent depuis l'appui sur le bouton de départ.
+// Les deux durées comptent depuis la commande de départ (D013).
 // Valeurs Eurobot, pour plus tard (règle d'or n° 3, règles 2027 E.4) :
 //   MATCH_MOVE_ALLOWED_MS = 85300 et MATCH_STOP_MS = 99500.
 // Immobile jusqu'à 5 s après le départ.
 constexpr uint32_t MATCH_MOVE_ALLOWED_MS = 5000;
 // Arrêt total à 14,5 s : 0,5 s de marge avant les 15 s, comme les 99,5 s d'Eurobot.
 constexpr uint32_t MATCH_STOP_MS = 14500;
-// Un appui ou un relâchement doit durer au moins 50 ms pour compter :
-// les contacts d'un bouton rebondissent pendant quelques millisecondes.
-constexpr uint32_t START_BUTTON_DEBOUNCE_MS = 50;
+// Départ (D013) : taper ce mot dans le moniteur (Wi-Fi ou USB), puis Entrée. En minuscules.
+// Un mot plutôt qu'une touche : une touche frappée par erreur ne lance pas le PAMI.
+// ⚠ PROFIL LABO SEULEMENT : interdit à Eurobot (règlement général F.6). Là-bas, le PAMI démarre par
+// un cordon de 50 cm, ou par le robot principal pendant le match.
+constexpr char START_COMMAND[] = "go";
 
 // ---------------------------------------------------------------------------
 // Bancs de test (test_bench/) : jamais utilisés en match

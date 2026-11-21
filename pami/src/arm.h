@@ -1,4 +1,4 @@
-// Bras du défenseur : un servo SG90 qui vient toucher le PAMI adverse (D008).
+// Bras du PAMI : un servo SG90 qui vient toucher le PAMI adverse (D008).
 //
 // - Pas de PWM avant la défense : le servo reste libre, le bras est replié à la main.
 // - Le bras ne bouge que pendant la période de mouvement (5 s à 14,5 s).

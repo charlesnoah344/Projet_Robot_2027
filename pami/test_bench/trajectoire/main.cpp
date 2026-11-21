@@ -1,7 +1,7 @@
 // Banc de test des trajectoires : ligne droite, rotation et carré aux dimensions choisies au clavier,
 // puis calcul des corrections d'étalonnage à partir de ce que vous mesurez au mètre ruban.
 //
-// !!! PROGRAMME DE TEST : PAS D'ÉVITEMENT COMPLET. NE JAMAIS L'UTILISER EN MATCH. !!!
+// !!! PROGRAMME DE TEST : AUCUN ÉVITEMENT. NE JAMAIS L'UTILISER EN MATCH. !!!
 // Après le test, remettre le firmware : pio run -t upload (sans fil : pio run -e esp32dev_wifi -t upload)
 //
 // Téléverser : pio run -e test_trajectoire -t upload -t monitor (maintenir BOOT pendant « Connecting »)
@@ -14,6 +14,8 @@
 // - ce que vous avez COMMANDÉ (ex. 1000 mm) ;
 // - ce que le PAMI CROIT avoir fait (calculé avec ses encodeurs) ;
 // - ce qu'il a VRAIMENT fait (vous le mesurez, puis vous le tapez avec « m »).
+// « Cru » est relu au moment où vous tapez « m », PAMI arrêté : le petit glissement après la fin
+// du mouvement compte, comme pour votre mesure (correction du 21/11/2026, T003).
 // Commandé ≠ cru : c'est le contrôle (motion, régulateur) qui a mal travaillé.
 // Cru ≠ réel : le contrôle a bien travaillé, mais le PAMI mesure mal : c'est l'ÉTALONNAGE
 // (diamètre des roues, entraxe). Le banc calcule alors la valeur à mettre dans config.h.
@@ -21,14 +23,13 @@
 //
 // MATÉRIEL ET MONTAGE
 // - Comme test_odometrie : MDD3A, encodeurs, alimentation des moteurs, masse commune.
-// - Ultrason branché : pendant les lignes droites, le PAMI s'arrête à 150 mm d'un obstacle.
-//   C'est une sécurité, pas l'évitement du match. Ultrason en panne : le banc prévient et roule
-//   quand même (attention).
+// - Pas d'ultrason : ce banc règle le déplacement, il ne regarde jamais devant lui (comme
+//   test_odometrie et test_pid). C'est à vous de garder la place dégagée.
 //
 // SÉCURITÉ
 // - Au démarrage, rien ne bouge avant une commande.
-// - Premier essai SUR CALES. Au sol : BAU câblé (règle d'or n° 2), place dégagée, quelqu'un prêt
-//   à couper l'alimentation.
+// - Premier essai SUR CALES. Au sol : BAU câblé (règle d'or n° 2), place dégagée (aucun obstacle
+//   n'arrête le PAMI), quelqu'un prêt à couper l'alimentation.
 // - Pendant un essai, N'IMPORTE QUELLE touche = STOP.
 // - Arrêt automatique si l'essai dure 2 fois plus que prévu.
 // - Roue bloquée ou encodeur inversé : motion passe en panne, tout s'arrête (redémarrer avec EN).
@@ -39,7 +40,9 @@
 //   r 90     rotation de 90° vers la gauche ; r -90 vers la droite ; r 360 = un tour
 //   c 300    carré de 300 mm en tournant à gauche ; c -300 en tournant à droite
 //   v 100    vitesse des lignes droites, en mm/s (40 à DRIVE_SPEED_MM_S)
-//   m 503    MESURE réelle du dernier essai (mm, ou degrés pour une rotation) : calcule la correction
+//   m 503    MESURE réelle du dernier essai : calcule la correction. Ligne : distance en mm (positive).
+//            Rotation : angle en degrés, signe libre (m 358 = m -358). Carré : écart au départ en mm,
+//            AVEC SIGNE : + si le PAMI s'arrête à gauche du départ, - à droite, 0 si pile dessus.
 //   Entrée seule : refaire le même essai (pratique pour répéter 3 à 5 fois)
 //   n : nouvelle série de mesures   z : position à zéro   i : réglages   h : aide
 //
@@ -65,7 +68,6 @@
 #include "encoders.h"
 #include "motion.h"
 #include "motor_driver.h"
-#include "sensors.h"
 #include "wireless.h"
 
 namespace {
@@ -82,6 +84,7 @@ struct Step {
 struct Series {
   uint32_t count = 0;
   float sum = 0.0f;
+  float sumAbs = 0.0f;  // somme des valeurs sans leur signe (carrés : écart moyen, quel que soit le côté)
   float min = 0.0f;
   float max = 0.0f;
 
@@ -93,9 +96,11 @@ struct Series {
       max = value;
     }
     sum += value;
+    sumAbs += fabsf(value);
     count++;
   }
   float mean() const { return (count > 0) ? sum / count : 0.0f; }
+  float meanAbs() const { return (count > 0) ? sumAbs / count : 0.0f; }
 };
 
 // --- Réglages choisis au clavier ---
@@ -116,7 +121,6 @@ int32_t startRightTicks = 0;
 float maxLeftPct = 0.0f;  // PWM la plus forte demandée pendant l'essai : la marge avant 100 %
 float maxRightPct = 0.0f;
 bool faultReported = false;
-bool sensorWarningPrinted = false;
 
 // --- Dernier essai terminé : ce que le PAMI croit avoir fait, pour la commande « m » ---
 RunKind lastRun = RunKind::NONE;     // pour « Entrée seule = refaire »
@@ -160,7 +164,8 @@ void printHelp() {
   Console.println("[TRAJ]   c 300    carre de 300 mm en tournant a gauche ; c -300 en tournant a droite");
   Console.printf("[TRAJ]   v 100    vitesse des lignes droites, en mm/s (%.0f a %.0f)\n", MOTION_MIN_SPEED_MM_S,
                  DRIVE_SPEED_MM_S);
-  Console.println("[TRAJ]   m 503    MESURE reelle du dernier essai (mm, ou deg pour une rotation)");
+  Console.println("[TRAJ]   m 503    MESURE reelle du dernier essai : mm (ligne), deg (rotation, signe libre),");
+  Console.println("[TRAJ]            mm avec signe pour un carre (+ arrete a gauche du depart, - a droite)");
   Console.println("[TRAJ]   Entree seule : refaire le meme essai    n : nouvelle serie de mesures");
   Console.println("[TRAJ]   z : position a zero    i : reglages    h : aide");
   Console.println("[TRAJ] Chiffres : pave numerique, ou Maj + touche sur un clavier AZERTY.");
@@ -263,9 +268,6 @@ void startRun(RunKind kind, uint32_t nowMs) {
   runStartMs = nowMs;
   runTimeoutMs = 2 * expectedDurationMs() + TEST_BENCH_TRAJ_TIMEOUT_MARGIN_MS;
   lastLogMs = nowMs;
-  if (sensors::isFaulty()) {
-    Console.println("[TRAJ] ATTENTION : ultrason en panne, pas d'arret devant un obstacle. Main sur l'alim !");
-  }
   startStep(0);
 }
 
@@ -288,11 +290,12 @@ void finishRun(uint32_t nowMs) {
   if (finished == RunKind::LINE) {
     believedValue = believedDistanceMm();
     Console.printf("[TRAJ] ===== Ligne droite de %.0f mm terminee en %.1f s =====\n", lineDistanceMm, seconds);
-    Console.printf("[TRAJ] Le PAMI croit avoir parcouru %.1f mm (ecart lateral y = %.0f mm, cap %.1f deg).\n",
+    Console.printf("[TRAJ] Fin du mouvement : le PAMI croit avoir parcouru %.1f mm (ecart lateral y = %.0f mm, cap %.1f deg).\n",
                    believedValue, pose.yMm, pose.headingDeg);
     printWheelMargin();
     Console.println("[TRAJ] -> Mesurez la distance REELLE (meme repere sur le PAMI au depart et a l'arrivee),");
-    Console.println("[TRAJ]    puis tapez : m <distance en mm>. Notez aussi l'ecart lateral reel (< 10 mm sur 500 mm).");
+    Console.println("[TRAJ]    puis tapez m et la distance en mm, par exemple : m 947");
+    Console.println("[TRAJ]    Notez aussi l'ecart lateral reel (moins de 10 mm sur 500 mm).");
   } else if (finished == RunKind::TURN) {
     believedValue = believedAngleDeg();
     Console.printf("[TRAJ] ===== Rotation de %.0f deg terminee en %.1f s =====\n", fabsf(turnAngleDeg), seconds);
@@ -300,7 +303,7 @@ void finishRun(uint32_t nowMs) {
                    fabsf(believedValue), pose.xMm, pose.yMm);
     printWheelMargin();
     Console.println("[TRAJ] -> Mesurez l'angle REEL (repere au sol, ou laser sur un mur : 1 deg = 35 mm a 2 m),");
-    Console.println("[TRAJ]    puis tapez : m <angle en degres>.");
+    Console.println("[TRAJ]    puis tapez m et l'angle en degres, par exemple : m 358");
   } else {
     believedValue = sqrtf(pose.xMm * pose.xMm + pose.yMm * pose.yMm);
     lastSquareSideMm = squareSideMm;
@@ -309,8 +312,9 @@ void finishRun(uint32_t nowMs) {
     Console.printf("[TRAJ] Le PAMI croit etre a %.0f mm du depart (x = %.0f, y = %.0f, cap %.1f deg).\n",
                    believedValue, pose.xMm, pose.yMm, pose.headingDeg);
     printWheelMargin();
-    Console.println("[TRAJ] -> Mesurez la distance REELLE entre le repere de depart et le PAMI, puis tapez :");
-    Console.println("[TRAJ]    m <distance en mm>. Notez de quel cote du depart il s'arrete (voir la doc).");
+    Console.println("[TRAJ] -> Mesurez la distance REELLE entre le repere de depart et le PAMI, avec un SIGNE pour le cote :");
+    Console.println("[TRAJ]    + s'il s'arrete a GAUCHE du depart, - s'il s'arrete a DROITE (vu de derriere le PAMI");
+    Console.println("[TRAJ]    au depart, en regardant dans son sens de depart). Exemples : m 12, m -8, m 0.");
   }
   measurableRun = finished;
 }
@@ -336,13 +340,6 @@ void advanceRun(uint32_t nowMs) {
   }
   if (nowMs - runStartMs >= runTimeoutMs) {
     stopRun("essai beaucoup plus long que prevu");
-    return;
-  }
-  // Sécurité du banc : un obstacle devant pendant une ligne droite arrête l'essai.
-  if (motion::isDriving() && !sensors::isFaulty() && sensors::frontDistanceMm() < OBSTACLE_STOP_DISTANCE_MM) {
-    char reason[48];
-    snprintf(reason, sizeof(reason), "obstacle a %u mm devant", sensors::frontDistanceMm());
-    stopRun(reason);
     return;
   }
   if (!motion::isDone()) {
@@ -371,11 +368,26 @@ void printSeries(const char* what, const Series& series) {
   }
 }
 
-void measureLine(float realMm) {
-  const float ratio = realMm / believedValue;
+// Chaque mesure vérifie sa valeur. Elle renvoie faux si la valeur est refusée : l'essai reste alors
+// mesurable, et on peut retaper la bonne valeur.
+//
+// Ce que le PAMI croit est relu au moment de la mesure (« m »), PAMI arrêté depuis longtemps :
+// après « mouvement fini », les roues glissent encore de quelques mm (freinage), et la règle mesure ce
+// glissement. Comparer avec la valeur de fin de mouvement faussait l'étalonnage (T003).
+// Les encodeurs comptent depuis le début de l'essai : « z » (position à zéro) ne change rien ici.
+bool measureLine(float realMm) {
+  // Le PAMI ne recule jamais : une distance parcourue est forcément positive.
+  if (realMm <= 0.0f) {
+    Console.println("[TRAJ] Ligne droite : tapez la distance parcourue, positive. Exemple : m 947");
+    return false;
+  }
+  const float atRestMm = believedDistanceMm();
+  const float ratio = realMm / atRestMm;
   lineRatios.add(ratio);
-  Console.printf("[TRAJ] Mesure : reel %.0f mm, le PAMI croyait %.1f mm (%+.2f %%).\n", realMm, believedValue,
-                 (ratio - 1.0f) * 100.0f);
+  Console.printf("[TRAJ] Mesure : reel %.0f mm, le PAMI croyait %.1f mm a l'arret (%+.2f %%).\n", realMm,
+                 atRestMm, (ratio - 1.0f) * 100.0f);
+  Console.printf("[TRAJ] Glissement apres la fin du mouvement : %.1f mm (%.1f mm a la fin du mouvement).\n",
+                 atRestMm - believedValue, believedValue);
   printSeries("lignes droites", lineRatios);
   const float meanRatio = lineRatios.mean();
   if (fabsf(meanRatio - 1.0f) * 100.0f <= TEST_BENCH_TRAJ_DISTANCE_TOLERANCE_PCT) {
@@ -387,15 +399,30 @@ void measureLine(float realMm) {
     Console.printf("[TRAJ] Diametre conseille : WHEEL_DIAMETER_MM = %.2ff;  (actuel %.2f) // Txxx\n",
                    WHEEL_DIAMETER_MM * meanRatio, WHEEL_DIAMETER_MM);
   }
+  return true;
 }
 
-void measureTurn(float realDeg) {
+// Même principe que measureLine : l'angle cru est relu PAMI arrêté, glissement de fin compris.
+// On compare des angles SANS leur signe : le sens de rotation est connu par la commande
+// (r -360 = vers la droite). « m -357 » et « m 357 » donnent donc le même résultat.
+bool measureTurn(float realDeg) {
+  if (realDeg == 0.0f) {
+    Console.println("[TRAJ] Rotation : tapez l'angle reellement tourne, par exemple : m 358 (ou m -358)");
+    return false;
+  }
+  const float believedSignedDeg = believedAngleDeg();
+  if (realDeg * believedSignedDeg < 0.0f) {
+    Console.println("[TRAJ] Signe de la mesure oppose au sens de la rotation : seul l'angle compte, le signe"
+                    " est ignore.");
+  }
   realDeg = fabsf(realDeg);
-  const float believedDeg = fabsf(believedValue);
+  const float believedDeg = fabsf(believedSignedDeg);
   const float ratio = believedDeg / realDeg;
   turnRatios.add(ratio);
-  Console.printf("[TRAJ] Mesure : reel %.1f deg, le PAMI croyait %.1f deg (ecart %+.1f deg).\n", realDeg,
+  Console.printf("[TRAJ] Mesure : reel %.1f deg, le PAMI croyait %.1f deg a l'arret (ecart %+.1f deg).\n", realDeg,
                  believedDeg, realDeg - believedDeg);
+  Console.printf("[TRAJ] Glissement apres la fin du mouvement : %.1f deg (%.1f deg a la fin du mouvement).\n",
+                 believedDeg - fabsf(believedValue), fabsf(believedValue));
   if (lineRatios.count == 0) {
     Console.println("[TRAJ] Conseil : reglez d'abord le diametre (lignes droites, l ...) : l'angle en depend.");
   }
@@ -411,38 +438,76 @@ void measureTurn(float realDeg) {
     Console.printf("[TRAJ] Entraxe conseille : WHEEL_BASE_MM = %.1ff;  (actuel %.1f) // Txxx\n",
                    WHEEL_BASE_MM * turnRatios.mean(), WHEEL_BASE_MM);
   }
+  return true;
 }
 
-void measureSquare(float realGapMm) {
+const char* gapSideName(float signedGapMm) {
+  if (signedGapMm > 0.0f) {
+    return "a gauche";
+  }
+  return (signedGapMm < 0.0f) ? "a droite" : "pile au depart";
+}
+
+void printSquareSeries(const char* turning, const Series& series) {
+  if (series.count == 0) {
+    Console.printf("[TRAJ] Carres en tournant a %s : aucun.\n", turning);
+    return;
+  }
+  Console.printf("[TRAJ] Carres en tournant a %s : %lu, ecart moyen %.0f mm, cote moyen %+.0f mm (%s)\n", turning,
+                 (unsigned long)series.count, series.meanAbs(), series.mean(), gapSideName(series.mean()));
+}
+
+// Carré : écart AVEC SIGNE, + = arrêté à gauche du départ, - = à droite (vu de derrière le PAMI au
+// départ, comme y dans l'odométrie). 0 est une vraie mesure : le carré s'est refermé pile.
+// Le signe sert à la méthode des carrés dans les deux sens (docs/reglage-regulation.md, § 8).
+bool measureSquare(float signedGapMm) {
   Series& series = (lastSquareSideMm > 0.0f) ? squaresLeft : squaresRight;
-  series.add(realGapMm);
-  Console.printf("[TRAJ] Mesure : arrive a %.0f mm du depart (le PAMI croyait %.0f mm).\n", realGapMm,
-                 believedValue);
-  Console.printf("[TRAJ] Carres a gauche : %lu, ecart moyen %.0f mm | a droite : %lu, ecart moyen %.0f mm\n",
-                 (unsigned long)squaresLeft.count, squaresLeft.mean(), (unsigned long)squaresRight.count,
-                 squaresRight.mean());
-  if (realGapMm > TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM) {
+  series.add(signedGapMm);
+  Console.printf("[TRAJ] Mesure : arrive a %.0f mm du depart, %s (le PAMI croyait %.0f mm).\n", fabsf(signedGapMm),
+                 gapSideName(signedGapMm), believedValue);
+  printSquareSeries("gauche", squaresLeft);
+  printSquareSeries("droite", squaresRight);
+  if (fabsf(signedGapMm) > TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM) {
     Console.printf("[TRAJ] Plus de %.0f mm : voir docs/reglage-regulation.md, \"carres dans les deux sens\".\n",
                    TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM);
   } else {
     Console.printf("[TRAJ] Retour a moins de %.0f mm du depart : bon.\n", TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM);
   }
+
+  // Lecture de la méthode des carrés, quand chaque sens a au moins 3 mesures.
+  if (squaresLeft.count < 3 || squaresRight.count < 3) {
+    return true;
+  }
+  if (squaresLeft.meanAbs() <= TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM &&
+      squaresRight.meanAbs() <= TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM) {
+    Console.println("[TRAJ] Lecture : les deux sens referment bien. Rien a corriger.");
+  } else if (squaresLeft.mean() * squaresRight.mean() > 0.0f) {
+    Console.println("[TRAJ] Lecture : les deux sens finissent du MEME cote : les deux roues n'ont pas le meme"
+                    " diametre (doc, \"carres dans les deux sens\").");
+  } else {
+    Console.println("[TRAJ] Lecture : les deux sens finissent de cotes OPPOSES : l'entraxe est faux"
+                    " (refaire les rotations r 360 / r -360).");
+  }
+  return true;
 }
 
 void handleMeasure(bool hasValue, float value) {
-  if (!hasValue || value <= 0.0f) {
-    Console.println("[TRAJ] Tapez la valeur mesuree, par exemple : m 503");
+  if (!hasValue) {
+    Console.println("[TRAJ] Tapez la valeur mesuree, par exemple : m 947 (ligne), m -358 (rotation), m -8 (carre)");
     return;
   }
+  bool accepted = false;
   switch (measurableRun) {
-    case RunKind::LINE: measureLine(value); break;
-    case RunKind::TURN: measureTurn(value); break;
-    case RunKind::SQUARE: measureSquare(value); break;
+    case RunKind::LINE: accepted = measureLine(value); break;
+    case RunKind::TURN: accepted = measureTurn(value); break;
+    case RunKind::SQUARE: accepted = measureSquare(value); break;
     default:
       Console.println("[TRAJ] Pas d'essai termine a mesurer (essai interrompu, ou deja mesure).");
       return;
   }
-  measurableRun = RunKind::NONE;  // une seule mesure par essai
+  if (accepted) {
+    measurableRun = RunKind::NONE;  // une seule mesure par essai
+  }
 }
 
 // --- Lecture de la ligne tapée ---
@@ -455,10 +520,14 @@ char* skipSpaces(char* text) {
 }
 
 // Lit un nombre (virgule ou point acceptés). Faux s'il n'y a pas de nombre, ou s'il reste autre chose.
+// Les chevrons sont ignorés : « m <925> » vaut « m 925 » (les anciens messages du banc montraient
+// « m <distance en mm> », et des mesures ont été perdues ainsi le 21/11/2026).
 bool parseNumber(char* text, float& value) {
   for (char* c = text; *c != '\0'; c++) {
     if (*c == ',') {
       *c = '.';
+    } else if (*c == '<' || *c == '>') {
+      *c = ' ';
     }
   }
   char* end = nullptr;
@@ -493,7 +562,7 @@ void executeLine(uint32_t nowMs) {
   float value = 0.0f;
   const bool hasValue = (*argument != '\0') && parseNumber(argument, value);
   if (*argument != '\0' && !hasValue) {
-    Console.println("[TRAJ] Nombre illisible. Exemple : l 1000");
+    Console.println("[TRAJ] Nombre illisible. Exemples : l 1000 (essai), m 947 (mesure).");
     return;
   }
 
@@ -609,9 +678,9 @@ void logMeasures(uint32_t nowMs) {
   float rightMm = 0.0f;
   wheelDistancesMm(leftMm, rightMm);
   Console.printf("[ODO] t = %4.1f s | roue G %6.0f mm D %6.0f mm | PWM G %4.0f D %4.0f %% | x %5.0f y %5.0f mm"
-                 " cap %6.1f deg | US %u mm\n",
+                 " cap %6.1f deg\n",
                  (nowMs - runStartMs) / 1000.0f, leftMm, rightMm, command.leftPct, command.rightPct, pose.xMm,
-                 pose.yMm, pose.headingDeg, sensors::frontDistanceMm());
+                 pose.yMm, pose.headingDeg);
 }
 
 }  // namespace
@@ -623,12 +692,11 @@ void setup() {
   Serial.begin(SERIAL_BAUD);
   Console.println();
   Console.println("[BANC] ===== BANC DE TEST DES TRAJECTOIRES (ligne, rotation, carre) =====");
-  Console.println("[BANC] PAS D'EVITEMENT COMPLET : NE JAMAIS UTILISER EN MATCH.");
+  Console.println("[BANC] AUCUN EVITEMENT (pas d'ultrason) : NE JAMAIS UTILISER EN MATCH.");
   Console.println("[BANC] Apres le test : remettre le firmware (pio run -t upload, ou -e esp32dev_wifi).");
   printResetReason();
 
   encoders::begin();
-  sensors::begin();
   motion::begin();
 
   printSettings();
@@ -644,7 +712,6 @@ void loop() {
     handleChar((char)Console.read(), nowMs);
   }
 
-  sensors::update(nowMs);
   if (running != RunKind::NONE) {
     advanceRun(nowMs);
   }
@@ -655,10 +722,6 @@ void loop() {
     measurableRun = RunKind::NONE;
     Console.println("[TRAJ] PANNE : roue bloquee ou encodeur inverse. Tout est arrete.");
     Console.println("[TRAJ] Verifiez le sens des encodeurs (roues a la main), puis redemarrez avec EN.");
-  }
-  if (sensors::isFaulty() && !sensorWarningPrinted) {
-    sensorWarningPrinted = true;
-    Console.println("[TRAJ] Ultrason en panne (aucune mesure) : le banc ne s'arretera pas devant un obstacle.");
   }
 
   // Pas de safety dans ce banc : rien ne bloque la commande (false). Hors essai, freins serrés.

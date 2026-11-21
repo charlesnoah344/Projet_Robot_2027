@@ -12,15 +12,12 @@
 // les réglages trouvés ici servent tels quels au firmware de match.
 // Différences avec le match : pas d'ultrason, pas de minuteur de match, pas de safety.
 // Les commandes de motion vont directement au driver, toujours limitées par MOTOR_MAX_PWM_PCT.
-// sensors.cpp est compilé seulement parce que mission.cpp en a besoin pour l'étape REACH_ZONE,
-// que ce banc n'utilise pas : l'ultrason n'est jamais lu.
 //
 // MATÉRIEL ET MONTAGE
-// - ESP32 en USB. MDD3A : M1A/M1B sur GPIO 25/26, M2A/M2B sur GPIO 33/32, GND commun.
-// - 2 moteurs FIT0450 sur le bornier du MDD3A.
-// - Encodeurs : + sur 5V, GND, gauche A/B sur GPIO 27/14, droit A/B sur GPIO 13/4.
+// - PCB 2026 5EO (D015) : MDD3A M1A/M1B sur GPIO 32/33, M2A/M2B sur GPIO 19/18.
+// - 2 moteurs FIT0450. Encodeurs : gauche A/B sur GPIO 25/26, droit A/B sur GPIO 5/17.
 // - Alimentation de labo à 6 V (environ 2 A) vers VB+ à travers le BAU.
-// - Ultrason, IR, servo, bouton de départ : pas nécessaires.
+// - Ultrasons, servo : pas nécessaires.
 //
 // SÉCURITÉ
 // - Premier essai de chaque commande SUR CALES, roues en l'air.
@@ -41,7 +38,7 @@
 //     Mesurer l'angle réellement tourné A (360° attendus).
 //     WHEEL_BASE_MM = valeur actuelle × 360 / A.
 //  5. Au sol, carré : « 3 ». Mesurer l'écart entre l'arrivée et le départ.
-//     « j » puis « 3 » : le même carré en jaune, dans l'autre sens (miroir).
+//     « c » puis « 3 » : le même carré pour un départ à droite, dans l'autre sens (miroir).
 //
 // CRITÈRES DE RÉUSSITE
 // - Encodeurs : 1920 ± 20 ticks par tour de roue, compteurs croissants vers l'avant.
@@ -63,17 +60,13 @@ namespace {
 
 bool running = false;
 uint32_t runStartMs = 0;
-TeamColor color = TeamColor::BLUE;
+StartSide startSide = StartSide::LEFT;
 bool faultReported = false;
 
 // Pour calculer la vitesse de chaque roue entre deux lignes de mesures.
 uint32_t lastLogMs = 0;
 int32_t lastLogLeftTicks = 0;
 int32_t lastLogRightTicks = 0;
-
-const char* colorName() {
-  return color == TeamColor::BLUE ? "BLEU" : "JAUNE";
-}
 
 // Affiche la cause du dernier redémarrage. « BROWNOUT » = chute de tension quand les moteurs démarrent.
 void printResetReason() {
@@ -103,7 +96,7 @@ void printHelp() {
   Console.printf("[BANC]   1 = ligne droite (%.0f mm)\n", STRAIGHT_LINE_LENGTH_MM);
   Console.println("[BANC]   2 = rotation : 4 quarts de tour (un tour complet)");
   Console.printf("[BANC]   3 = carre (%.0f mm de cote)\n", SQUARE_SIDE_MM);
-  Console.println("[BANC]   j = changer de couleur (bleu / jaune)");
+  Console.println("[BANC]   c = changer de cote de depart (gauche / droite, miroir)");
   Console.println("[BANC]   z = remettre la position a zero");
   Console.println("[BANC]   h = cette aide");
   Console.println("[BANC] Pendant un essai : N'IMPORTE QUELLE touche = STOP.");
@@ -145,10 +138,10 @@ void startRun(MissionId id, const char* name, uint32_t nowMs) {
     Console.println("[BANC] Panne en cours : verifiez les encodeurs, puis redemarrez avec EN.");
     return;
   }
-  mission::start(color, id);  // remet aussi la position à (0, 0), cap 0
+  mission::start(startSide, id);  // remet aussi la position à (0, 0), cap 0
   running = true;
   runStartMs = nowMs;
-  Console.printf("[BANC] Essai : %s, couleur %s. Une touche = STOP.\n", name, colorName());
+  Console.printf("[BANC] Essai : %s, depart a %s. Une touche = STOP.\n", name, sideName(startSide));
 }
 
 void stopRun(const char* reason) {
@@ -178,9 +171,9 @@ void handleKey(char key, uint32_t nowMs) {
     case '3':
       startRun(MissionId::SQUARE, "carre", nowMs);
       break;
-    case 'j':
-      color = (color == TeamColor::BLUE) ? TeamColor::YELLOW : TeamColor::BLUE;
-      Console.printf("[BANC] Couleur : %s\n", colorName());
+    case 'c':
+      startSide = (startSide == StartSide::LEFT) ? StartSide::RIGHT : StartSide::LEFT;
+      Console.printf("[BANC] Depart a %s\n", sideName(startSide));
       break;
     case 'z':
       motion::resetPose();

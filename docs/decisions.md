@@ -124,7 +124,9 @@
 
 ### D007 — Profil labo du minuteur et bouton de départ externe
 - **Date** : 09/10/2026
-- **Statut** : adoptée — **profil labo, à remplacer par le profil Eurobot avant tout match Eurobot**
+- **Statut** : adoptée — **profil labo, à remplacer par le profil Eurobot avant tout match Eurobot**.
+  Le départ par bouton-poussoir (GPIO 16) est remplacé par la commande `go` (D013) ; les durées
+  5 s / 14,5 s ne changent pas.
 - **Contexte** :
   - le PAMI est d'abord évalué au Mechatronics Lab. La grille demande « démarrage après 5 s et arrêt
     après 15 s », et non 85 s / 100 s comme Eurobot ;
@@ -185,7 +187,7 @@
 
 ### D009 — Les IR regardent le sol pour trouver la zone ; l'évitement repose sur l'ultrason
 - **Date** : 13/10/2026
-- **Statut** : adoptée
+- **Statut** : remplacée par D012 (plus d'IR, 2 ultrasons) et D014 (la douve est trouvée par l'odométrie)
 - **Contexte** :
   - les deux IR surveillaient les angles avant (évitement) ;
   - la grille du labo note « atteint une zone précisément » ; l'odométrie seule accumule des erreurs ;
@@ -248,6 +250,7 @@
     essai (bancs). Au début d'un téléversement, `loop()` est figée : les freins sont serrés par
     `motorDriver::brake()`. C'est la seule exception au chemin « safety → driver » ;
   - le firmware ne lit aucune touche : on ne peut pas piloter le PAMI à distance.
+    **Modifié par D013** : il lit une seule commande, le départ (`go`), et rien d'autre.
 - **Règles en jeu** :
   - règlement général F.6 : « aucune communication avec l'extérieur de la table pendant le match » ;
   - règlement général F.5 : Wi-Fi 5 GHz recommandé plutôt que 2,4 GHz. L'ESP32 ne fait que du
@@ -284,3 +287,139 @@
   - la plupart des erreurs de trajectoire viennent de l'étalonnage, pas des gains.
 - **Conséquences** : méthode complète dans `docs/reglage-regulation.md` ; nouveau banc
   `test_trajectoire` ; correction du diamètre gauche/droite seulement si les mesures la demandent.
+
+### D012 — PCB, deux ultrasons combinés par un OU, capteurs IR supprimés
+- **Date** : 18/11/2026
+- **Statut** : adoptée. Brochage et émission « chacun son tour » remplacés par D015 (nouveau PCB,
+  TRIG commun) ; le OU entre les deux ultrasons et la suppression des IR restent.
+- **Contexte** :
+  - l'équipe a remplacé le câblage sur plaque d'essai par un PCB. Ses broches ont été testées avec le
+    programme `Controller/` ;
+  - le PCB a 3 connecteurs d'ultrason (gauche, droit, « du bas ») ;
+  - les capteurs IR de sol (D009) devaient trouver le bord de la zone, mais le sol a beaucoup de lignes :
+    le PAMI risquait de s'arrêter sur la mauvaise.
+- **Options envisagées** :
+  - 3 ultrasons : le troisième n'a pas d'usage défini pour l'instant ;
+  - 2 ultrasons, avant gauche et avant droit, combinés par un OU : couvre les angles avant (le risque
+    noté dans D009) ;
+  - 2 ultrasons, mais une moyenne des deux : un capteur qui rate l'obstacle ferait croire qu'il est
+    plus loin. Refusé.
+- **Décision** :
+  - brochage du PCB recopié dans `docs/materiel.md` et `config.h` ;
+  - 2 ultrasons, gauche et droit. Le connecteur du bas n'est pas utilisé ;
+  - **OU** : le PAMI freine si l'ultrason gauche OU l'ultrason droit voit un obstacle plus proche
+    que `OBSTACLE_STOP_DISTANCE_MM` ;
+  - les deux capteurs émettent chacun leur tour, 60 ms entre deux émissions (`US_PERIOD_MS`) ;
+  - un capteur sans aucune mesure pendant 1 s = panne → FAULT, comme avant (sécurité par défaut) ;
+  - capteurs IR et étape `REACH_ZONE` supprimés.
+- **Pourquoi** :
+  - avec un OU, si un capteur rate l'obstacle (écho perdu, obstacle hors de son cône), l'autre le voit
+    encore. Un seul capteur fiable suffit pour freiner ;
+  - émettre chacun son tour évite qu'un capteur entende le son de l'autre et voie un faux obstacle.
+    Le Controller fait déjà comme ça, et ses essais ont réussi ;
+  - un capteur « muet » (il ne répond plus du tout) n'est pas la même chose qu'un capteur qui rate un
+    écho : le premier est détecté comme panne, le second est couvert par le OU.
+- **Conséquences** :
+  - chaque capteur mesure environ 8 fois par seconde au lieu de 16 : le PAMI réagit un peu plus tard
+    (environ 0,12 s de plus, soit 2 cm à 150 mm/s). Le seuil de 150 mm reste volontairement large ;
+  - les sens des moteurs et des encodeurs viennent du Controller, qui décode autrement : à revérifier
+    avec les bancs `test_moteurs` et `test_odometrie` ;
+  - `docs/pdf/cablage complet pami.pdf` et `docs/cablage-pami.html` sont obsolètes ;
+  - le banc `test_ultrason` affiche les deux capteurs et la décision de `safety`.
+
+### D013 — Départ par une commande tapée dans le moniteur (profil labo)
+- **Date** : 18/11/2026
+- **Statut** : adoptée — **profil labo seulement, interdit à Eurobot**
+- **Contexte** :
+  - le PCB n'a plus de broche pour le bouton de départ (GPIO 16 est passé au moteur droit) ;
+  - l'équipe ne veut pas de tirette : le PC est déjà connecté au Wi-Fi du PAMI (D010) pour lire les
+    messages.
+- **Décision** :
+  - le départ se donne en tapant `go` puis Entrée dans le moniteur, Wi-Fi ou USB
+    (`START_COMMAND`, `config.h`) ;
+  - majuscules et espaces ne comptent pas ; un seul départ par allumage ; tout autre mot est refusé ;
+  - le minuteur (5 s / 14,5 s, D007) compte depuis cette commande ;
+  - `logic/start_button.*` est supprimé (il reste dans l'historique git, testé en T001).
+- **Pourquoi** :
+  - aucun matériel à ajouter ;
+  - un mot suivi d'Entrée, plutôt qu'une touche : une touche frappée par erreur ne lance pas le PAMI ;
+  - le PAMI ne part toujours jamais tout seul à l'allumage.
+- **Règles en jeu** : règlement général F.6.
+  - « Aucun autre démarrage manuel n'est homologué : pas de télécommande, pas d'interrupteur » ;
+  - « aucune communication avec l'extérieur de la table pendant le match » ;
+  - pour un PAMI, seuls un cordon de 50 cm ou un départ donné par le robot principal sont prévus.
+  Ce départ est donc **interdit à Eurobot**. À confirmer avec l'encadrant pour l'évaluation du labo.
+- **Conséquences** :
+  - D010 change sur un point : le firmware lit désormais UNE commande, le départ. Il ne lit rien d'autre :
+    on ne peut toujours pas piloter le PAMI à distance, ni toucher à l'évitement ;
+  - avant tout match Eurobot : départ par cordon (une broche libre du PCB à câbler) ou par le robot
+    principal (ESP-NOW par exemple). Ajouté à la liste « À REMPLACER » de `pami/CLAUDE.md`.
+
+### D014 — Côté de départ gauche/droite, douve la plus proche par l'odométrie, détour vers le centre
+- **Date** : 18/11/2026
+- **Statut** : adoptée
+- **Contexte** :
+  - le PAMI peut partir du côté gauche ou du côté droit de la table (vu du public, règles 2027 D.2) ;
+  - son but est d'atteindre une douve du château adverse (règles 2027, E.4) ;
+  - sans capteurs de sol (D012), il doit trouver la douve par l'odométrie seule.
+- **Décision** :
+  - un interrupteur 2 positions sur GPIO 22 (GPIO 27 depuis D015) donne le côté : ouvert = GAUCHE, fermé = DROITE. Lu avant le
+    départ, verrouillé au départ. Le module `side` remplace le module `color` ;
+  - les trajets sont écrits une fois, pour un départ à gauche, et mis en miroir pour la droite
+    (y → −y, caps changés de signe) par `forSide()` (règle d'or n° 5) ;
+  - départ en (0, 0), cap 0 ; les 3 douves sont écrites en dur dans `config.h` (`MOATS_MM`), dans le
+    repère d'un départ à gauche. **Provisoires** tant que le plan de la table n'est pas relevé ;
+  - mission `MOAT` : au départ, le PAMI choisit la douve la plus proche (`logic/nearest_moat.h`), y va
+    (étape GOTO, arrivée à moins de 30 mm), puis y reste, bras prêt (étape et état DEFEND) ;
+  - le détour se fait toujours vers le centre de la table : par la droite pour un départ à gauche, par
+    la gauche pour un départ à droite.
+- **Pourquoi** :
+  - un interrupteur se voit d'un coup d'œil, sans console ;
+  - le miroir évite d'écrire et de tester deux fois chaque trajet ;
+  - le miroir ne change aucune distance depuis (0, 0) : la douve choisie est la même des deux côtés ;
+  - contourner par le centre évite de se coincer contre une bordure.
+- **Limites** :
+  - le côté du détour est fixé dans le repère du PAMI : c'est juste tant que le PAMI ne s'est pas
+    retourné de plus de 90° par rapport à son cap de départ. À vérifier avec les vraies douves ;
+  - la précision à l'arrivée dépend entièrement de l'étalonnage (diamètre des roues, entraxe) et du
+    glissement : bancs `test_trajectoire` et `test_odometrie`. Viser un point bien à l'intérieur de la douve.
+- **Conséquences** :
+  - `ACTIVE_MISSION` reste sur `STRAIGHT_LINE` tant que les positions des douves sont fausses ;
+  - remplace D009 pour la façon de trouver la zone.
+
+### D015 — PCB « Test PCB 2026 5EO » : nouveau brochage, TRIG commun aux deux ultrasons
+- **Date** : 21/11/2026
+- **Statut** : adoptée
+- **Contexte** :
+  - l'équipe a un nouveau PCB, « Test PCB 2026 5EO ». Son pinout et le programme de test de l'équipe
+    donnent de nouvelles broches pour les moteurs, les encodeurs et les ultrasons ;
+  - sur ce PCB, les deux ultrasons partagent une seule broche TRIG (GPIO 21) ;
+  - GPIO 22 et 23 servent à un accéléromètre I2C, et le pinout ne prévoit pas d'interrupteur de côté.
+- **Décision** :
+  - brochage recopié dans `docs/materiel.md` puis `config.h` : moteurs 32/33 (gauche) et 19/18
+    (droit), encodeurs 25/26 (gauche) et 5/17 (droit), TRIG commun 21, ECHO 2 (gauche) et 15 (droit),
+    servo 13, accéléromètre SDA 22 / SCL 23 (noté, pas encore utilisé) ;
+  - interrupteur de côté sur **GPIO 27**, à câbler entre GPIO 27 et 3,3 V (pull-down interne) ;
+  - les deux ultrasons émettent ensemble : une impulsion sur GPIO 21 toutes les 60 ms au moins, quand
+    les deux ECHO sont au repos. Si un ECHO reste haut plus de 120 ms (`US_ECHO_STUCK_MS`), on
+    déclenche quand même ;
+  - le OU entre les deux capteurs (D012) ne change pas.
+- **Pourquoi** :
+  - avec un TRIG commun, émettre « chacun son tour » (D012) n'est plus possible ;
+  - attendre que les deux ECHO soient au repos évite de couper une mesure en cours ;
+  - déclencher quand même si un ECHO est bloqué : l'autre capteur continue de mesurer, et seul le
+    capteur bloqué est déclaré en panne. Le diagnostic reste clair (le PAMI s'arrête de toute façon :
+    panne = FAULT) ;
+  - GPIO 27 : libre sur le pinout, pas une broche de démarrage, avec un pull-down interne.
+- **Conséquences** :
+  - chaque capteur mesure de nouveau environ 16 fois par seconde : le PAMI réagit plus vite qu'avec D012 ;
+  - risque : un capteur peut entendre le son de l'autre. Renvoyé par un vrai obstacle, c'est sans
+    conséquence grâce au OU ; passé directement d'un capteur à l'autre, ce serait un faux obstacle
+    tout proche, et le PAMI s'arrêterait sans raison (côté sûr). **À vérifier** avec le banc
+    `test_ultrason` (protocole 6 : rien devant pendant 10 s, aucune mesure sous 300 mm). Si ça arrive :
+    écarter les capteurs, les tourner un peu vers l'extérieur, ou mettre une cloison entre eux ;
+  - GPIO 2, 5 et 15 sont des broches de démarrage. Au repos, un ECHO est bas et l'encodeur a un
+    pull-up : ça doit passer, mais si la carte refuse de démarrer, débrancher ultrasons et encodeur droit ;
+  - le sens des moteurs et des encodeurs n'est pas connu pour ce PCB : à revérifier avec les bancs
+    `test_moteurs` et `test_odometrie` (`MOTOR_*_INVERTED`, `ENCODER_*_INVERTED`) ;
+  - le programme de test `Controller/` n'est plus dans le dépôt : seuls le pinout et cette entrée font foi.

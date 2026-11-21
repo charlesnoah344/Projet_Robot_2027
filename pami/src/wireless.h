@@ -6,7 +6,8 @@
 // - Téléversement : ArduinoOTA (pio run -e esp32dev_wifi -t upload), seulement PAMI immobile.
 //
 // Rien ici ne bloque loop() : sans PC, ou avec un PC qui s'éloigne, le PAMI fonctionne pareil.
-// Le firmware de match ne lit aucune touche : on ne peut pas piloter le PAMI par le Wi-Fi.
+// Le firmware de match ne lit qu'une seule commande : le départ (« go », D013, profil labo).
+// Rien d'autre : on ne peut pas piloter le PAMI par le Wi-Fi, ni toucher à l'évitement.
 #pragma once
 
 #include <stdint.h>

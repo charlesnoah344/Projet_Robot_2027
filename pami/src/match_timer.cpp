@@ -5,43 +5,61 @@
 #include "config.h"
 #include "console.h"
 #include "logic/match_clock.h"
-#include "logic/start_button.h"
+#include "logic/start_command.h"
 
 namespace matchTimer {
 
 namespace {
 
-StartButtonDetector startButton(START_BUTTON_DEBOUNCE_MS);
-bool wasArmed = false;
+StartCommandDetector startCommand;
 bool started = false;
 bool moveAllowed = false;
 bool over = false;
 uint32_t startMs = 0;
 
+// Lit tout ce qui a été tapé dans le moniteur, sans jamais attendre : available() dit combien de
+// caractères sont déjà arrivés. Seule la commande de départ fait quelque chose (D013).
+void readStartCommand(uint32_t nowMs) {
+  while (Console.available() > 0) {
+    switch (startCommand.feed((char)Console.read())) {
+      case CommandResult::START:
+        started = true;
+        startMs = nowMs;
+        if (DEBUG_LOGS) {
+          Console.printf("[TIME] DEPART ! Mouvement dans %.1f s, arret total a %.1f s.\n",
+                         MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
+        }
+        break;
+      case CommandResult::UNKNOWN:
+        if (DEBUG_LOGS) {
+          Console.printf("[TIME] Commande inconnue. Pour le depart : tapez %s puis Entree.\n",
+                         START_COMMAND);
+        }
+        break;
+      case CommandResult::IGNORED:
+        if (DEBUG_LOGS) {
+          Console.println("[TIME] Depart deja donne : commande ignoree.");
+        }
+        break;
+      case CommandResult::NONE:
+        break;
+    }
+  }
+}
+
 }  // namespace
 
 void begin() {
-  // Pull-up interne : bouton relâché = état haut, sans résistance à ajouter.
-  pinMode(PIN_START_BUTTON, INPUT_PULLUP);
+  // Pas de broche à configurer : le départ arrive par la console (Wi-Fi ou USB).
+  // Ce message attend dans le tampon du Wi-Fi : il s'affiche dès que le moniteur se connecte.
+  if (DEBUG_LOGS) {
+    Console.printf("[TIME] Pret : tapez %s puis Entree dans le moniteur pour donner le depart.\n",
+                   START_COMMAND);
+  }
 }
 
 void update(uint32_t nowMs) {
-  // Bouton de départ : appuyé = état bas.
-  // Avec la tirette (plus tard), cette ligne deviendra : retirée = état haut.
-  const bool pressed = (digitalRead(PIN_START_BUTTON) == LOW);
-
-  if (startButton.update(pressed, nowMs)) {
-    started = true;
-    startMs = nowMs;
-    if (DEBUG_LOGS) {
-      Console.printf("[TIME] DEPART ! Mouvement dans %.1f s, arret total a %.1f s.\n",
-                     MATCH_MOVE_ALLOWED_MS / 1000.0f, MATCH_STOP_MS / 1000.0f);
-    }
-  }
-  if (DEBUG_LOGS && !wasArmed && startButton.isArmed()) {
-    Console.println("[TIME] Pret : appuyez sur le bouton de depart (GPIO 16).");
-  }
-  wasArmed = startButton.isArmed();
+  readStartCommand(nowMs);
 
   if (started && !over && isMatchOver(startMs, nowMs)) {
     over = true;  // verrouillé : une fois fini, c'est fini

@@ -8,11 +8,13 @@
 // Sans fil (D010) : pio run -e test_moteurs_wifi -t upload, puis pio device monitor -e test_moteurs_wifi.
 //   Téléversement accepté seulement roues arrêtées.
 //
-// MATÉRIEL ET MONTAGE (docs/guide-pratique-pami.md, § 3)
+// MATÉRIEL ET MONTAGE (brochage du PCB 2026 5EO : docs/materiel.md, D015)
 // - ESP32 branché en USB : c'est lui qui alimente la carte.
-// - MDD3A : entrées M1A/M1B sur GPIO 25/26 (gauche), M2A/M2B sur GPIO 33/32 (droit),
+// - MDD3A : entrées M1A/M1B sur GPIO 32/33 (gauche), M2A/M2B sur GPIO 19/18 (droit),
 //   GND commun avec l'ESP32.
-// - 2 moteurs FIT0450 sur les sorties du MDD3A. Encodeurs et capteurs NON branchés.
+// - 2 moteurs FIT0450 sur les sorties du MDD3A. Encodeurs et capteurs : pas nécessaires.
+// - Nouveau PCB : vérifier ici que chaque roue tourne vers l'avant (côté ultrasons) quand on lui
+//   demande d'avancer. Sinon, changer MOTOR_*_INVERTED dans config.h.
 // - Alimentation de labo réglée à 6 V, limite de courant à environ 2 A, à travers le BAU.
 //
 // SÉCURITÉ

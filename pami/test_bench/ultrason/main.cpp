@@ -1,4 +1,4 @@
-// Banc de test de l'ultrason HC-SR04 : chaque mesure, brute et filtrée.
+// Banc de test des deux ultrasons HC-SR04 (gauche et droit, D012) : chaque mesure, brute et filtrée.
 //
 // !!! PROGRAMME DE TEST : AUCUN MOUVEMENT, AUCUN ÉVITEMENT. NE JAMAIS L'UTILISER EN MATCH. !!!
 // Après le test, remettre le firmware : pio run -t upload (sans fil : pio run -e esp32dev_wifi -t upload)
@@ -10,68 +10,92 @@
 // l'évitement en match. Les moteurs restent freinés en permanence.
 //
 // MATÉRIEL ET MONTAGE
-// - ESP32 en USB. HC-SR04 : VCC sur 5V, GND commun, TRIG sur GPIO 18,
-//   ECHO sur GPIO 19 à travers le pont 1 kΩ (côté ECHO) / 2 kΩ (vers GND).
-// - Capteur monté sur le PAMI, à sa hauteur réelle (moins de 70 mm du sol), bien horizontal.
+// - PCB 2026 5EO (D015). TRIG commun aux deux ultrasons : GPIO 21. ECHO gauche : GPIO 2.
+//   ECHO droit : GPIO 15. Les deux capteurs émettent donc toujours en même temps.
+// - Capteurs montés sur le PAMI, à leur hauteur réelle (moins de 70 mm du sol), bien horizontaux.
 // - Alimentation des moteurs : pas nécessaire.
 //
 // CE QUE LE BANC AFFICHE
-// - Une ligne par mesure (environ 16 par seconde) :
-//     [US] #123 | echo   583 us | brute  100 mm | filtree  101 mm
-//     [US] #124 | PAS D'ECHO (38012 us) | brute 2000 mm | filtree  101 mm
-//   « brute » = cette mesure seule ; « filtree » = médiane des 3 dernières, puis confirmation des
-//   distances qui s'allongent d'un coup (logic/rise_filter.h). C'est ce qu'utilise safety.
-// - Une ligne de bilan par seconde :
-//     [BILAN] 16 mesures (17 envois) | 2 sans echo | brute min 98 max 104 moy 101 mm | filtree 101 mm
+// - Une ligne par mesure (environ 16 par seconde et par capteur, les deux émettent ensemble) :
+//     [US G] #123 | echo   583 us | brute  100 mm | filtree  101 mm
+//     [US D] #124 | PAS D'ECHO (38012 us) | brute 2000 mm | filtree 2000 mm
+//   « brute » = cette mesure seule ; « filtree » = médiane des 3 dernières de CE capteur, puis
+//   confirmation des distances qui s'allongent d'un coup (logic/rise_filter.h). C'est ce qu'utilise
+//   safety : il freine si G OU D voit un obstacle plus proche que OBSTACLE_STOP_DISTANCE_MM.
+// - Une ligne de bilan par seconde et par capteur, puis la décision de safety :
+//     [BILAN G] 16 mesures (16 envois) | 0 sans echo | brute min 98 max 104 moy 101 mm | filtree 101 mm
+//     [BILAN] le plus proche : 101 mm -> safety FREINERAIT (G)
 //   « envois » plus grand que « mesures » : des impulsions sont restées sans écho complet.
 // - Touche « v » : afficher ou masquer les lignes de mesure (le bilan reste). « h » : aide.
 // - Touche « r » : MODE DE RÉFÉRENCE. Mesure avec la méthode classique des tutoriels Arduino
-//   (déclenchement puis pulseIn()), sans aucun code du firmware. Lignes préfixées [REF].
-//   Sert à savoir si un problème vient du capteur ou de notre code :
-//   - la référence rate aussi les échos  -> problème matériel (capteur, alimentation, montage) ;
+//   (déclenchement puis pulseIn()), sans aucun code du firmware. Les deux capteurs émettent (TRIG
+//   commun), mais on lit l'ECHO d'un seul à chaque fois, l'un après l'autre.
+//   Lignes préfixées [REF G] et [REF D]. Sert à savoir si un problème vient du capteur ou de notre code :
+//   - la référence rate aussi les échos  -> problème matériel (capteur, alimentation, connecteur) ;
 //   - la référence voit bien, pas sensors -> problème dans notre code.
 //   pulseIn() bloque le programme jusqu'à 70 ms : interdit en match, sans risque ici.
+//   Un seul ultrason muet dans les deux modes : son connecteur, son ECHO (GPIO 2 ou 15), ou le capteur.
+//   Les deux muets : le TRIG commun (GPIO 21) ou l'alimentation des ultrasons.
 //
-// PROTOCOLE (objet immobile au moins 3 s à chaque distance, face au capteur, à sa hauteur)
-//  1. Boîte en carton (face plate) à 5, 10, 15, 20, 30, 50 et 100 cm (distance au mètre ruban).
-//  2. Même chose avec l'avant du PAMI 2 (éteint), bien de face.
-//  3. Boîte et PAMI 2 tournés de 30° puis de 45°, à 15 et 30 cm.
-//  4. Objet rond de la taille d'un PAMI (bouteille, boîte de conserve, pot) à 10, 15, 20, 30 cm.
-//  5. La main, à 10, 15 et 20 cm.
-//  6. Zone aveugle : approcher la boîte lentement de 10 cm à 0 ; noter la distance où les mesures
-//     deviennent fausses ou « PAS D'ECHO ».
-//  Pour chaque cas, noter : distance réelle, filtree affichée, min/max du bilan, nombre « sans echo ».
+// PROTOCOLE (objet immobile au moins 3 s à chaque distance, à hauteur des capteurs)
+//  1. Boîte en carton (face plate) bien en face de CHAQUE capteur, à 5, 10, 15, 20, 30, 50 et 100 cm.
+//  2. Boîte devant le capteur GAUCHE seulement, à 15 cm : G doit la voir. Noter ce que voit D.
+//     Même chose devant le capteur DROIT seulement.
+//  3. Avant du PAMI 2 (éteint), au centre, à 15 et 30 cm : au moins un des deux le voit.
+//  4. Objet rond de la taille d'un PAMI (bouteille, boîte de conserve) au centre, à 10, 15, 20, 30 cm.
+//  5. Zone aveugle : approcher la boîte lentement de 10 cm à 0 devant chaque capteur ; noter la
+//     distance où les mesures deviennent fausses ou « PAS D'ECHO ».
+//  6. Rien devant (2 m dégagés) pendant 10 s : aucune distance sous 300 mm. Important avec le TRIG
+//     commun (D015) : les deux capteurs émettent ensemble, et l'un ne doit pas entendre directement
+//     le son de l'autre. Sinon : les écarter, les tourner un peu vers l'extérieur, ou ajouter une
+//     cloison entre eux.
+//  Pour chaque cas, noter : distance réelle, filtree de G et de D, min/max des bilans, « sans echo ».
 //
 // CRITÈRES DE RÉUSSITE
-// - Boîte de face, de 10 à 100 cm : filtree à ± 10 mm de la distance réelle, 0 « sans echo ».
-// - PAMI 2 de face et objet rond : détectés de façon stable (écart min/max < 20 mm) jusqu'à 30 cm.
-// - Zone aveugle mesurée (attendue : 2 à 5 cm).
+// - Boîte en face d'un capteur, de 10 à 100 cm : sa filtree à ± 10 mm de la distance réelle, 0 « sans echo ».
+// - Boîte devant un seul capteur à 15 cm : la ligne [BILAN] annonce « FREINERAIT ».
+// - PAMI 2 et objet rond au centre : vus de façon stable (écart min/max < 20 mm) jusqu'à 30 cm.
+// - Rien devant : aucune mesure parasite sous 300 mm.
 #include <Arduino.h>
 
 #include "config.h"
 #include "console.h"
+#include "logic/safety_filter.h"
 #include "motor_driver.h"
 #include "sensors.h"
 #include "wireless.h"
 
+using sensors::UltrasoundId;
+
 namespace {
+
+constexpr UltrasoundId ALL_SENSORS[sensors::ULTRASOUND_COUNT] = {UltrasoundId::LEFT,
+                                                                 UltrasoundId::RIGHT};
 
 bool showEachMeasure = true;
 bool referenceMode = false;  // touche r : méthode classique pulseIn(), sans le code du firmware
 uint32_t lastReferenceMs = 0;
-uint32_t referenceCount = 0;
-uint32_t lastPrintedMeasure = 0;
+uint8_t nextReferenceSensor = 0;
+uint32_t referenceCount[sensors::ULTRASOUND_COUNT] = {0, 0};
 
-// Bilan de la seconde en cours.
+// Bilan de la seconde en cours, pour un capteur.
+struct Summary {
+  uint32_t lastPrintedMeasure = 0;
+  uint32_t startTriggers = 0;
+  uint32_t startMeasures = 0;
+  uint32_t noEcho = 0;
+  uint32_t valid = 0;
+  uint32_t sumMm = 0;
+  uint16_t minMm = 0;
+  uint16_t maxMm = 0;
+  bool faultReported = false;
+};
+Summary summaries[sensors::ULTRASOUND_COUNT];
 uint32_t summaryStartMs = 0;
-uint32_t summaryStartTriggers = 0;
-uint32_t summaryStartMeasures = 0;
-uint32_t summaryNoEcho = 0;
-uint32_t summaryValid = 0;
-uint32_t summarySumMm = 0;
-uint16_t summaryMinMm = 0;
-uint16_t summaryMaxMm = 0;
-bool faultReported = false;
+
+uint8_t indexOf(UltrasoundId id) {
+  return static_cast<uint8_t>(id);
+}
 
 void printHelp() {
   Console.println("[BANC] Commandes (une touche, sans Entree) :");
@@ -80,87 +104,109 @@ void printHelp() {
   Console.println("[BANC]   h = cette aide");
 }
 
-void resetSummary(uint32_t nowMs) {
-  const sensors::UltrasoundRaw raw = sensors::lastRawMeasure();
-  summaryStartMs = nowMs;
-  summaryStartTriggers = raw.triggers;
-  summaryStartMeasures = raw.measures;
-  summaryNoEcho = 0;
-  summaryValid = 0;
-  summarySumMm = 0;
-  summaryMinMm = 0;
-  summaryMaxMm = 0;
+void resetSummary(UltrasoundId id) {
+  const sensors::UltrasoundRaw raw = sensors::lastRawMeasure(id);
+  Summary& summary = summaries[indexOf(id)];
+  summary.startTriggers = raw.triggers;
+  summary.startMeasures = raw.measures;
+  summary.noEcho = 0;
+  summary.valid = 0;
+  summary.sumMm = 0;
+  summary.minMm = 0;
+  summary.maxMm = 0;
 }
 
-// Une nouvelle mesure est arrivée : on l'affiche et on l'ajoute au bilan.
-void handleNewMeasure(const sensors::UltrasoundRaw& raw) {
+// Une nouvelle mesure est arrivée : on l'affiche et on l'ajoute au bilan de ce capteur.
+void handleNewMeasure(UltrasoundId id, const sensors::UltrasoundRaw& raw) {
+  Summary& summary = summaries[indexOf(id)];
   if (raw.noEcho) {
-    summaryNoEcho++;
+    summary.noEcho++;
   } else {
-    if (summaryValid == 0 || raw.rawMm < summaryMinMm) {
-      summaryMinMm = raw.rawMm;
+    if (summary.valid == 0 || raw.rawMm < summary.minMm) {
+      summary.minMm = raw.rawMm;
     }
-    if (summaryValid == 0 || raw.rawMm > summaryMaxMm) {
-      summaryMaxMm = raw.rawMm;
+    if (summary.valid == 0 || raw.rawMm > summary.maxMm) {
+      summary.maxMm = raw.rawMm;
     }
-    summaryValid++;
-    summarySumMm += raw.rawMm;
+    summary.valid++;
+    summary.sumMm += raw.rawMm;
   }
 
   if (!showEachMeasure) {
     return;
   }
   if (raw.noEcho) {
-    Console.printf("[US] #%lu | PAS D'ECHO (%lu us) | brute %4u mm | filtree %4u mm\n",
-                   (unsigned long)raw.measures, (unsigned long)raw.echoUs, raw.rawMm,
-                   sensors::frontDistanceMm());
+    Console.printf("[US %s] #%lu | PAS D'ECHO (%lu us) | brute %4u mm | filtree %4u mm\n",
+                   sensors::shortName(id), (unsigned long)raw.measures, (unsigned long)raw.echoUs,
+                   raw.rawMm, sensors::distanceMm(id));
   } else {
-    Console.printf("[US] #%lu | echo %5lu us | brute %4u mm | filtree %4u mm\n",
-                   (unsigned long)raw.measures, (unsigned long)raw.echoUs, raw.rawMm,
-                   sensors::frontDistanceMm());
+    Console.printf("[US %s] #%lu | echo %5lu us | brute %4u mm | filtree %4u mm\n",
+                   sensors::shortName(id), (unsigned long)raw.measures, (unsigned long)raw.echoUs,
+                   raw.rawMm, sensors::distanceMm(id));
   }
 }
 
-void printSummary(uint32_t nowMs) {
-  const sensors::UltrasoundRaw raw = sensors::lastRawMeasure();
-  const uint32_t measures = raw.measures - summaryStartMeasures;
-  const uint32_t triggers = raw.triggers - summaryStartTriggers;
-  if (summaryValid > 0) {
-    Console.printf("[BILAN] %lu mesures (%lu envois) | %lu sans echo | brute min %u max %u moy %lu mm"
+void printSummary(UltrasoundId id) {
+  const sensors::UltrasoundRaw raw = sensors::lastRawMeasure(id);
+  const Summary& summary = summaries[indexOf(id)];
+  const uint32_t measures = raw.measures - summary.startMeasures;
+  const uint32_t triggers = raw.triggers - summary.startTriggers;
+  if (summary.valid > 0) {
+    Console.printf("[BILAN %s] %lu mesures (%lu envois) | %lu sans echo | brute min %u max %u moy %lu mm"
                    " | filtree %u mm\n",
-                   (unsigned long)measures, (unsigned long)triggers, (unsigned long)summaryNoEcho,
-                   summaryMinMm, summaryMaxMm, (unsigned long)(summarySumMm / summaryValid),
-                   sensors::frontDistanceMm());
+                   sensors::shortName(id), (unsigned long)measures, (unsigned long)triggers,
+                   (unsigned long)summary.noEcho, summary.minMm, summary.maxMm,
+                   (unsigned long)(summary.sumMm / summary.valid), sensors::distanceMm(id));
   } else {
-    Console.printf("[BILAN] %lu mesures (%lu envois) | %lu sans echo | aucune distance valide"
+    Console.printf("[BILAN %s] %lu mesures (%lu envois) | %lu sans echo | aucune distance valide"
                    " | filtree %u mm\n",
-                   (unsigned long)measures, (unsigned long)triggers, (unsigned long)summaryNoEcho,
-                   sensors::frontDistanceMm());
+                   sensors::shortName(id), (unsigned long)measures, (unsigned long)triggers,
+                   (unsigned long)summary.noEcho, sensors::distanceMm(id));
   }
-  resetSummary(nowMs);
+  resetSummary(id);
+}
+
+// Ce que déciderait safety : obstacle si G OU D est sous le seuil (sans la marge de libération).
+void printSafetyVerdict() {
+  const bool left = isObstacleAhead(false, sensors::distanceMm(UltrasoundId::LEFT));
+  const bool right = isObstacleAhead(false, sensors::distanceMm(UltrasoundId::RIGHT));
+  if (left || right) {
+    Console.printf("[BILAN] le plus proche : %u mm -> safety FREINERAIT (%s%s%s)\n",
+                   sensors::frontDistanceMm(), left ? "G" : "", (left && right) ? " et " : "",
+                   right ? "D" : "");
+  } else {
+    Console.printf("[BILAN] le plus proche : %u mm -> voie libre\n", sensors::frontDistanceMm());
+  }
 }
 
 // Mode de référence : la méthode « classique » des tutoriels, indépendante de sensors.cpp.
-// Déclenchement de 10 µs, puis pulseIn() attend l'impulsion ECHO et mesure sa durée.
+// Déclenchement de 10 µs sur le TRIG commun (les deux capteurs émettent), puis pulseIn() attend
+// l'impulsion ECHO d'un seul capteur : le gauche, puis le droit au tour suivant.
 void referenceMeasure(uint32_t nowMs) {
   if (nowMs - lastReferenceMs < US_PERIOD_MS) {
     return;
   }
   lastReferenceMs = nowMs;
+  const uint8_t index = nextReferenceSensor;
+  nextReferenceSensor = (nextReferenceSensor + 1) % sensors::ULTRASOUND_COUNT;
+  const uint8_t echoPin = (index == 0) ? PIN_US_LEFT_ECHO : PIN_US_RIGHT_ECHO;
+  const char* name = sensors::shortName(ALL_SENSORS[index]);
+
   digitalWrite(PIN_US_TRIG, LOW);
   delayMicroseconds(2);
   digitalWrite(PIN_US_TRIG, HIGH);
   delayMicroseconds(US_TRIGGER_PULSE_US);
   digitalWrite(PIN_US_TRIG, LOW);
   // 0 = aucune impulsion vue en 70 ms (ou impulsion plus longue que 70 ms).
-  const unsigned long durationUs = pulseIn(PIN_US_ECHO, HIGH, 70000UL);
-  referenceCount++;
+  const unsigned long durationUs = pulseIn(echoPin, HIGH, 70000UL);
+  referenceCount[index]++;
+  const unsigned long count = referenceCount[index];
   if (durationUs == 0) {
-    Console.printf("[REF] #%lu | aucune impulsion ECHO en 70 ms\n", (unsigned long)referenceCount);
+    Console.printf("[REF %s] #%lu | aucune impulsion ECHO en 70 ms\n", name, count);
   } else if (durationUs > US_MAX_ECHO_US) {
-    Console.printf("[REF] #%lu | PAS D'ECHO (%lu us)\n", (unsigned long)referenceCount, durationUs);
+    Console.printf("[REF %s] #%lu | PAS D'ECHO (%lu us)\n", name, count, durationUs);
   } else {
-    Console.printf("[REF] #%lu | echo %5lu us | %4u mm\n", (unsigned long)referenceCount, durationUs,
+    Console.printf("[REF %s] #%lu | echo %5lu us | %4u mm\n", name, count, durationUs,
                    (unsigned)(durationUs * US_MM_PER_ECHO_US));
   }
 }
@@ -173,14 +219,19 @@ void setup() {
 
   Serial.begin(SERIAL_BAUD);
   Console.println();
-  Console.println("[BANC] ===== BANC DE TEST ULTRASON =====");
+  Console.println("[BANC] ===== BANC DE TEST DES 2 ULTRASONS =====");
   Console.println("[BANC] Aucun mouvement. Apres le test : remettre le firmware (pio run -t upload, ou -e esp32dev_wifi).");
-  Console.printf("[BANC] Mesure toutes les %lu ms. Pas d'echo apres %lu us = %u mm affiches.\n",
+  Console.printf("[BANC] TRIG commun : les 2 capteurs emettent ensemble toutes les %lu ms. Pas d'echo apres %lu us = %u mm.\n",
                  (unsigned long)US_PERIOD_MS, (unsigned long)US_MAX_ECHO_US, US_NO_OBSTACLE_MM);
+  Console.printf("[BANC] safety freine si G OU D voit un obstacle a moins de %u mm.\n",
+                 OBSTACLE_STOP_DISTANCE_MM);
   printHelp();
 
   sensors::begin();
-  resetSummary(millis());
+  for (UltrasoundId id : ALL_SENSORS) {
+    resetSummary(id);
+  }
+  summaryStartMs = millis();
   wireless::begin();
 }
 
@@ -211,19 +262,27 @@ void loop() {
 
   sensors::update(nowMs);
 
-  const sensors::UltrasoundRaw raw = sensors::lastRawMeasure();
-  if (raw.measures != lastPrintedMeasure) {
-    lastPrintedMeasure = raw.measures;
-    handleNewMeasure(raw);
-  }
-
-  if (sensors::isFaulty() && !faultReported) {
-    faultReported = true;
-    Console.println("[BANC] Aucune mesure pendant 1 s : verifier VCC 5 V, GND commun, TRIG, ECHO et le pont.");
-    Console.println("[BANC] Le banc continue de mesurer : les lignes reprennent des que l'echo revient.");
+  for (UltrasoundId id : ALL_SENSORS) {
+    const sensors::UltrasoundRaw raw = sensors::lastRawMeasure(id);
+    Summary& summary = summaries[indexOf(id)];
+    if (raw.measures != summary.lastPrintedMeasure) {
+      summary.lastPrintedMeasure = raw.measures;
+      handleNewMeasure(id, raw);
+    }
+    if (sensors::isFaulty(id) && !summary.faultReported) {
+      summary.faultReported = true;
+      Console.printf("[BANC] Ultrason %s : aucune mesure pendant 1 s. Verifier le connecteur, VCC 5 V,"
+                     " GND, TRIG et ECHO (inverses ?).\n",
+                     sensors::shortName(id));
+      Console.println("[BANC] Le banc continue de mesurer : les lignes reprennent des que l'echo revient.");
+    }
   }
 
   if (nowMs - summaryStartMs >= TEST_BENCH_US_SUMMARY_PERIOD_MS) {
-    printSummary(nowMs);
+    summaryStartMs = nowMs;
+    for (UltrasoundId id : ALL_SENSORS) {
+      printSummary(id);
+    }
+    printSafetyVerdict();
   }
 }
