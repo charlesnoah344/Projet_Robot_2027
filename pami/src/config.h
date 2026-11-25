@@ -38,41 +38,38 @@ constexpr uint32_t WIFI_UPDATE_PERIOD_MS = 10;
 constexpr bool WIFI_ON_DURING_MATCH = true;
 
 // ---------------------------------------------------------------------------
-// Broches du PCB « Test PCB 2026 5EO » (copie de docs/materiel.md, D015)
+// Broches (copie de docs/materiel.md, brochage du 25/11/2026, D018)
 // ---------------------------------------------------------------------------
-// Driver moteurs MDD3A : 2 entrées par moteur (D006).
-constexpr uint8_t PIN_MOTOR_LEFT_A = 32;   // M1A
-constexpr uint8_t PIN_MOTOR_LEFT_B = 33;   // M1B
-constexpr uint8_t PIN_MOTOR_RIGHT_A = 19;  // M2A
-constexpr uint8_t PIN_MOTOR_RIGHT_B = 18;  // M2B
+// Driver moteurs MDD3A : 2 entrées par moteur (D006). M1 = gauche, M2 = droite.
+// IN1 = entrée A (avancer), IN2 = entrée B (reculer). Le sens réel se vérifie avec test_moteurs.
+constexpr uint8_t PIN_MOTOR_LEFT_A = 27;   // M1_IN1
+constexpr uint8_t PIN_MOTOR_LEFT_B = 26;   // M1_IN2
+constexpr uint8_t PIN_MOTOR_RIGHT_A = 16;  // M2_IN1 (libre sur un module ESP32-WROOM, sans PSRAM)
+constexpr uint8_t PIN_MOTOR_RIGHT_B = 17;  // M2_IN2
 
-// Encodeurs à effet Hall (« COD G B / COD G V » et « COD D B / COD D V » sur le pinout).
-constexpr uint8_t PIN_ENCODER_LEFT_A = 25;
-constexpr uint8_t PIN_ENCODER_LEFT_B = 26;
-constexpr uint8_t PIN_ENCODER_RIGHT_A = 5;   // broche de démarrage : sans risque avec le pull-up
-constexpr uint8_t PIN_ENCODER_RIGHT_B = 17;
+// Encodeurs à effet Hall. Le compteur matériel (PCNT, D022) compte les fronts de A et lit B pour le sens.
+// L'échange de A et B de l'essai T021 n'a rien réglé (le défaut changeait juste de roue) : retour
+// aux voies du programme de l'équipe, dont le sens a été vérifié à la main (T014).
+constexpr uint8_t PIN_ENCODER_LEFT_A = 33;   // encoderA1
+constexpr uint8_t PIN_ENCODER_LEFT_B = 32;   // encoderB1
+constexpr uint8_t PIN_ENCODER_RIGHT_A = 19;  // encoderA2
+constexpr uint8_t PIN_ENCODER_RIGHT_B = 18;  // encoderB2
 
-// Deux ultrasons HC-SR04, à l'avant gauche et à l'avant droit (D012).
-// Le PCB relie leurs deux TRIG à la même broche (D015) : ils émettent toujours en même temps.
-// Chacun a sa propre broche ECHO.
-constexpr uint8_t PIN_US_TRIG = 21;
-constexpr uint8_t PIN_US_LEFT_ECHO = 2;    // broche de démarrage : ECHO est bas au repos, sans risque
-constexpr uint8_t PIN_US_RIGHT_ECHO = 15;  // broche de démarrage : idem
+// Deux ultrasons HC-SR04, à l'avant gauche et à l'avant droit (D012). Pas de 3e capteur.
+// Chacun a maintenant son TRIG (D018). On les déclenche quand même ensemble, comme avant.
+// ECHO sort du 5 V : pont diviseur 1 kΩ / 2 kΩ obligatoire sur chaque ECHO (l'ESP32 supporte 3,3 V).
+// Gauche = « Sensor 1 » du programme de l'équipe. Droite = connecteur droit du PCB, TRIG 5 / ECHO 4
+// (T016 : rien ne revenait sur 14 / 12, qui est le connecteur du bas).
+constexpr uint8_t PIN_US_LEFT_TRIG = 25;
+constexpr uint8_t PIN_US_LEFT_ECHO = 35;   // entrée seule : parfait pour un ECHO
+constexpr uint8_t PIN_US_RIGHT_TRIG = 5;   // broche de démarrage : sans risque pour un TRIG (sortie)
+constexpr uint8_t PIN_US_RIGHT_ECHO = 4;   // T016
 
-// Interrupteur de côté (D014), avec résistance de tirage vers la masse (pull-down) :
-// ouvert = état bas = départ à GAUCHE de la table ; fermé = état haut = départ à DROITE.
-// Pas prévu sur le pinout du PCB : à câbler entre GPIO 27 et 3,3 V (D015).
-// PROVISOIRE : vérifier sur le PAMI, puis marquer « G » et « D » à côté de l'interrupteur.
-constexpr uint8_t PIN_SIDE_SELECTOR = 27;
-
-// Départ : plus de bouton ni de tirette. Commande START_COMMAND tapée dans le moniteur (D013).
+// Côté GAUCHE / DROITE : plus d'interrupteur. Il se choisit avec la commande de départ (D020).
+// Départ : plus de bouton ni de tirette. Commande tapée dans le moniteur (D013, D020).
 
 // Servo SG90 du bras (piloté par LEDC, D008).
 constexpr uint8_t PIN_SERVO = 13;
-
-// Accéléromètre I2C prévu sur le PCB. Pas encore utilisé (D004 : optionnel, plus tard).
-constexpr uint8_t PIN_I2C_SDA = 22;
-constexpr uint8_t PIN_I2C_SCL = 23;
 
 // Lecture du BAU (optionnelle) : broche à définir (docs/materiel.md).
 
@@ -92,10 +89,10 @@ constexpr uint8_t LEDC_CHANNEL_MOTOR_RIGHT_B = 3;
 // true si la roue tourne à l'envers quand on lui demande d'avancer.
 // L'AVANT du PAMI est le côté de l'ultrason. Gauche et droite se voient depuis l'arrière,
 // en regardant vers l'ultrason. On corrige ici plutôt que de recâbler.
-// Gauche true / droite false : valeurs du premier PCB (D012), gardées pour le PCB 2026 5EO (D015).
+// Brochage du 25/11/2026 (D018) : gauche false / droite false, vérifié avec le banc test_moteurs (T013).
+// Avant (premier PCB D012, PCB 2026 5EO D015) : gauche true.
 // Le sens dépend du branchement des moteurs sur le driver, pas des broches de l'ESP32.
-// À REVÉRIFIER avec le banc test_moteurs : chaque roue doit tourner vers l'avant (côté ultrasons).
-constexpr bool MOTOR_LEFT_INVERTED = true;
+constexpr bool MOTOR_LEFT_INVERTED = false;  // T013
 constexpr bool MOTOR_RIGHT_INVERTED = false;
 // PWM maximale autorisée, appliquée par motor_driver, même dans les bancs de test.
 // Alimentation de labo à 6 V = tension nominale des FIT0450 : 100 %.
@@ -106,7 +103,7 @@ constexpr int MOTOR_MAX_PWM_PCT = 100;
 // Encodeurs à effet Hall des FIT0450 (D004)
 // ---------------------------------------------------------------------------
 // 960 impulsions par tour de roue et par voie (fiche DFRobot). On compte les 2 fronts de la voie A :
-// 1920 ticks par tour. PROVISOIRE : à vérifier en tournant une roue 10 tours à la main.
+// 1920 ticks par tour. Mesuré à la main (T019) : gauche 1924, droite 1946 à 1948 par tour.
 // Le « 1400 » du programme de test du premier PCB ne s'applique pas ici : il comptait 4 fronts par
 // impulsion, pas 2, et sa valeur n'a jamais été étalonnée.
 constexpr int32_t ENCODER_TICKS_PER_WHEEL_TURN = 1920;
@@ -125,10 +122,22 @@ constexpr float MM_PER_TICK = 3.14159265f * WHEEL_DIAMETER_MM / ENCODER_TICKS_PE
 constexpr bool ENCODER_USE_INTERNAL_PULLUP = true;
 // true si le compteur diminue quand on fait tourner la roue vers l'AVANT (côté ultrasons) à la main.
 // On corrige ici plutôt que de recâbler.
-// Gauche false / droite true depuis le 15/10/2026. Avec le PCB 2026 5EO (D015), l'ordre des voies
-// A / B a pu changer : À REVÉRIFIER (banc test_odometrie, protocole 1).
-constexpr bool ENCODER_LEFT_INVERTED = false;
-constexpr bool ENCODER_RIGHT_INVERTED = true;
+// Brochage du 25/11/2026 (D018) : gauche true / droite false (T014, roues tournées à la main).
+// Le PCNT (D022) décode exactement comme l'ancien code : ces valeurs restent valables.
+constexpr bool ENCODER_LEFT_INVERTED = true;    // T014
+constexpr bool ENCODER_RIGHT_INVERTED = false;  // T014
+// Compteur matériel PCNT (D022).
+// Filtre anti-parasites : une impulsion plus courte que ce temps est ignorée. Les parasites des
+// moteurs durent bien moins d'une microseconde. Un vrai front arrive au plus vite toutes les 278 µs
+// à 350 mm/s, et toutes les 97 µs à 1 m/s : 5 µs laisse une grande marge des deux côtés.
+// Le circuit accepte de 13 à 12 787 ns.
+constexpr uint32_t ENCODER_GLITCH_FILTER_NS = 5000;
+// Le compteur matériel est sur 16 bits : il repart de 0 en arrivant à ± cette valeur. encoders.cpp
+// ajoute régulièrement ce qu'il a compté à un total sur 32 bits.
+constexpr int16_t ENCODER_PCNT_LIMIT_TICKS = 30000;
+// Période de ce ramassage. Il faut moins d'une demi-plage (15 000 ticks, environ 7 tours de roue)
+// entre deux ramassages : 10 ms laissent une marge énorme (environ 36 ticks à 350 mm/s).
+constexpr uint32_t ENCODER_COLLECT_PERIOD_MS = 10;
 
 // ---------------------------------------------------------------------------
 // Mouvement (motion) : régulation de vitesse et trajectoires
@@ -146,14 +155,21 @@ constexpr float WHEEL_BASE_MM = 101.6f;  // T007
 // La régulation tourne toutes les 20 ms : assez souvent pour corriger, assez rarement pour que
 // chaque mesure de vitesse compte plusieurs ticks.
 constexpr uint32_t MOTION_PERIOD_MS = 20;
-// Vitesse de croisière en ligne droite. Baissée de 200 à 150 mm/s pour les premiers réglages
-// de l'odométrie au sol (13/10/2026) : moins de glissement, essais plus faciles à suivre.
-// On l'augmentera ensuite si les missions ne tiennent pas dans les 9,5 s.
-constexpr float DRIVE_SPEED_MM_S = 150.0f;
+// Vitesse de croisière en ligne droite (D019). 150 mm/s pour les premiers réglages de l'odométrie
+// (13/10/2026), puis 350 mm/s pour atteindre la douve à temps : environ 2,2 m de trajet en 8,5 s,
+// pour 9,5 s de mouvement au labo (16 s à 150 mm/s).
+// Pas 400 : c'est à peu près le maximum des FIT0450 sous 6 V, sans marge pour la régulation.
+// PROVISOIRE : l'anticipation a été mesurée jusqu'à 200 mm/s seulement. À revérifier avec test_pid,
+// puis l'étalonnage avec test_trajectoire (le glissement à l'arrêt grandit avec la vitesse).
+// Essai T015 fait (à 150 mm/s, la déviation reste, plus faible) : retour à 350 (D019). C'est aussi la
+// vitesse maximale du banc test_trajectoire (« v 150 » ou « v 350 » sans re-téléverser).
+constexpr float DRIVE_SPEED_MM_S = 350.0f;
 // Vitesse de chaque roue pendant une rotation sur place (baissée de 120 à 90 mm/s).
+// Inchangée : un virage de 51° ne dure que 0,7 s, aller plus vite ferait surtout glisser le cap.
 constexpr float TURN_SPEED_MM_S = 90.0f;
 // Accélération et freinage : progressifs, pour ne pas patiner ni créer de pic de courant.
-constexpr float MOTION_ACCEL_MM_S2 = 400.0f;
+// 400 -> 500 mm/s² (D019) : on gagne environ 0,3 s sur le trajet de la douve. PROVISOIRE.
+constexpr float MOTION_ACCEL_MM_S2 = 200.0f;
 // En dessous de cette vitesse, les moteurs risquent de caler (zone morte) : on ne descend pas plus bas.
 constexpr float MOTION_MIN_SPEED_MM_S = 40.0f;
 // On considère la cible atteinte à moins de 3 mm (ligne droite) ou 2 mm d'arc de roue (rotation).
@@ -199,11 +215,13 @@ enum class MissionId {
   STRAIGHT_LINE,  // ligne droite de STRAIGHT_LINE_LENGTH_MM
   ROTATION,       // un tour complet sur place, par quarts de tour
   SQUARE,         // carré de SQUARE_SIDE_MM de côté, retour au départ
-  MOAT            // va à la douve la plus proche (MOATS_MM), puis y reste, bras prêt (D014)
+  MOAT            // va à la douve de son côté (MOAT_NEAR_MM), puis y reste, bras prêt (D017)
 };
 // La mission jouée. Pour en changer : modifier cette ligne, puis recompiler et téléverser.
 // Ordre conseillé pour les tests : STRAIGHT_LINE, ROTATION, SQUARE, puis MOAT.
-// Pas MOAT tant que MOATS_MM contient des positions de test.
+// Pas MOAT pour l'instant : le firmware de match exige les 2 ultrasons (celui de GPIO 2 ne répond pas),
+// et à 150 mm/s le trajet (environ 16 s) ne tient pas dans les 9,5 s de mouvement (D017).
+// En attendant, le trajet s'essaie avec le banc test_parcours (commande « d »).
 constexpr MissionId ACTIVE_MISSION = MissionId::STRAIGHT_LINE;
 
 // Il n'y a que 9,5 s de mouvement (de 5 s à 14,5 s) : chaque mission doit tenir dedans,
@@ -211,26 +229,32 @@ constexpr MissionId ACTIVE_MISSION = MissionId::STRAIGHT_LINE;
 // Raccourcies pour les essais d'odométrie au sol (13/10/2026) : 1000 -> 500 mm, 250 -> 200 mm.
 constexpr float STRAIGHT_LINE_LENGTH_MM = 250.0f;
 constexpr float SQUARE_SIDE_MM = 200.0f;
-// Mission douve (D014). Les 3 douves, dans le repère d'un départ à GAUCHE de la table :
-// départ en (0, 0), x vers l'avant du PAMI au départ, y vers sa gauche (logic/odometry.h).
-// Pour un départ à droite, les points sont mis en miroir (y -> -y) par forSide() : on ne les écrit
-// qu'une fois (règle d'or n° 5).
-// Le PAMI va à la douve la plus proche de son point de départ, puis y reste (étape DEFEND).
-// Il compte s'il a une partie de lui dans une douve adverse à la fin du match (règles 2027, E.4) :
-// visez un point assez à l'intérieur de la douve pour qu'une erreur d'odométrie de quelques
-// centimètres ne l'en fasse pas sortir.
-// PROVISOIRE : positions de test (la plus proche n'est volontairement pas la première de la liste).
-// À remplacer par les vraies positions, mesurées sur le plan de la table.
-struct MoatPoint {
+// Mission douve (D017) : chaque PAMI va à la douve diagonale de SON côté. Les deux PAMI ne visent
+// jamais la même douve, ils ne se gênent donc pas.
+// Points dans le REPÈRE DE LA TABLE vu par le PAMI (docs/douves-coordonnees.md, plan G.1, ± 5 mm) :
+//   x = avance depuis notre petit bord (derrière l'écurie), vers l'adversaire ;
+//   y = distance au grand bord côté écurie, en allant vers le centre de la table.
+// Ce repère est le même pour les 4 écuries : la douve « de son côté » est toujours MOAT_NEAR_MM.
+// logic/missions.h les convertit dans le repère de l'odométrie (départ en (0, 0)), puis forSide()
+// fait le miroir selon l'interrupteur : on ne les écrit qu'une fois (règle d'or n° 5).
+// Le PAMI compte s'il a une partie de lui dans une douve adverse à la fin du match (règles 2027, E.4) :
+// on vise le centre de la douve, pour qu'une erreur d'odométrie de quelques centimètres ne l'en
+// fasse pas sortir.
+struct TablePoint {
   float xMm;
   float yMm;
 };
-constexpr MoatPoint MOATS_MM[] = {
-    {1200.0f, 300.0f},  // douve 0
-    {600.0f, -200.0f},  // douve 1 : la plus proche (632 mm)
-    {900.0f, 0.0f},     // douve 2
-};
-constexpr uint8_t MOAT_COUNT = sizeof(MOATS_MM) / sizeof(MOATS_MM[0]);
+// PROVISOIRE : milieu de l'essieu du PAMI posé dans l'écurie (x 0–200, y 0–300), cap vers +x.
+// y = 210 : même y que le point de virage, la première ligne droite reste dans le couloir entre les
+// carrières de bord (y <= 110) et nos remparts (y >= 305). À corriger d'après le PAMI réel.
+constexpr TablePoint START_POINT_MM = {100.0f, 210.0f};
+// Point de virage : au bout de la ligne droite, le PAMI tourne d'environ 51° vers le centre.
+constexpr TablePoint MOAT_WAYPOINT_MM = {2000.0f, 210.0f};
+// Centres des 3 douves adverses. Seule MOAT_NEAR_MM est assignée aux PAMI ; les deux autres sont
+// gardées pour plus tard (robot principal).
+constexpr TablePoint MOAT_NEAR_MM = {2179.0f, 429.0f};     // douve diagonale de notre côté
+constexpr TablePoint MOAT_CENTER_MM = {1950.0f, 1000.0f};  // douve centrale (non assignée)
+constexpr TablePoint MOAT_FAR_MM = {2179.0f, 1571.0f};     // douve diagonale de l'autre côté (non assignée)
 
 // Point atteint à moins de 30 mm. Cap atteint à moins de 3°.
 // Si le PAMI est mal orienté, il se retourne vers le point avant d'avancer.
@@ -268,7 +292,10 @@ constexpr uint32_t SENSOR_FAULT_TIMEOUT_MS = 1000;
 
 // Obstacle plus proche que ce seuil devant l'un OU l'autre ultrason : safety freine, quel que soit
 // l'état. PROVISOIRE, volontairement large : à régler d'après la distance de freinage mesurée.
-constexpr uint16_t OBSTACLE_STOP_DISTANCE_MM = 150;
+// 150 -> 200 mm avec la vitesse de 350 mm/s (D019) : le temps que la mesure confirme l'obstacle,
+// le PAMI parcourt environ 40 mm, puis il glisse en freinant.
+// Revers : un seuil plus grand voit plus tôt ce qui est sur le côté (carrières le long du bord).
+constexpr uint16_t OBSTACLE_STOP_DISTANCE_MM = 200;
 // L'obstacle n'est considéré parti qu'au-delà de seuil + 30 mm.
 // Sans cette marge, une mesure qui oscille autour du seuil ferait avancer et freiner en boucle.
 constexpr uint16_t OBSTACLE_CLEAR_MARGIN_MM = 30;
@@ -276,17 +303,29 @@ constexpr uint16_t OBSTACLE_CLEAR_MARGIN_MM = 30;
 // ---------------------------------------------------------------------------
 // Évitement (états AVOID_STOP et DETOUR)
 // ---------------------------------------------------------------------------
+// Stratégie prudente (D016) : s'arrêter, attendre, contourner par le centre, puis reprendre la mission.
 // Niveau 1, arrêt : safety freine dès que l'ultrason voit un obstacle devant.
-// Niveau 2, évite : obstacle toujours là après 1 s -> détour. Ce délai laisse à un robot qui passe
-// le temps de s'en aller.
-constexpr uint32_t AVOID_WAIT_MS = 1000;
-// Le détour : quart de tour vers le centre de la table (à droite pour un départ à gauche, à gauche
-// pour un départ à droite, D014), puis pas de côté.
+// Niveau 2, attente : obstacle toujours là après 1,5 s -> contournement. La plupart des obstacles de la
+// phase PAMI bougent (PAMI adverse, robot qui passe) et s'en vont en 1 à 2 s. 1,5 s est un compromis :
+// attendre plus ne sert à rien devant un obstacle fixe, et le temps est compté (14,2 s de mouvement
+// pour un PAMI à Eurobot, 9,5 s au labo).
+constexpr uint32_t AVOID_WAIT_MS = 1500;
+// Niveau 3, contournement par le centre (logic/detour.h) : quart de tour vers le centre de la table
+// (à droite pour un départ à gauche, à gauche pour un départ à droite, D014), pas de côté, quart de
+// tour retour (parallèle à la route), pause, regard, puis dépassement de l'obstacle.
 constexpr float DETOUR_TURN_DEG = 90.0f;
 constexpr float DETOUR_SIDE_MM = 200.0f;  // PROVISOIRE : un peu plus que la largeur d'un PAMI
-// Niveau 3, contourne : après le détour, la mission vise de nouveau son point.
-// Au-delà de 3 détours, on ne fait plus qu'attendre que la voie se libère (le temps est compté).
-constexpr uint8_t AVOID_MAX_DETOURS = 3;
+// Pause après le quart de tour retour, avant de regarder : le PAMI finit de glisser, et le filtre de
+// l'ultrason accepte une distance qui s'allonge après 4 mesures (environ 0,25 s).
+constexpr uint32_t DETOUR_LOOK_MS = 300;
+// Le PAMI ne dépasse l'obstacle que si la voie est libre sur plus de 300 mm devant lui ; il avance
+// alors de 300 mm, l'évitement toujours actif. PROVISOIRE : à régler d'après la taille des obstacles.
+constexpr float DETOUR_PASS_MM = 300.0f;
+// Voie encore bloquée au regard : un pas de côté de plus. 2 pas au plus, soit 400 mm de décalage.
+constexpr uint8_t DETOUR_MAX_SIDESTEPS = 2;
+// Au plus 2 contournements par match (environ 7 s chacun). Ensuite, le PAMI reste arrêté et repart
+// dès que la voie se libère : il ne force jamais le passage.
+constexpr uint8_t AVOID_MAX_DETOURS = 2;
 
 // ---------------------------------------------------------------------------
 // Bras du PAMI (servo SG90, D008)
@@ -301,19 +340,22 @@ constexpr uint8_t SERVO_PWM_RESOLUTION_BITS = 16;  // réglage fin de la largeur
 // Largeur d'impulsion pour 0° et pour 180° (fiche du SG90, à vérifier au test).
 constexpr uint32_t SERVO_MIN_PULSE_US = 500;
 constexpr uint32_t SERVO_MAX_PULSE_US = 2400;
-// Positions du bras. PROVISOIRES : à régler quand le bras sera monté.
-constexpr float ARM_RETRACTED_DEG = 0.0f;  // replié, dans le périmètre du PAMI
-constexpr float ARM_DEPLOYED_DEG = 90.0f;  // déployé vers l'avant
-// Le bras se déploie quand l'ultrason voit l'adversaire à moins de 60 mm.
+// Attaque (D021, logic/arm_attack.h) : dans la douve, quand l'ultrason voit l'adversaire à moins
+// de ARM_TRIGGER_DISTANCE_MM, le servo tourne de 0 à 120°, y reste 3 s, puis revient à 0°.
+// Une fois revenu, il peut attaquer de nouveau si l'adversaire est encore là.
+// ⚠ Règles 2027, E.4 : l'attaque ne compte que si l'actionneur TOUCHE le PAMI adverse À LA FIN du
+// match. Un bras revenu à 0° à la fin ne rapporte rien (voir D021).
+// Positions du bras. PROVISOIRES : à régler quand le bras sera monté (banc test_bras).
+constexpr float ARM_REST_DEG = 0.0f;     // position de départ, dans le périmètre du PAMI
+constexpr float ARM_ATTACK_DEG = 120.0f; // attaque : 120° depuis la position de départ
+constexpr uint32_t ARM_ATTACK_HOLD_MS = 3000;  // temps passé à 120°
+// Temps laissé au servo pour revenir à 0° avant une nouvelle attaque. Un SG90 fait environ 60° en
+// 0,1 s : 120° en 0,2 s, donc 0,5 s laisse de la marge.
+constexpr uint32_t ARM_RETURN_MS = 500;
+// Le bras attaque quand l'ultrason voit l'adversaire à moins de 60 mm.
 // Le bras ne peut dépasser que d'environ 50 mm (grille : périmètre déployé + 10 cm au plus).
 // PROVISOIRE : à régler d'après la longueur réelle du bras.
 constexpr uint16_t ARM_TRIGGER_DISTANCE_MM = 60;
-
-// ---------------------------------------------------------------------------
-// Interrupteur de côté (D014)
-// ---------------------------------------------------------------------------
-// Lu toutes les 100 ms avant le départ : un interrupteur ne change pas plus vite.
-constexpr uint32_t SIDE_READ_PERIOD_MS = 100;
 
 // ---------------------------------------------------------------------------
 // Minuteur de match
@@ -326,11 +368,18 @@ constexpr uint32_t SIDE_READ_PERIOD_MS = 100;
 constexpr uint32_t MATCH_MOVE_ALLOWED_MS = 5000;
 // Arrêt total à 14,5 s : 0,5 s de marge avant les 15 s, comme les 99,5 s d'Eurobot.
 constexpr uint32_t MATCH_STOP_MS = 14500;
-// Départ (D013) : taper ce mot dans le moniteur (Wi-Fi ou USB), puis Entrée. En minuscules.
+// Départ (D013) et côté (D020) : taper une de ces commandes dans le moniteur (Wi-Fi ou USB), puis
+// Entrée. En minuscules ; majuscules et espaces ne comptent pas (« GO G » et « gog » marchent aussi).
+// - go g : PAMI GAUCHE (bord de table à sa gauche, centre à sa droite) ;
+// - go d : PAMI DROITE (bord de table à sa droite, centre à sa gauche).
+// « go » seul est refusé : le côté doit toujours être choisi exprès, jamais par défaut.
 // Un mot plutôt qu'une touche : une touche frappée par erreur ne lance pas le PAMI.
 // ⚠ PROFIL LABO SEULEMENT : interdit à Eurobot (règlement général F.6). Là-bas, le PAMI démarre par
-// un cordon de 50 cm, ou par le robot principal pendant le match.
-constexpr char START_COMMAND[] = "go";
+// un cordon de 50 cm, ou par le robot principal pendant le match, et le côté devra venir d'ailleurs.
+constexpr char START_COMMAND_LEFT[] = "go g";
+constexpr char START_COMMAND_RIGHT[] = "go d";
+// Ligne refusée avec un message qui rappelle de choisir le côté.
+constexpr char START_COMMAND_WITHOUT_SIDE[] = "go";
 
 // ---------------------------------------------------------------------------
 // Bancs de test (test_bench/) : jamais utilisés en match
@@ -353,18 +402,20 @@ constexpr uint32_t TEST_BENCH_US_SUMMARY_PERIOD_MS = 1000;
 // Échelon et vitesse constante : consigne de départ = vitesse de croisière du match.
 constexpr float TEST_BENCH_PID_STEP_SPEED_MM_S = DRIVE_SPEED_MM_S;
 constexpr float TEST_BENCH_PID_SPEED_STEP_MM_S = 25.0f;   // touches p et m
-constexpr float TEST_BENCH_PID_MAX_SPEED_MM_S = 300.0f;   // FIT0450 sous 6 V : environ 400 mm/s au sol
+constexpr float TEST_BENCH_PID_MAX_SPEED_MM_S = 400.0f;   // FIT0450 sous 6 V : environ 400 mm/s au sol
 constexpr uint32_t TEST_BENCH_PID_STEP_DURATION_MS = 3000;
 constexpr uint32_t TEST_BENCH_PID_CONSTANT_DURATION_MS = 8000;  // le temps de freiner la roue au doigt
 // Le régime établi (moyenne, erreur, ondulation) est mesuré après ce temps : avant, la roue accélère.
 constexpr uint32_t TEST_BENCH_PID_SETTLE_MS = 1500;
 // Escalier : 4 paliers, de quoi tracer la droite « PWM = zone morte + pente × vitesse ».
-// Au sol : 1,5 s × (50 + 100 + 150 + 200) mm/s = 750 mm, sous la limite de 800 mm.
-constexpr float TEST_BENCH_PID_STAIR_SPEEDS_MM_S[] = {50.0f, 100.0f, 150.0f, 200.0f};
-constexpr uint32_t TEST_BENCH_PID_STAIR_DURATION_MS = 1500;
+// Jusqu'à 350 mm/s depuis D019 (avant : 50 à 200 mm/s), pour couvrir la nouvelle vitesse de croisière.
+// Au sol : 1 s × (100 + 200 + 300 + 350) mm/s = 950 mm, sous la limite de 1000 mm.
+constexpr float TEST_BENCH_PID_STAIR_SPEEDS_MM_S[] = {100.0f, 200.0f, 300.0f, 350.0f};
+constexpr uint32_t TEST_BENCH_PID_STAIR_DURATION_MS = 1000;
 constexpr uint32_t TEST_BENCH_PID_STAIR_SETTLE_MS = 500;  // début de chaque palier ignoré
-// Sécurité au sol (mode par défaut, sans évitement) : un essai s'arrête après 800 mm parcourus.
-constexpr float TEST_BENCH_PID_FLOOR_MAX_DISTANCE_MM = 800.0f;
+// Sécurité au sol (mode par défaut, sans évitement) : un essai s'arrête après 1000 mm parcourus
+// (800 mm avant D019). Il faut donc 1,2 m de sol dégagé devant le PAMI.
+constexpr float TEST_BENCH_PID_FLOOR_MAX_DISTANCE_MM = 1000.0f;
 constexpr uint32_t TEST_BENCH_PID_LOG_PERIOD_MS = 200;
 // Critères de réussite (échelon à 150 mm/s, au sol). Montée = temps pour atteindre 90 % de la consigne.
 constexpr float TEST_BENCH_PID_RISE_FRACTION = 0.9f;
@@ -374,10 +425,13 @@ constexpr float TEST_BENCH_PID_ERROR_MAX_MM_S = 5.0f;
 // Au-delà, la correction P + I fait une trop grosse part du travail : l'anticipation est à mesurer.
 constexpr float TEST_BENCH_PID_CORRECTION_HINT_PCT = 5.0f;
 
-// Banc test_parcours : aller à un point tapé au clavier, comme en match, avec UN SEUL ultrason (GPIO 15).
-// Côté de départ écrit en dur pour ce banc (le firmware de match, lui, lit l'interrupteur GPIO 27).
-// true = départ à GAUCHE de la table : le détour se fait par la DROITE du PAMI, vers le centre.
+// Banc test_parcours : aller à un point tapé au clavier, comme en match, avec UN SEUL ultrason.
+// Côté au démarrage du banc ; il se change ensuite avec « c g » ou « c d ».
+// true = GAUCHE (bord de table à gauche du PAMI, D017) : le détour se fait par la DROITE du PAMI,
+// vers le centre, et la douve (commande « d ») est à sa droite.
 constexpr bool TEST_BENCH_PARCOURS_START_ON_LEFT = true;
+// L'ultrason du banc : false = connecteur droit (TRIG 5 / ECHO 4), true = gauche (TRIG 25 / ECHO 35).
+constexpr bool TEST_BENCH_PARCOURS_USE_LEFT_US = false;
 constexpr uint32_t TEST_BENCH_PARCOURS_COUNTDOWN_MS = 10000;  // attente entre « p x y » et le départ
 constexpr uint32_t TEST_BENCH_PARCOURS_MAX_RUN_MS = 30000;    // un trajet s'arrête seul après 30 s
 constexpr float TEST_BENCH_PARCOURS_MAX_COORD_MM = 2000.0f;   // x et y tapés : entre -2000 et 2000 mm

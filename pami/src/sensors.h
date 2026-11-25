@@ -2,8 +2,8 @@
 //
 // Rien n'attend jamais : chaque écho est mesuré par une interruption sur ECHO,
 // pas avec pulseIn(), qui bloquerait la boucle jusqu'à 38 ms.
-// Le PCB relie les deux TRIG à la même broche (D015) : les deux capteurs émettent toujours ensemble.
-// Un capteur peut donc entendre le son de l'autre :
+// Chaque capteur a son TRIG (D018), mais les deux émettent toujours ensemble, comme du temps du
+// TRIG commun (D015). Un capteur peut donc entendre le son de l'autre :
 // - renvoyé par un vrai obstacle : sans conséquence, puisque safety combine les deux par un OU ;
 // - passé directement d'un capteur à l'autre : faux obstacle tout proche, le PAMI s'arrête sans
 //   raison (côté sûr). À vérifier avec le banc test_ultrason (protocole 6 : rien devant).

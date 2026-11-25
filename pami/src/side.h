@@ -1,26 +1,25 @@
-// Interrupteur de côté (GPIO 27, D014, D015) : le PAMI part-il du côté gauche ou du côté droit de la table ?
+// Côté du PAMI (D014, D017, D020) : posé dans son écurie, regard vers l'adversaire, le PAMI a-t-il
+// le bord de la table à sa gauche (GAUCHE) ou à sa droite (DROITE) ?
+// Le centre est toujours de l'autre côté. Ce n'est pas le côté vu du public (docs/materiel.md).
 //
-// Lu en continu avant le départ, puis verrouillé au départ : toucher l'interrupteur pendant
-// le trajet ne change plus rien. Ouvert = GAUCHE, fermé = DROITE.
+// Plus d'interrupteur : le côté est choisi avec la commande de départ (« go g » ou « go d », D020),
+// une seule fois. Il ne change plus jusqu'à la fin.
 // Le côté sert à deux choses :
-// - les trajets, écrits pour la gauche, sont mis en miroir pour la droite (logic/mission_step.h) ;
+// - les trajets, écrits pour GAUCHE, sont mis en miroir pour DROITE (logic/mission_step.h) ;
 // - le détour se fait vers le centre de la table (logic/avoidance.h).
 #pragma once
-
-#include <stdint.h>
 
 #include "logic/mission_step.h"
 
 namespace side {
 
-void begin();
+// Appelé par le minuteur quand la commande de départ arrive. Seul le premier appel compte.
+void choose(StartSide chosen);
 
-// À appeler à chaque tour de loop(). Ne fait plus rien une fois le côté verrouillé.
-void update(uint32_t nowMs);
+// Vrai une fois le côté choisi (au départ).
+bool isChosen();
 
-// Fige le côté. À appeler au moment du départ.
-void lock();
-
+// Côté choisi. Avant le départ : GAUCHE, mais rien ne bouge avant le départ.
 StartSide current();
 
 }  // namespace side

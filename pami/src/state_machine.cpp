@@ -6,6 +6,7 @@
 #include "config.h"
 #include "console.h"
 #include "logic/avoidance.h"
+#include "logic/detour.h"
 #include "match_timer.h"
 #include "mission.h"
 #include "motion.h"
@@ -20,10 +21,9 @@ namespace {
 PamiState current = PamiState::WAIT_START;
 uint32_t stateStartMs = 0;  // instant d'entrée dans l'état actuel
 
-// Évitement.
-enum class DetourPhase { TURNING, SIDESTEP };
-DetourPhase detourPhase = DetourPhase::TURNING;
-uint8_t detourCount = 0;
+// Évitement (D016) : le contournement lui-même est décrit dans logic/detour.h.
+Detour detour;
+uint8_t detourCount = 0;  // contournements commencés depuis le début du match
 
 void enter(PamiState next, uint32_t nowMs) {
   if (DEBUG_LOGS) {
@@ -49,12 +49,53 @@ void startDetour(uint32_t nowMs) {
   // Toujours vers le centre de la table : à droite si on est parti de la gauche, et inversement.
   const float detourSide = chooseDetourSide(side::current());
   if (DEBUG_LOGS) {
-    Console.printf("[FSM] Detour %u par la %s (vers le centre)\n", detourCount,
+    Console.printf("[FSM] Contournement %u par la %s (vers le centre)\n", detourCount,
                    detourSide > 0.0f ? "gauche" : "droite");
   }
-  motion::turnAngle(detourSide * DETOUR_TURN_DEG);
-  detourPhase = DetourPhase::TURNING;
+  detour.start(detourSide);
   enter(PamiState::DETOUR, nowMs);
+}
+
+// Exécute l'ordre suivant du contournement (logic/detour.h). Appelé quand le mouvement précédent est fini.
+void runDetour(uint32_t nowMs) {
+  const uint16_t frontMm = sensors::frontDistanceMm();
+  const bool wasLooking = detour.isLooking();
+  const DetourOrder order = detour.next(frontMm, nowMs);
+  switch (order.type) {
+    case DetourOrderType::TURN:
+      if (DEBUG_LOGS) {
+        Console.printf("[FSM] Contournement : quart de tour (%+.0f deg)\n", order.value);
+      }
+      motion::turnAngle(order.value);
+      break;
+    case DetourOrderType::DRIVE:
+      if (DEBUG_LOGS && wasLooking) {
+        Console.printf("[FSM] Contournement : voie libre (%u mm), on depasse l'obstacle (%.0f mm)\n", frontMm,
+                       order.value);
+      } else if (DEBUG_LOGS) {
+        Console.printf("[FSM] Contournement : pas de cote (%.0f mm)\n", order.value);
+      }
+      motion::driveDistance(order.value);
+      break;
+    case DetourOrderType::WAIT:
+      break;  // pause avant de regarder
+    case DetourOrderType::DONE:
+      // Obstacle dépassé : la mission vise de nouveau son point.
+      if (DEBUG_LOGS) {
+        Console.println("[FSM] Contournement reussi : reprise de la mission");
+      }
+      enter(PamiState::MISSION, nowMs);
+      break;
+    case DetourOrderType::FAILED:
+      // Toujours bloqué après les pas de côté : on reste arrêté. AVOID_STOP repart dès que la voie se
+      // libère, ou tente un autre contournement s'il en reste.
+      if (DEBUG_LOGS) {
+        Console.printf("[FSM] Contournement impossible : voie bloquee a %u mm apres %u pas de cote\n", frontMm,
+                       detour.sidesteps());
+      }
+      enter(PamiState::AVOID_STOP, nowMs);
+      break;
+  }
 }
 
 }  // namespace
@@ -87,8 +128,8 @@ void update(uint32_t nowMs) {
 
   switch (current) {
     case PamiState::WAIT_START:
+      // La commande de départ a aussi choisi le côté (D020) : il ne changera plus.
       if (matchTimer::isStarted()) {
-        side::lock();  // le côté ne peut plus changer jusqu'à la fin
         enter(PamiState::WAIT_DELAY, nowMs);
       }
       break;
@@ -118,37 +159,29 @@ void update(uint32_t nowMs) {
         enter(PamiState::MISSION, nowMs);
         break;
       }
-      // Niveau 2 : toujours là après AVOID_WAIT_MS -> détour (nombre limité).
+      // Niveau 2 : toujours là après AVOID_WAIT_MS -> contournement (nombre limité, D016).
       if (nowMs - stateStartMs >= AVOID_WAIT_MS && detourCount < AVOID_MAX_DETOURS) {
         startDetour(nowMs);
       }
       break;
 
     case PamiState::DETOUR:
-      if (detourPhase == DetourPhase::SIDESTEP && stopIfObstacle(nowMs)) {
+      // Niveau 3 : contournement par le centre. Chaque ligne droite (pas de côté, dépassement) reste
+      // surveillée : un obstacle devant arrête tout et renvoie en AVOID_STOP.
+      if (stopIfObstacle(nowMs)) {
         break;
       }
+      // Un mouvement est en cours : on le laisse finir, puis on demande l'ordre suivant.
       if (!motion::isDone()) {
         break;
       }
-      // On fait le virage
-      if (detourPhase == DetourPhase::TURNING) {
-        // Quart de tour fini : pas de côté.
-        motion::driveDistance(DETOUR_SIDE_MM);
-    // On avance sur le côté
-        detourPhase = DetourPhase::SIDESTEP; 
-      } else {
-        // Niveau 3 : la mission vise de nouveau son point et contourne ainsi l'obstacle.
-        enter(PamiState::MISSION, nowMs);
-      }
+      runDetour(nowMs);
       break;
 
     case PamiState::DEFEND:
-      // Immobile dans la douve. Un adversaire à portée du bras : on le déploie, et il reste déployé.
-      // L'évitement reste actif : safety interdit toujours d'avancer vers l'adversaire.
-      if (sensors::frontDistanceMm() < ARM_TRIGGER_DISTANCE_MM) {
-        arm::deploy();
-      }
+      // Immobile dans la douve. Un adversaire à portée du bras : attaque à 120°, 3 s, puis retour
+      // (D021, logic/arm_attack.h). L'évitement reste actif : safety interdit toujours d'avancer.
+      arm::defend(sensors::frontDistanceMm() < ARM_TRIGGER_DISTANCE_MM, nowMs);
       break;
 
     default:

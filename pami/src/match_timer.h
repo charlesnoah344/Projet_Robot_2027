@@ -1,6 +1,6 @@
 // Minuteur global du match, profil labo (D007) :
-// - départ par la commande START_COMMAND (« go ») tapée dans le moniteur, Wi-Fi ou USB (D013),
-//   jamais automatique à l'allumage ;
+// - départ par la commande « go g » ou « go d » tapée dans le moniteur, Wi-Fi ou USB (D013),
+//   jamais automatique à l'allumage. Elle donne aussi le côté du PAMI (D020, module side) ;
 // - immobile pendant MATCH_MOVE_ALLOWED_MS (5 s) après le départ ;
 // - arrêt total à MATCH_STOP_MS (14,5 s) après le départ, quel que soit l'état du programme.
 #pragma once

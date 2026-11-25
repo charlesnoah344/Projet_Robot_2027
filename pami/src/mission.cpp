@@ -5,7 +5,6 @@
 #include "config.h"
 #include "console.h"
 #include "logic/missions.h"
-#include "logic/nearest_moat.h"
 #include "logic/next_move.h"
 #include "motion.h"
 
@@ -19,22 +18,6 @@ uint8_t stepCount = 0;
 uint8_t stepIndex = 0;
 bool finished = true;
 bool defendReached = false;
-
-// Mission douve : ses étapes sont remplies au départ, une fois la douve choisie.
-MissionStep moatSteps[MOAT_STEP_COUNT] = {defend(), defend()};
-
-// Choisit la douve la plus proche du départ et prépare les étapes pour y aller.
-void prepareMoatMission() {
-  const uint8_t moat = nearestMoatIndex(MOATS_MM, MOAT_COUNT, 0.0f, 0.0f);
-  fillMoatSteps(MOATS_MM[moat], moatSteps);
-  steps = moatSteps;
-  stepCount = MOAT_STEP_COUNT;
-  if (DEBUG_LOGS) {
-    // Point écrit pour un départ à gauche ; forSide() le met en miroir pour un départ à droite.
-    Console.printf("[MISS] Douve la plus proche : n. %u (x = %.0f mm, y = %.0f mm, cote gauche)\n",
-                   moat, MOATS_MM[moat].xMm, MOATS_MM[moat].yMm);
-  }
-}
 
 void logPose(const char* message) {
   if (!DEBUG_LOGS) {
@@ -59,11 +42,7 @@ void nextStep() {
 void start(StartSide side, MissionId id) {
   startSide = side;
   motion::resetPose();  // le PAMI est posé au point de départ : (0, 0), cap 0
-  if (id == MissionId::MOAT) {
-    prepareMoatMission();
-  } else {
-    steps = missionSteps(id, stepCount);
-  }
+  steps = missionSteps(id, stepCount);
   stepIndex = 0;
   finished = (stepCount == 0);
   defendReached = false;

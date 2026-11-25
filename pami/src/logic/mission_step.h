@@ -1,9 +1,9 @@
 // Étapes d'une mission et miroir selon le côté de départ (logique pure, testable sur PC).
 //
-// Une mission est une simple liste d'étapes, écrite UNE fois, pour un départ à GAUCHE de la table
-// (règle d'or n° 5). Pour un départ à droite, on prend l'image dans un miroir : y devient -y, et les
-// caps changent de signe. C'est juste parce que les deux points de départ sont symétriques par
-// rapport à l'axe central de la table.
+// Une mission est une simple liste d'étapes, écrite UNE fois, pour un PAMI GAUCHE (règle d'or n° 5).
+// Pour un PAMI DROITE, on prend l'image dans un miroir : y devient -y, et les caps changent de signe.
+// C'est juste parce que, vu par le PAMI, la table est la même dans les 4 écuries : seul change le côté
+// où se trouve le centre (docs/douves-coordonnees.md, D017).
 // Repère : départ en (0, 0), regard vers +x, y positif à gauche (voir logic/odometry.h).
 #pragma once
 
@@ -20,7 +20,10 @@ struct MissionStep {
   float headingDeg;
 };
 
-// Côté de la table où le PAMI est posé au départ, vu du public (règles 2027, D.2).
+// Côté du PAMI posé dans son écurie, regard vers l'adversaire (D017) :
+// - LEFT (GAUCHE) : le bord de la table est à sa gauche, le centre à sa droite ;
+// - RIGHT (DROITE) : le bord est à sa droite, le centre à sa gauche.
+// Ce n'est PAS le côté vu du public : par exemple, l'écurie jaune avant est DROITE (docs/materiel.md).
 // Lu sur l'interrupteur de côté (module side), verrouillé au départ (D014).
 enum class StartSide { LEFT, RIGHT };
 

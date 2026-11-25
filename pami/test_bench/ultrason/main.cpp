@@ -10,8 +10,9 @@
 // l'évitement en match. Les moteurs restent freinés en permanence.
 //
 // MATÉRIEL ET MONTAGE
-// - PCB 2026 5EO (D015). TRIG commun aux deux ultrasons : GPIO 21. ECHO gauche : GPIO 2.
-//   ECHO droit : GPIO 15. Les deux capteurs émettent donc toujours en même temps.
+// - Brochage du 25/11/2026 (D018, T016) : gauche TRIG 25 / ECHO 35, droit TRIG 5 / ECHO 4 (config.h).
+//   Chacun a son TRIG, mais le firmware (sensors.cpp) les fait toujours émettre ensemble.
+// - Pont diviseur 1 kΩ / 2 kΩ sur chaque ECHO (5 V -> 3,3 V) : l'ESP32 supporte 3,3 V au plus.
 // - Capteurs montés sur le PAMI, à leur hauteur réelle (moins de 70 mm du sol), bien horizontaux.
 // - Alimentation des moteurs : pas nécessaire.
 //
@@ -28,14 +29,15 @@
 //   « envois » plus grand que « mesures » : des impulsions sont restées sans écho complet.
 // - Touche « v » : afficher ou masquer les lignes de mesure (le bilan reste). « h » : aide.
 // - Touche « r » : MODE DE RÉFÉRENCE. Mesure avec la méthode classique des tutoriels Arduino
-//   (déclenchement puis pulseIn()), sans aucun code du firmware. Les deux capteurs émettent (TRIG
-//   commun), mais on lit l'ECHO d'un seul à chaque fois, l'un après l'autre.
+//   (déclenchement puis pulseIn()), sans aucun code du firmware. Un seul capteur émet à la fois
+//   (son propre TRIG), puis on lit son ECHO : le gauche, puis le droit, l'un après l'autre.
 //   Lignes préfixées [REF G] et [REF D]. Sert à savoir si un problème vient du capteur ou de notre code :
 //   - la référence rate aussi les échos  -> problème matériel (capteur, alimentation, connecteur) ;
 //   - la référence voit bien, pas sensors -> problème dans notre code.
 //   pulseIn() bloque le programme jusqu'à 70 ms : interdit en match, sans risque ici.
-//   Un seul ultrason muet dans les deux modes : son connecteur, son ECHO (GPIO 2 ou 15), ou le capteur.
-//   Les deux muets : le TRIG commun (GPIO 21) ou l'alimentation des ultrasons.
+//   Un seul ultrason muet dans les deux modes : son connecteur, son TRIG ou son ECHO (TRIG et ECHO
+//   inversés ?), son pont diviseur, ou le capteur. Les deux muets : l'alimentation des ultrasons.
+//   Muet avec le firmware mais pas en référence : un capteur entend peut-être l'autre (protocole 6).
 //
 // PROTOCOLE (objet immobile au moins 3 s à chaque distance, à hauteur des capteurs)
 //  1. Boîte en carton (face plate) bien en face de CHAQUE capteur, à 5, 10, 15, 20, 30, 50 et 100 cm.
@@ -45,8 +47,8 @@
 //  4. Objet rond de la taille d'un PAMI (bouteille, boîte de conserve) au centre, à 10, 15, 20, 30 cm.
 //  5. Zone aveugle : approcher la boîte lentement de 10 cm à 0 devant chaque capteur ; noter la
 //     distance où les mesures deviennent fausses ou « PAS D'ECHO ».
-//  6. Rien devant (2 m dégagés) pendant 10 s : aucune distance sous 300 mm. Important avec le TRIG
-//     commun (D015) : les deux capteurs émettent ensemble, et l'un ne doit pas entendre directement
+//  6. Rien devant (2 m dégagés) pendant 10 s : aucune distance sous 300 mm. Important : le firmware
+//     fait émettre les deux capteurs ensemble (D015, D018), et l'un ne doit pas entendre directement
 //     le son de l'autre. Sinon : les écarter, les tourner un peu vers l'extérieur, ou ajouter une
 //     cloison entre eux.
 //  Pour chaque cas, noter : distance réelle, filtree de G et de D, min/max des bilans, « sans echo ».
@@ -180,8 +182,8 @@ void printSafetyVerdict() {
 }
 
 // Mode de référence : la méthode « classique » des tutoriels, indépendante de sensors.cpp.
-// Déclenchement de 10 µs sur le TRIG commun (les deux capteurs émettent), puis pulseIn() attend
-// l'impulsion ECHO d'un seul capteur : le gauche, puis le droit au tour suivant.
+// Déclenchement de 10 µs sur le TRIG d'un seul capteur, puis pulseIn() attend son impulsion ECHO :
+// le gauche, puis le droit au tour suivant. L'autre capteur se tait : pas de son parasite.
 void referenceMeasure(uint32_t nowMs) {
   if (nowMs - lastReferenceMs < US_PERIOD_MS) {
     return;
@@ -189,14 +191,15 @@ void referenceMeasure(uint32_t nowMs) {
   lastReferenceMs = nowMs;
   const uint8_t index = nextReferenceSensor;
   nextReferenceSensor = (nextReferenceSensor + 1) % sensors::ULTRASOUND_COUNT;
+  const uint8_t trigPin = (index == 0) ? PIN_US_LEFT_TRIG : PIN_US_RIGHT_TRIG;
   const uint8_t echoPin = (index == 0) ? PIN_US_LEFT_ECHO : PIN_US_RIGHT_ECHO;
   const char* name = sensors::shortName(ALL_SENSORS[index]);
 
-  digitalWrite(PIN_US_TRIG, LOW);
+  digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
-  digitalWrite(PIN_US_TRIG, HIGH);
+  digitalWrite(trigPin, HIGH);
   delayMicroseconds(US_TRIGGER_PULSE_US);
-  digitalWrite(PIN_US_TRIG, LOW);
+  digitalWrite(trigPin, LOW);
   // 0 = aucune impulsion vue en 70 ms (ou impulsion plus longue que 70 ms).
   const unsigned long durationUs = pulseIn(echoPin, HIGH, 70000UL);
   referenceCount[index]++;
@@ -221,7 +224,9 @@ void setup() {
   Console.println();
   Console.println("[BANC] ===== BANC DE TEST DES 2 ULTRASONS =====");
   Console.println("[BANC] Aucun mouvement. Apres le test : remettre le firmware (pio run -t upload, ou -e esp32dev_wifi).");
-  Console.printf("[BANC] TRIG commun : les 2 capteurs emettent ensemble toutes les %lu ms. Pas d'echo apres %lu us = %u mm.\n",
+  Console.printf("[BANC] Gauche : TRIG %u / ECHO %u. Droit : TRIG %u / ECHO %u.\n", PIN_US_LEFT_TRIG,
+                 PIN_US_LEFT_ECHO, PIN_US_RIGHT_TRIG, PIN_US_RIGHT_ECHO);
+  Console.printf("[BANC] Les 2 capteurs emettent ensemble toutes les %lu ms. Pas d'echo apres %lu us = %u mm.\n",
                  (unsigned long)US_PERIOD_MS, (unsigned long)US_MAX_ECHO_US, US_NO_OBSTACLE_MM);
   Console.printf("[BANC] safety freine si G OU D voit un obstacle a moins de %u mm.\n",
                  OBSTACLE_STOP_DISTANCE_MM);

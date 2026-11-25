@@ -508,3 +508,228 @@
   - à 150 mm pile, la ligne `[BILAN]` alterne entre « FREINERAIT » et non : elle compare au seuil sans
     marge. `safety`, lui, ne relâche qu'au-delà de 180 mm (`OBSTACLE_CLEAR_MARGIN_MM`) : pas de va-et-vient en match ;
   - **ultrason validé sur le connecteur GPIO 15, TRIG commun GPIO 21 validé.** Reste : le connecteur GPIO 2.
+
+### T013 — Sens des moteurs avec le brochage du 25/11/2026 (banc test_moteurs)
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe
+- **Programme utilisé** : `pami/test_bench/moteurs` (environnement `test_moteurs`), brochage D018 :
+  gauche IN1 27 / IN2 26, droit IN1 16 / IN2 17, `MOTOR_LEFT_INVERTED = true`, `MOTOR_RIGHT_INVERTED = false`.
+- **Critère de réussite** : chaque roue tourne vers l'avant (côté ultrasons) quand on lui demande d'avancer.
+- **Résultat** : partiel. Roue droite : bon sens. Roue gauche : à l'envers.
+- **Correction** : `MOTOR_LEFT_INVERTED` passe de `true` à `false` dans `config.h`. Les broches ne
+  changent pas : le réglage échange en logiciel le rôle des entrées A et B du moteur gauche.
+- **À refaire** : `test_moteurs` avec la correction (roue gauche vers l'avant), puis le sens des
+  encodeurs avec `test_odometrie` (protocole 1). Ce réglage-là est indépendant de celui des moteurs.
+
+### T014 — Sens des encodeurs avec le brochage du 25/11/2026 (banc test_odometrie)
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe
+- **Programme utilisé** : `pami/test_bench/odometrie` (environnement `test_odometrie_wifi`), brochage D018,
+  `MOTOR_LEFT_INVERTED = false` (T013), `ENCODER_LEFT_INVERTED = false`, `ENCODER_RIGHT_INVERTED = true`.
+- **Protocole** : roue gauche tournée à la main vers l'avant, puis roue droite ; puis touche `1` (ligne droite).
+- **Critère de réussite** : roue tournée vers l'avant → son compteur augmente.
+- **Résultat** : échec. Les **deux** compteurs descendent quand la roue tourne vers l'avant.
+- **Mesures** :
+  - roue gauche à la main : ticks G 0 → −259 ; roue droite à la main : ticks D 0 → −272 ;
+  - touche `1` : PWM positives (G 42 %, D 48 %), mais vitesses mesurées négatives (G −205, D −448 mm/s).
+    Le régulateur croit que les roues reculent et monte la PWM (D à 100 %) ; au bout de 0,6 s :
+    `[MOT] PANNE : roue bloquee ou encodeur inverse`, tout s'arrête. La détection de panne a joué son rôle.
+- **Correction** : `ENCODER_LEFT_INVERTED` false → **true**, `ENCODER_RIGHT_INVERTED` true → **false**.
+- **À refaire** : roues à la main (les deux compteurs doivent monter), puis `1` sur cales, puis au sol.
+- **Complément (après correction)** : roues à la main, les deux compteurs montent. Touche `1` (ligne de
+  250 mm) : le PAMI avance dans le bon sens, sans panne. `DRIVE_SPEED_MM_S` mis à 200 par l'équipe pour ces essais.
+  - le PAMI **dévie nettement vers la droite** en réalité (écart non mesuré), alors que l'odométrie croit
+    aller droit : y = 2 à 5 mm et cap entre −3° et +3° à l'arrivée. La déviation ne se voit pas dans les
+    encodeurs : elle vient de ce qui se passe entre l'axe du moteur et le sol ;
+  - frottement probable de la roue gauche sur la coque : à vitesse égale, la roue gauche demande plus de
+    PWM que la droite (avant serrage des roues : G 92 % / D 71 % à 200 mm/s ; après : G 41-47 % / D 35-37 %
+    vers 220 mm/s), alors que les deux moteurs demandaient la même chose au réglage (T004) ;
+  - à faire : supprimer le frottement, vérifier que chaque roue ne glisse pas sur son axe (trait de feutre
+    sur la roue et l'axe), puis mesurer l'écart réel sur une ligne de 950 mm (`test_trajectoire`).
+
+### T015 — Déviation vers la droite en ligne droite, PAMI sans coque (banc test_odometrie)
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe
+- **Programme utilisé** : `pami/test_bench/odometrie` (`test_odometrie_wifi`), brochage D018, sens corrigés
+  (T013, T014). `DRIVE_SPEED_MM_S = 350`, `MOTION_ACCEL_MM_S2 = 400`. Ligne droite de 250 mm (touche `1`), 3 fois.
+- **Montage** : coque retirée (pour écarter un frottement), au sol.
+- **Résultat** : échec. Le PAMI **dévie toujours nettement vers la droite**, même sur 250 mm (écart réel
+  non mesuré). Selon l'équipe, il allait droit samedi 21/11 (à 150 mm/s ; écart réel non relevé ce jour-là).
+- **Mesures** (les 3 essais sont presque identiques) :
+  - ce que croit l'odométrie à l'arrivée : x = 248 mm, y = 4-5 mm, cap −1,0° à −1,5° ; même nombre de ticks
+    sur les deux roues (2628 / 2627 au 1er essai). Pour les encodeurs, le PAMI est allé droit ;
+  - vitesse maximale environ 330 mm/s ;
+  - PWM pendant l'accélération, à vitesse égale : G 67-76 % contre D 51-56 % (vers 300 mm/s,
+    l'anticipation de T004 prévoit environ 60 % des deux côtés). Au freinage : G 37-38 % / D 39-41 %.
+- **Analyse** :
+  - le code de déplacement (`motion`, `encoders`, `motor_driver`, régulateur, odométrie) est identique
+    à celui de samedi (commit du 21/11, 21 h 27). Depuis, seuls ont changé dans `config.h` : les broches
+    (nouveau brochage D018), le sens des moteurs et des encodeurs (T013, T014), et la vitesse (150 → 350 mm/s) ;
+  - une déviation que les encodeurs ne voient pas vient de ce qui se passe entre le comptage des ticks
+    et le sol : roue qui patine ou qui glisse sur son axe, roues de diamètres différents, ou encodeur
+    qui perd des ticks seulement à grande vitesse. La PWM plus forte à gauche et plus faible à droite
+    va dans le sens d'une roue droite qui patine, ou d'un encodeur gauche qui perd des ticks.
+- **Essais décidés** :
+  1. même ligne à **150 mm/s** (valeur de samedi, mise temporairement dans `config.h`) ;
+  2. 10 tours de chaque roue à la main : chaque compteur doit avancer d'environ 19 200 ticks ;
+  3. mesure de l'écart réel sur le côté, à 150 et à 350 mm/s.
+- **Complément (essai 1, à 150 mm/s)** : le PAMI dévie **toujours vers la droite**, un peu moins qu'à
+  350 mm/s (écart réel non mesuré). La vitesse n'est donc pas la seule cause : il y a une dérive de base,
+  et elle augmente avec la vitesse. L'équipe pense ne pas avoir bien observé la ligne droite samedi.
+  Les surfaces de roulage diffèrent d'un essai à l'autre.
+
+### T016 — Deux ultrasons avec le brochage du 25/11/2026 (banc test_ultrason)
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe
+- **Programme utilisé** : `pami/test_bench/ultrason` (Wi-Fi), gauche TRIG 25 / ECHO 35, droit TRIG 14 / ECHO 12.
+- **Résultat** : partiel.
+  - **Gauche** : marche. 16 à 17 mesures par seconde, aucune perdue ; mur vu à 1239-1243 mm ; main suivie
+    de 91 à 438 mm.
+  - **Droit** : rien. 0 mesure et 0 « sans écho » pour 15 à 17 envois par seconde : la broche ECHO (12)
+    ne change jamais d'état. `[SENS] PANNE ultrason droit` au bout de 1 s, et le bilan annonce bien
+    « safety FREINERAIT (D) » : la sécurité par défaut fonctionne.
+- **Piste principale** : dans le programme Controller de l'équipe, TRIG 14 / ECHO 12 est le « connecteur
+  du bas », et le connecteur droit est TRIG 5 / ECHO 4, avec TRIG et ECHO inversés (« miroir »).
+- **À faire** : mode de référence (`r`), échange des deux capteurs, vérification du connecteur utilisé.
+- **Complément (mode de référence `r`)** : gauche toujours bon (81 à 195 mm main devant, puis mur à
+  1234-1251 mm). Droit : « aucune impulsion ECHO en 70 ms » à chacun des plus de 1400 essais, en
+  déclenchant le capteur droit seul sur GPIO 14 et en lisant GPIO 12 avec pulseIn(). Le code du firmware
+  est donc hors de cause : le signal n'arrive pas sur GPIO 12 (câblage, connecteur, broches, capteur).
+- **Complément (résolu)** : l'équipe a corrigé le problème ; l'ultrason droit mesure bien maintenant.
+  Cause et mesures à préciser par l'équipe.
+
+### T017 — Bras d'attaque (banc test_bras)
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe
+- **Programme utilisé** : `pami/test_bench/bras` (D021).
+- **Résultat** : réussi selon l'équipe (« le servo marche très bien »). Angles réels, périmètre bras
+  déployé et tenue de 3 s : à noter ici pour cocher le critère de réussite du banc.
+- **Cause trouvée par l'équipe** : le capteur droit est sur le connecteur droit du PCB, relié à TRIG 5 /
+  ECHO 4 (14 / 12 est le connecteur du bas). `config.h` corrigé : `PIN_US_RIGHT_TRIG = 5`, `PIN_US_RIGHT_ECHO = 4`.
+
+### T018 — Échelon à 350 mm/s, roues en l'air (banc test_pid)
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe
+- **Programme utilisé** : `pami/test_bench/pid`, les deux roues, échelon `e` à 350 mm/s. PAMI sur cales
+  d'après l'équipe, mais le banc était réglé « AU SOL » : l'essai s'est arrêté à 1000 mm comptés (2,8 s).
+- **But** : savoir si l'écart de PWM entre les roues vient du sol (adhérence) ou des moteurs.
+- **Mesures** (régime établi) :
+
+  | Roue | Vitesse moyenne | PWM moyenne | Anticipation (T004, au sol) | Correction P+I | Montée à 90 % | Dépassement |
+  |---|---|---|---|---|---|---|
+  | Gauche | 354 mm/s | 79,1 % | 69,4 % | +9,7 % | 340 ms | 11 % |
+  | Droite | 360 mm/s | 64,7 % | 70,4 % | −5,7 % | 220 ms | 15 % |
+
+- **Analyse** :
+  - même roues en l'air, la roue gauche demande environ 14 points de PWM de plus que la droite pour la
+    même vitesse. L'écart ne vient donc pas du sol : la transmission gauche (moteur, réducteur, roue)
+    est plus dure à faire tourner ;
+  - sans charge, une roue devrait demander moins que l'anticipation mesurée au sol : c'est le cas à
+    droite (−5,7), pas à gauche (+9,7). Samedi (T004, T005), les deux roues suivaient l'anticipation
+    (correction P+I proche de 0) : la gauche est devenue plus dure depuis le remontage ;
+  - ce frottement ne crée pas à lui seul une déviation invisible (la régulation égalise les tours de
+    roue), mais il retarde la roue gauche à chaque accélération et lui retire de la marge à haute vitesse.
+- **À faire** : roues tournées à la main moteurs non alimentés (comparer gauche et droite), vis de la
+  roue gauche, roue qui touche le moteur ou le châssis, support moteur ; puis refaire cet essai en
+  mode « SUR CALES » (touche `k`).
+- **Complément (roue gauche desserrée, vrai mode SUR CALES, 7 échelons à 350 mm/s)** : rien ne change.
+  PWM moyenne gauche 79,0 / 79,3 / 76,9 / 76,0 / 75,4 / 79,6 / 74,3 % ; droite 65,1 / 63,7 / 62,6 / 62,9 /
+  62,1 / 62,4 / 61,9 %. L'écart reste de 12 à 14 points ; les deux baissent un peu d'un essai à l'autre
+  (échauffement). Vitesses moyennes égales à quelques mm/s près : la régulation compense. Montée à 90 % :
+  gauche 300-400 ms, droite 200-240 ms. Dépassement droit 15-23 % (anticipation trop forte en l'air : normal).
+  La vis de la roue n'est donc pas en cause : la différence est dans le moteur, le réducteur ou leur
+  alimentation, ou bien les deux moteurs n'ont pas le même rapport ticks / tour de roue.
+  Essai décisif suivant : 10 tours de chaque roue à la main (environ 19 200 ticks attendus de chaque côté).
+
+### T019 — Ticks par tour de roue, 10 tours à la main (banc test_odometrie)
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe
+- **Protocole** : trait au feutre sur chaque roue, 10 tours exacts vers l'avant à la main, roue par roue.
+- **But** : vérifier que les deux moteurs ont le même rapport ticks / tour de roue (même modèle de
+  moteur, même encodeur).
+- **Mesures** :
+
+  | Roue | Départ | Arrivée | Ticks pour 10 tours | Par tour | Écart avec 1920 |
+  |---|---|---|---|---|---|
+  | Gauche | 0 | 19 239 | 19 239 | 1923,9 | +0,2 % |
+  | Droite | −240 | 19 223 | 19 463 | 1946,3 | +1,4 % |
+
+- **Résultat** : les deux moteurs ont le même rapport (un autre modèle donnerait un écart de 20 % ou
+  plus). Hypothèse « moteurs différents » écartée. Il reste un écart de 1,2 % (droite plus haute), soit
+  environ 45° de roue sur 10 tours : à confirmer, car il peut venir de l'alignement du trait au départ
+  de la roue droite (compteur à −240 au départ).
+- **Si l'écart est réel** : à nombre de ticks égal, la roue droite fait 1,2 % de tours de moins, donc le
+  PAMI tourne à droite, dans le sens observé. Ordre de grandeur : 4 mm sur 250 mm, environ 50 mm sur
+  950 mm, environ 210 mm sur les 1900 mm de la douve.
+- **Complément (recomptage roue droite)** : 19 174 → 38 659, soit **19 485 ticks** pour 10 tours
+  (1948,5 par tour). Avec la 1re mesure (19 463), l'écart droite / gauche de **1,2 %** est confirmé.
+
+### T020 — Dérive réelle sur une ligne de 800 mm, à 100 et 350 mm/s
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe
+- **Montage** : `MOTION_ACCEL_MM_S2 = 200`, au sol, ligne de 800 mm.
+- **Mesures** : écart réel sur le côté à l'arrivée, vers la droite : **53 mm à 100 mm/s**, **340 mm à 350 mm/s**.
+- **Analyse** :
+  - l'écart de 1,2 % des ticks par tour (T019) donne environ 38 mm sur 800 mm : il explique presque
+    toute la dérive à 100 mm/s ;
+  - à 350 mm/s, 340 mm correspondraient à environ 11 % d'écart entre les roues : ce n'est plus un
+    défaut de diamètre ou de rapport, c'est un défaut qui grandit avec la vitesse. Avec une
+    accélération douce (200 mm/s²), un patinage de cette taille est improbable ;
+  - hypothèse : l'encodeur gauche perd des ticks à grande vitesse. L'interruption lit B juste après
+    un front de A pour connaître le sens ; si B change peu après A et que l'interruption est un peu
+    en retard (Wi-Fi), le tick est compté à l'envers (−1 au lieu de +1). La régulation croit alors la
+    roue gauche trop lente et la pousse : d'où les 14 points de PWM en plus même roues en l'air
+    (T018), et le PAMI tourne à droite sans que l'odométrie le voie ;
+  - depuis le nouveau brochage, les deux réglages `ENCODER_*_INVERTED` ont dû être inversés (T014) :
+    les voies A et B sont échangées par rapport à samedi. L'interruption est donc sur l'autre voie.
+- **Essai décidé (T021)** : échanger A et B dans `config.h` pour revenir au décodage de samedi.
+- **Nuance** : samedi, toutes les lignes étaient à 150 mm/s, et 350 mm/s n'avait jamais été essayé. Un
+  défaut qui grandit avec la vitesse pouvait donc déjà exister sans se voir, quel que soit le câblage.
+  L'écart de 1,2 % (mêmes moteurs, mêmes encodeurs) était sans doute déjà là, et peut expliquer une
+  partie des écarts des carrés (T009 à T011). L'échange de A et B (T021) reste une hypothèse à vérifier.
+
+### T021 — Voies A et B échangées, vitesse constante sur cales + vidéo des roues (banc test_pid)
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe (essai et vidéo), analyse de la vidéo image par image
+- **Montage** : A et B des deux encodeurs échangés dans `config.h` (gauche A = 32, droite A = 18).
+  PAMI sur une boîte, roues en l'air, repère blanc sur chaque pneu, filmé de l'arrière à 30 images/s
+  (`pami/pami-vid.mp4`). Essai `c` (vitesse constante) à 350 mm/s, les deux roues, 8 s.
+- **Mesures du banc** : vitesses mesurées par les encodeurs égales (gauche 353, droite 350 mm/s), mais
+  PWM moyenne **gauche 63 %**, **droite 87 %**. L'écart a changé de côté (avant l'échange : gauche 79 %,
+  droite 64 %, T018).
+- **Mesures sur la vidéo** (passages du repère blanc, mouvement des images 140 à 380 = 8,0 s) :
+
+  | Roue | Images par tour | Tours/s | Vitesse réelle | Vitesse annoncée par l'encodeur | PWM |
+  |---|---|---|---|---|---|
+  | Gauche | 17,4 | 1,72 | environ 320 mm/s | 353 mm/s | 63 % |
+  | Droite | 13,1 | 2,28 | environ 425 mm/s | 350 mm/s | 87 % |
+
+  Les vitesses réelles collent à ce que prévoit l'anticipation pour ces PWM (317 et 434 mm/s).
+- **Résultat** : **à vitesses égales selon les encodeurs, la roue droite tourne en réalité 32 % plus vite
+  que la gauche.** Les encodeurs ne mesurent pas la vraie vitesse quand les moteurs tournent vite :
+  l'un compte trop (gauche, environ +10 %), l'autre pas assez (droite, environ −18 %). Avant
+  l'échange, c'était l'inverse. À la main, moteurs arrêtés (T019), le comptage était presque juste.
+- **Analyse** : aucun choix de voie ne donne un comptage juste. Cause probable : des parasites sur les
+  fils des encodeurs quand les moteurs sont alimentés (fils des moteurs proches, pull-up internes
+  faibles), et un décodage par interruption sensible aux parasites très courts et au retard des
+  interruptions. C'est la cause de la dérive vers la droite et de sa forte croissance avec la vitesse.
+- **Suite proposée** : compteur matériel de l'ESP32 (PCNT) avec filtre anti-parasites, et réduction
+  des parasites côté câblage.
+
+### T022 — Validation du comptage par PCNT (D022)
+- **Date** : 25/11/2026
+- **Testeurs** : l'équipe (essais et vidéo `vid2.mp4`), analyse de la vidéo image par image
+- **Programme** : encodeurs comptés par le PCNT avec filtre de 5 µs, voies A / B et sens de T014.
+- **1. Dix tours à la main** (`test_odometrie`) : gauche 0 → 19 477 (**1947,7 ticks par tour**), droite
+  2 → 19 387 (**1938,5 par tour**). Les deux compteurs montent en marche avant.
+- **2. Vitesse constante 350 mm/s, roues en l'air, filmées** (`test_pid`, `c`) : trois passages
+  mesurés. Dernier passage, le plus net : gauche 15,6 images par tour, droite 15,4 (environ 1,94 tour/s,
+  360 mm/s). Les autres : 15,8 / 15,5 et 15,3 / 14,5 (repère moins net). **Les deux roues tournent à la
+  même vitesse**, à 1 ou 2 % près, contre 32 % d'écart avant le PCNT (T021).
+- **3. Ligne droite au sol** (`test_trajectoire`) : écart réel sur le côté d'environ **25 mm vers la
+  gauche, à 100 comme à 350 mm/s**. Avant : 53 mm à 100 mm/s et 340 mm à 350 mm/s, vers la droite (T020).
+- **Résultat** : réussi. Le défaut qui grandissait avec la vitesse a disparu. Il reste une petite dérive
+  **fixe**, la même à toutes les vitesses, dans le sens attendu : la roue gauche compte environ 0,5 %
+  de ticks de plus par tour que la droite, donc à ticks égaux elle avance moins et le PAMI tourne à gauche.
+- **Suite** : correction par roue (rapport des ticks par tour), puis anticipation (`test_pid`, escalier
+  au sol) et étalonnage du diamètre moyen (`test_trajectoire`) à refaire avec le nouveau comptage.

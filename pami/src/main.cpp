@@ -2,8 +2,8 @@
 //
 // loop() ne bloque jamais : chaque couche fait un petit travail puis rend la main.
 // Ordre des couches à chaque tour :
-//   1. minuteur (prioritaire sur tout), qui lit aussi la commande de départ (D013) ;
-//   2. capteurs (2 ultrasons) et interrupteur de côté ;
+//   1. minuteur (prioritaire sur tout), qui lit aussi la commande de départ et le côté (D013, D020) ;
+//   2. capteurs (2 ultrasons) ;
 //   3. machine à états ;
 //   4. motion ;
 //   5. safety, qui pilote le driver ;
@@ -46,7 +46,7 @@ void logStatus(uint32_t nowMs) {
     Console.printf(
         "[MAIN] %lu tours/s | etat %s | t = %.1f s | cote %s | US G %u D %u mm | ticks G %ld D %ld\n",
         (unsigned long)loopsPerSecond, stateName(stateMachine::state()),
-        matchTimer::elapsedMs(nowMs) / 1000.0f, sideName(side::current()),
+        matchTimer::elapsedMs(nowMs) / 1000.0f, side::isChosen() ? sideName(side::current()) : "?",
         sensors::distanceMm(sensors::UltrasoundId::LEFT),
         sensors::distanceMm(sensors::UltrasoundId::RIGHT), (long)leftTicks, (long)rightTicks);
   }
@@ -72,7 +72,6 @@ void setup() {
   arm::begin();  // servo sans PWM : il ne bouge pas
   encoders::begin();
   sensors::begin();
-  side::begin();
   motion::begin();
   matchTimer::begin();
   stateMachine::begin();
@@ -85,7 +84,6 @@ void loop() {
 
   matchTimer::update(nowMs);
   sensors::update(nowMs);
-  side::update(nowMs);
   stateMachine::update(nowMs);
   motion::update(nowMs, safety::isBlocking());
   safety::apply(motion::command(), nowMs);

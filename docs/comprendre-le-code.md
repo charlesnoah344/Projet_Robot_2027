@@ -8,9 +8,9 @@
 > du module concerné. Le code fait foi : si ce document et le code divergent, c'est le code qui a raison,
 > et il faut corriger ce document.
 >
-> À jour au 21/11/2026 (PCB 2026 5EO D015, après D012 : 2 ultrasons en OU, TRIG commun, plus d'IR ;
-> départ par la commande `go` D013 ;
-> côté gauche/droite et douve la plus proche D014 ; profil labo D007).
+> À jour au 25/11/2026 (brochage D018, après D012 : 2 ultrasons en OU, un TRIG chacun, plus d'IR ;
+> départ et côté par la commande `go g` / `go d` D013, D020 ; douve assignée à chaque PAMI D017 ;
+> vitesse 350 mm/s D019 ; attaque du bras D021 ; profil labo D007).
 > **L'avant du PAMI est le côté des ultrasons.** Gauche et droite se voient depuis l'arrière, en
 > regardant vers les ultrasons.
 
@@ -67,20 +67,21 @@ fonction (marquée `IRAM_ATTR`), puis reprend.
 ### 2.1 Ce que fait `loop()` à chaque tour (`main.cpp`)
 ```
 nowMs = millis()
-1. matchTimer::update     lit la commande de départ (« go »), suit le temps (5 s, 14,5 s)
-2. sensors::update        déclenche les 2 ultrasons (TRIG commun), convertit les échos
-3. side::update           lit l'interrupteur de côté gauche / droite (jusqu'au départ)
-4. stateMachine::update   décide quoi faire (attendre, rouler, éviter, défendre, s'arrêter)
-5. motion::update         toutes les 20 ms : régule la vitesse des roues, met à jour la position
-6. safety::apply          vérifie la commande et l'envoie au driver (ou freine)
-7. arm::update            coupe le servo dès la fin du temps
+1. matchTimer::update     lit la commande de départ (« go g » / « go d ») et donne le côté à side,
+                          suit le temps (5 s, 14,5 s)
+2. sensors::update        déclenche les 2 ultrasons (ensemble), convertit les échos
+3. stateMachine::update   décide quoi faire (attendre, rouler, éviter, défendre, s'arrêter)
+4. motion::update         toutes les 20 ms : régule la vitesse des roues, met à jour la position
+5. safety::apply          vérifie la commande et l'envoie au driver (ou freine)
+6. arm::update            coupe le servo dès la fin du temps
    logStatus              une ligne [MAIN] par seconde
 ```
 L'ordre compte : le minuteur passe en premier, pour que la fin du temps soit vue avant toute décision.
 
 ### 2.2 Exemple : de la commande de départ à la roue qui tourne
-1. On tape `go` puis Entrée dans le moniteur → `match_timer` reconnaît la commande → `isStarted()` devient vrai.
-2. `state_machine` passe de `WAIT_START` à `WAIT_DELAY` et verrouille le côté de départ.
+1. On tape `go g` (ou `go d`) puis Entrée dans le moniteur → `match_timer` reconnaît la commande, donne
+   le côté à `side` → `isStarted()` devient vrai.
+2. `state_machine` passe de `WAIT_START` à `WAIT_DELAY`. Le côté ne changera plus.
 3. À 5 s, `isMoveAllowed()` devient vrai → `state_machine` appelle `mission::start()`, passe en `MISSION`.
 4. `mission::update()` regarde la première étape (par exemple « aller au point (500, 0) ») et la
    position actuelle. `next_move.h` décide : « avancer de 500 mm » → `motion::driveDistance(500)`.
@@ -94,7 +95,7 @@ L'ordre compte : le minuteur passe en premier, pour que la fin du temps soit vue
 7. `motor_driver` règle les signaux PWM sur GPIO 32/33 (roue gauche) et 19/18 (roue droite).
 8. Le MDD3A transforme ces signaux en courant pour les moteurs, pris sur **son alimentation
    (VB+ / VB−)**.
-9. La roue tourne → l'encodeur envoie des fronts → l'interruption compte les ticks → retour à l'étape 5.
+9. La roue tourne → l'encodeur envoie des fronts → le compteur matériel (PCNT) compte les ticks → retour à l'étape 5.
 
 **Chaque maillon de cette chaîne peut casser.** Le § 6 dit comment trouver lequel.
 
@@ -104,12 +105,12 @@ L'ordre compte : le minuteur passe en premier, pour que la fin du temps soit vue
 |---|---|---|---|---|
 | `main.cpp` | orchestre | Appelle chaque module dans l'ordre, affiche l'état chaque seconde | — | `[MAIN]` |
 | `config.h` | réglages | Toutes les constantes | — | — |
-| `motor_driver.*` | bas niveau | Transforme « +50 % » en signaux PWM pour le MDD3A | GPIO 32, 33, 19, 18 | — |
-| `encoders.*` | capteur | Compte les ticks de chaque roue | GPIO 25, 26, 5, 17 | — |
-| `sensors.*` | capteur | 2 ultrasons avant (gauche, droit) | GPIO 21 (TRIG commun), 2, 15 | `[SENS]` |
+| `motor_driver.*` | bas niveau | Transforme « +50 % » en signaux PWM pour le MDD3A | GPIO 27, 26, 16, 17 | — |
+| `encoders.*` | capteur | Compte les ticks de chaque roue | GPIO 33, 32, 19, 18 | — |
+| `sensors.*` | capteur | 2 ultrasons avant (gauche, droit) | GPIO 25 / 35 (G), 5 / 4 (D) | `[SENS]` |
 | `safety.*` | sécurité | Dernier contrôle avant les moteurs | — | `[SAFE]` |
-| `match_timer.*` | temps | Départ (commande `go`), 5 s d'attente, arrêt à 14,5 s | — (console) | `[TIME]` |
-| `side.*` | réglage match | Lit l'interrupteur de côté gauche / droite | GPIO 27 | `[COTE]` |
+| `match_timer.*` | temps | Départ et côté (commande `go g` / `go d`), 5 s d'attente, arrêt à 14,5 s | — (console) | `[TIME]` |
+| `side.*` | réglage match | Garde le côté GAUCHE / DROITE donné par la commande de départ | — | `[COTE]` |
 | `motion.*` | mouvement | Fait avancer ou tourner de façon mesurée, suit la position | — | `[MOT]` |
 | `mission.*` | stratégie | Déroule les étapes de la mission choisie | — | `[MISS]` |
 | `state_machine.*` | décision | Choisit l'état du PAMI (attente, mission, évitement…) | — | `[FSM]` |
@@ -131,7 +132,7 @@ L'ordre compte : le minuteur passe en premier, pour que la fin du temps soit vue
   - `tours/s` : santé de la boucle (doit rester au-dessus de 1 000) ;
   - `etat` : l'état de la machine à états ;
   - `t` : le temps depuis le départ ;
-  - `cote` : le côté de départ lu sur l'interrupteur (GAUCHE ou DROITE) ;
+  - `cote` : le côté donné par la commande de départ (GAUCHE ou DROITE ; `?` avant le départ) ;
   - `US G / D` : la distance filtrée vue par chaque ultrason (2000 = rien dans la portée,
     0 = pas encore mesuré) ;
   - `ticks G / D` : les compteurs des encodeurs.
@@ -175,8 +176,8 @@ Les constantes qui changent le plus souvent le comportement :
 | 0 | PWM | recule |
 | 0 | 0 | freine |
 
-- Roue gauche : A = GPIO 32 (M1A), B = GPIO 33 (M1B). Roue droite : A = GPIO 19 (M2A), B = GPIO 18 (M2B)
-  (PCB 2026 5EO, D015).
+- Roue gauche : A = GPIO 27 (M1_IN1), B = GPIO 26 (M1_IN2). Roue droite : A = GPIO 16 (M2_IN1),
+  B = GPIO 17 (M2_IN2) (brochage du 25/11/2026, D018).
 - La PWM : le signal est haut pendant une partie de chaque cycle de 50 µs (20 kHz). +50 % = haut la
   moitié du temps. Le moteur « voit » en moyenne la moitié de la tension d'alimentation.
 - Avant d'envoyer, le module inverse le sens si `MOTOR_*_INVERTED` est vrai, et limite à
@@ -200,15 +201,25 @@ Les constantes qui changent le plus souvent le comportement :
 
 | Fonction | Ce qu'elle fait |
 |---|---|
-| `begin()` | Configure les 4 broches et attache une interruption à chaque front (montant et descendant) de la voie A |
-| `read(gauche, droite)` | Copie les deux compteurs au même instant (section critique) |
+| `begin()` | Configure les deux compteurs matériels (PCNT) et un minuteur qui ramasse leurs valeurs toutes les 10 ms |
+| `read(gauche, droite)` | Ramasse les deux compteurs et les copie au même instant (section critique) |
 
 **Comment ça marche** :
 - Chaque encodeur a deux sorties, A et B, décalées d'un quart de période (« quadrature »).
-- À chaque front de A, l'interruption (`onLeftA()` / `onRightA()`) lit A et B :
+- Le comptage est fait par le **compteur matériel de l'ESP32 (PCNT)**, un par roue (D022). À chaque
+  front de A, le circuit lit lui-même B, sans aucun retard :
   - A et B au même niveau → +1 ;
   - A et B différents → −1 ;
   - `ENCODER_*_INVERTED` échange ces deux cas.
+- Pourquoi plus d'interruptions : moteurs alimentés, des parasites très courts arrivaient sur les fils
+  des encodeurs, et une interruption un peu en retard (Wi-Fi) lisait B trop tard. À 350 mm/s, une roue
+  tournait 32 % plus vite que l'autre alors que les encodeurs les annonçaient égales (T021).
+- **Filtre anti-parasites** : le PCNT ignore les impulsions plus courtes que `ENCODER_GLITCH_FILTER_NS`
+  (5 µs). Un vrai front arrive au plus vite toutes les 278 µs à 350 mm/s.
+- Le PCNT compte sur 16 bits (de −30 000 à +30 000, puis il repart de 0). Toutes les 10 ms, un minuteur
+  de l'ESP32 ajoute ce qu'il a compté à un total sur 32 bits (`collect()`). Entre deux ramassages, une roue
+  fait au plus quelques dizaines de ticks : un saut de plus de 15 000 veut dire que le compteur est
+  reparti de 0, et on le corrige.
 - 960 impulsions par tour de roue, 2 fronts comptés → **1 920 ticks par tour**.
   1 tick = π × 60 / 1920 ≈ **0,098 mm**.
 - Les compteurs partent de 0 à l'allumage et ne sont jamais remis à zéro : `motion` travaille avec des
@@ -222,6 +233,9 @@ Les constantes qui changent le plus souvent le comportement :
 - **La roue gauche fait bouger `ticks D`** → encodeurs croisés : échanger les fils. Vécu le 13/10.
 - **Les deux compteurs ne font que monter, même sans mouvement** → A et B reçoivent le même signal
   (ils se touchent, ou flottent ensemble).
+- **À grande vitesse, le PAMI dérive alors que l'odométrie croit aller droit, et une roue demande
+  beaucoup plus de PWM que l'autre même en l'air** → comptage faux, moteurs alimentés (T018 à T021).
+  Vérifier avec une vidéo des roues sur cales : à vitesse annoncée égale, elles doivent tourner pareil.
 
 ### 4.5 `sensors.*` : les deux ultrasons
 **Rôle** : mesurer la distance devant, avec deux HC-SR04 à l'avant, un à gauche et un à droite (D012).
@@ -234,9 +248,10 @@ Les constantes qui changent le plus souvent le comportement :
 | `lastRawMeasure(id)` | Détail de la dernière mesure, pour le banc `test_ultrason` |
 
 **Les ultrasons, étape par étape** :
-1. **Les deux capteurs émettent ensemble** : le PCB relie leurs TRIG à la même broche, GPIO 21 (D015).
+1. **Les deux capteurs émettent ensemble** : chacun a son TRIG (GPIO 25 à gauche, 5 à droite, D018),
+   mais le firmware les déclenche en même temps, comme du temps du TRIG commun (D015).
    Dès que 60 ms sont passées depuis la dernière émission **et** que les deux ECHO sont au repos (état
-   bas), `trigger()` envoie une impulsion de 10 µs sur GPIO 21. C'est la seule attente du programme.
+   bas), `trigger()` envoie une impulsion de 10 µs sur les deux TRIG. C'est la seule attente du programme.
    Chaque capteur mesure donc environ 16 fois par seconde. Si un ECHO reste haut plus de 120 ms
    (capteur bloqué), on déclenche quand même : l'autre capteur continue de mesurer, et le capteur
    bloqué est déclaré en panne au bout de 1 s.
@@ -245,7 +260,7 @@ Les constantes qui changent le plus souvent le comportement :
    proche : le PAMI s'arrêterait sans raison. À vérifier au banc `test_ultrason` (protocole 6).
 2. Le HC-SR04 envoie un « bip » ultrason et passe ECHO à l'état haut. ECHO redescend quand l'écho
    revient (ou après environ 58 ms s'il ne revient pas).
-3. Une interruption par capteur (`onLeftEcho()` sur GPIO 2, `onRightEcho()` sur GPIO 15) note l'heure
+3. Une interruption par capteur (`onLeftEcho()` sur GPIO 35, `onRightEcho()` sur GPIO 4) note l'heure
    de la montée, puis calcule la durée à la descente.
 4. `collectEcho()` convertit la durée en distance : durée × 0,1715 mm/µs (le son fait 343 m/s,
    aller et retour). Plus de 12 000 µs → 2000 mm (« rien »).
@@ -262,8 +277,8 @@ Les constantes qui changent le plus souvent le comportement :
 Au démarrage, chaque distance vaut 0 (« obstacle ») tant qu'aucune mesure n'est arrivée.
 
 **Si ça ne marche pas** :
-- **`[SENS] PANNE ultrason droit` au démarrage** → pas d'écho reçu sur GPIO 15 : alimentation 5 V du
-  module, connecteur, capteur. **Les deux en panne** → plutôt le TRIG commun (GPIO 21) ou
+- **`[SENS] PANNE ultrason droit` au démarrage** → pas d'écho reçu sur GPIO 4 : alimentation 5 V du
+  module, connecteur, TRIG et ECHO inversés, pont diviseur, capteur. **Les deux en panne** → plutôt
   l'alimentation des ultrasons. Le banc `test_ultrason`, touche `r`, teste chaque capteur sans notre code.
 - **`US G` ou `US D` ne suit pas la main** → le module ne détecte pas d'écho, ou il voit le sol ou la table.
 - **`[SAFE] US G : obstacle devant` sans obstacle** → ce capteur est penché vers le sol, ou trop bas.
@@ -307,9 +322,11 @@ changement, pour chaque capteur.
 | `isOver()` | 14,5 s sont passées. **Reste vrai pour toujours** |
 | `elapsedMs()` | (renvoie le temps depuis le départ) |
 
-**La commande de départ** (`logic/start_command.h`, classe `StartCommandDetector`, D013) :
-- on tape `go` puis Entrée dans le moniteur, Wi-Fi (`pio device monitor -e esp32dev_wifi`) ou USB ;
-- majuscules et espaces ne comptent pas (`GO` marche aussi) ; tout autre mot est refusé ;
+**La commande de départ** (`logic/start_command.h`, classe `StartCommandDetector`, D013, D020) :
+- on tape `go g` (PAMI GAUCHE) ou `go d` (PAMI DROITE) puis Entrée dans le moniteur, Wi-Fi
+  (`pio device monitor -e esp32dev_wifi`) ou USB. La commande donne le départ **et** le côté ;
+- `go` seul est refusé (message « Il manque le cote ») : le côté doit toujours être choisi exprès ;
+- majuscules et espaces ne comptent pas (`GO G`, `gog` marchent aussi) ; tout autre mot est refusé ;
 - un mot plutôt qu'une touche : une touche frappée par erreur ne lance pas le PAMI ;
 - **un seul départ par allumage** ; le PAMI ne part jamais tout seul à l'allumage ;
 - ⚠ **profil labo seulement** : à Eurobot, ce départ est interdit (règlement général F.6).
@@ -317,20 +334,23 @@ changement, pour chaque capteur.
 **Les calculs de temps** (`logic/match_clock.h`) : `isMatchOver()` et `isInMovePhase()`, avec des
 soustractions (§ 1.1).
 
-**Logs** : `[TIME] Pret : tapez go puis Entree…`, `[TIME] DEPART !`, `[TIME] Mouvement autorise.`,
-`[TIME] FIN (14.5 s)`, `[TIME] Commande inconnue…`, `[TIME] Depart deja donne : commande ignoree.`
+**Logs** : `[TIME] Pret.` puis l'aide `Pour le depart, tapez go g…`, `[COTE] GAUCHE (bord a gauche,
+centre a droite)`, `[TIME] DEPART !`, `[TIME] Mouvement autorise.`, `[TIME] FIN (14.5 s)`,
+`[TIME] Il manque le cote`, `[TIME] Commande inconnue.`, `[TIME] Depart deja donne : commande ignoree.`
 
 **Si ça ne marche pas** : rien ne démarre → le moniteur est-il connecté au PAMI ? Avez-vous appuyé sur
 Entrée ? Le message `Commande inconnue` s'affiche-t-il (faute de frappe) ?
 
-### 4.8 `side.*` : départ à gauche ou à droite
-- `begin()` : lit l'interrupteur (GPIO 27, pull-down ; à câbler, il n'est pas sur le pinout du PCB). Ouvert = **GAUCHE**, fermé (relié au 3,3 V) =
-  **DROITE** (D014). Sans interrupteur, le PAMI part « à gauche ».
-- `update()` : relit toutes les 100 ms **jusqu'au départ**.
-- `lock()` : appelé par la machine à états au départ. Ensuite le côté ne change plus.
+### 4.8 `side.*` : PAMI gauche ou droite
+- Le sens (D017) : le PAMI est posé dans son écurie, tourné vers l'adversaire. **GAUCHE** = le bord de
+  la table est à sa gauche, donc le centre est à sa droite. **DROITE** = l'inverse. Ce n'est pas le
+  côté vu du public : l'écurie jaune avant, par exemple, est DROITE (tableau dans `docs/materiel.md`).
+- Plus d'interrupteur (D020) : `choose()` est appelé par `match_timer` quand la commande de départ
+  arrive (`go g` → GAUCHE, `go d` → DROITE). Seul le premier appel compte : le côté ne change plus.
+- `isChosen()` : vrai une fois le côté choisi. `current()` : le côté.
 - Le côté sert à deux choses : les trajets, écrits pour la gauche, sont mis en miroir pour la droite
   (`forSide()`, voir `mission.*`) ; le détour se fait vers le centre de la table (`logic/avoidance.h`).
-- **Logs** : `[COTE] Depart a GAUCHE`, `[COTE] Cote verrouille : GAUCHE`.
+- **Logs** : `[COTE] GAUCHE (bord a gauche, centre a droite)` au départ.
 
 ### 4.9 `motion.*` : avancer et tourner de façon mesurée
 **Rôle** : exécuter « avance de X mm » ou « tourne de X degrés » en régulant la vitesse de chaque roue
@@ -414,26 +434,33 @@ Repère : départ en (0, 0), regard vers +x, y positif à gauche, cap positif ve
 | `turnTo(cap)` | Se tourner vers un cap absolu |
 | `defend()` | Rester sur place, bras prêt |
 
-**Les missions** (`logic/missions.h`), écrites pour un départ à **gauche** de la table :
+**Les missions** (`logic/missions.h`), écrites pour un PAMI **GAUCHE** :
 | Mission | Étapes |
 |---|---|
 | `STRAIGHT_LINE` | aller en (500, 0) |
 | `ROTATION` | se tourner vers 90°, 180°, −90°, puis 0° (un tour complet) |
 | `SQUARE` | les 4 coins d'un carré de 200 mm, puis cap 0° |
-| `MOAT` | aller à la douve la plus proche → y rester, bras prêt (D014) |
+| `MOAT` | point de virage (1900, 0) → douve de son côté (2079, −219) → y rester, bras prêt (D017) |
 
-**La mission `MOAT`** (D014) :
-1. au départ, `nearestMoatIndex()` (`logic/nearest_moat.h`) choisit, parmi les 3 douves de `MOATS_MM`
-   (`config.h`), la plus proche du point de départ (0, 0) ;
-2. `fillMoatSteps()` prépare 2 étapes : `gotoPoint(douve)` puis `defend()` ;
-3. le PAMI s'arrête quand l'**odométrie** dit qu'il est à moins de 30 mm du point. Plus de capteurs de
+**La mission `MOAT`** (D017) : chaque PAMI va à **sa** douve, la douve diagonale de son côté. Deux PAMI
+ne visent donc jamais la même.
+1. Les points sont écrits dans `config.h` dans le **repère de la table** vu par le PAMI
+   (`docs/douves-coordonnees.md`) : x = avance depuis notre petit bord, y = distance au grand bord côté
+   écurie. Ce repère est le même pour les 4 écuries. Départ (provisoire) `START_POINT_MM` = (100, 210),
+   point de virage `MOAT_WAYPOINT_MM` = (2000, 210), douve `MOAT_NEAR_MM` = (2179, 429).
+2. `gotoTablePoint()` les convertit dans le repère de l'odométrie (départ en (0, 0)) pour un PAMI GAUCHE :
+   on retire le point de départ, et y change de signe, car pour GAUCHE le centre est à droite.
+3. `MOAT_STEPS` : tout droit jusqu'à (1900, 0), virage d'environ 51° vers le centre, environ 283 mm
+   jusqu'à la douve, puis `defend()`.
+4. Le PAMI s'arrête quand l'**odométrie** dit qu'il est à moins de 30 mm du point. Plus de capteurs de
    sol : trop de lignes sur la table pouvaient le tromper (D012). La précision vient donc de l'étalonnage
    (diamètre des roues, entraxe : banc `test_trajectoire`).
-Les positions de `MOATS_MM` sont **provisoires** tant que le plan de la table n'est pas relevé.
+Le trajet s'essaie au banc `test_parcours`, commande `d`. À 350 mm/s (D019), il dure environ 8,5 s, pour
+9,5 s de mouvement au labo (16 s à l'ancienne vitesse de 150 mm/s).
 
-**La droite est le miroir de la gauche** (`forSide()`) : y devient −y et les caps changent de signe
-(règle d'or n° 5). Le miroir ne change aucune distance depuis (0, 0) : la douve choisie est la même des
-deux côtés.
+**DROITE est le miroir de GAUCHE** (`forSide()`) : y devient −y et les caps changent de signe
+(règle d'or n° 5). Pour le PAMI DROITE, la douve est donc en (2079, 219) : le virage se fait vers la
+gauche, toujours vers le centre.
 
 **Comment une étape est jouée** (`logic/next_move.h`, fonction `decideNextMove()`) : on ne mémorise pas
 « où on en était ». À chaque fois, on regarde la position et la cible :
@@ -444,8 +471,7 @@ deux côtés.
 **C'est ce qui rend le contournement simple** : après un détour, le même calcul ramène le PAMI vers son
 point.
 
-**Logs** : `[MISS] Douve la plus proche : n. 1 (x = 600 mm, y = -200 mm, cote gauche)`,
-`[MISS] Debut : 2 etapes, depart a GAUCHE`, `[MISS] Etape terminee | x = … y = … cap = …`,
+**Logs** : `[MISS] Debut : 3 etapes, depart a GAUCHE`, `[MISS] Etape terminee | x = … y = … cap = …`,
 `[MISS] Mission terminee`, `[MISS] Arrive : on reste ici, bras pret`.
 
 **Si ça ne marche pas** :
@@ -454,7 +480,8 @@ point.
 - **Le PAMI va au mauvais endroit** → regarder les `x`, `y`, `cap` affichés : si l'odométrie croit être
   au bon endroit, c'est un réglage de `motion` (§ 4.9) ; sinon, c'est la mission dans `missions.h` ou
   `config.h`.
-- **Il part du mauvais côté (miroir inversé)** → l'interrupteur de côté : lire `cote` dans la ligne `[MAIN]`.
+- **Il part du mauvais côté (miroir inversé)** → la commande de départ : `go g` ou `go d` ? Lire `cote`
+  dans la ligne `[MAIN]`.
 
 ### 4.11 `state_machine.*` : la machine à états
 **Rôle** : décider ce que fait le PAMI à chaque instant. C'est le « cerveau ».
@@ -462,12 +489,12 @@ point.
 **Les états** (`logic/pami_state.h`) :
 | État | Le PAMI… | En sort quand… |
 |---|---|---|
-| `WAIT_START` | est allumé, immobile, attend le départ | la commande `go` est reçue → `WAIT_DELAY` |
+| `WAIT_START` | est allumé, immobile, attend le départ | la commande `go g` ou `go d` est reçue → `WAIT_DELAY` |
 | `WAIT_DELAY` | attend 5 s, immobile | 5 s passées → `MISSION` |
 | `MISSION` | joue sa mission | obstacle en ligne droite → `AVOID_STOP` ; étape « rester ici » → `DEFEND` |
-| `AVOID_STOP` | est arrêté devant un obstacle | l'obstacle part → `MISSION` ; toujours là après 1 s → `DETOUR` (3 fois au plus) |
-| `DETOUR` | fait un quart de tour vers le centre de la table (droite si départ à gauche, gauche si départ à droite), puis 200 mm de côté | détour fini → `MISSION`, qui vise de nouveau son point |
-| `DEFEND` | est immobile dans la douve, déploie le bras si un adversaire est à moins de 60 mm | — |
+| `AVOID_STOP` | est arrêté devant un obstacle | l'obstacle part → `MISSION` ; toujours là après 1,5 s → `DETOUR` (2 contournements par match au plus) |
+| `DETOUR` | contourne par le centre de la table (à droite pour un PAMI GAUCHE, à gauche pour un PAMI DROITE) : quart de tour, 200 mm de côté, quart de tour retour (parallèle à sa route), pause de 0,3 s, regard ; voie libre sur plus de 300 mm → il avance de 300 mm pour dépasser l'obstacle, sinon un pas de côté de plus (2 au plus). Logique dans `logic/detour.h` (D016) | obstacle dépassé → `MISSION`, qui vise de nouveau son point ; toujours bloqué, ou obstacle pendant une ligne droite → `AVOID_STOP` |
+| `DEFEND` | est immobile dans la douve ; un adversaire à moins de 60 mm → le bras attaque (120°, 3 s, retour, D021) | — |
 | `END` | est arrêté pour toujours (14,5 s) | — |
 | `FAULT` | est arrêté pour toujours (un ultrason en panne ou une roue bloquée) | redémarrage de la carte |
 
@@ -478,7 +505,9 @@ point.
 **Un obstacle ne compte que si le PAMI avance vers lui** (`stopIfObstacle()`) : pendant une rotation sur
 place, on continue.
 
-**Logs** : `[FSM] WAIT_START -> WAIT_DELAY`, `[FSM] Detour 1 par la droite (vers le centre)`…
+**Logs** : `[FSM] WAIT_START -> WAIT_DELAY`, `[FSM] Contournement 1 par la droite (vers le centre)`,
+`[FSM] Contournement : pas de cote (200 mm)`, `[FSM] Contournement : voie libre (2000 mm), on depasse l'obstacle (300 mm)`,
+`[FSM] Contournement reussi : reprise de la mission`…
 
 **Si ça ne marche pas** : lire la suite des lignes `[FSM]`. Elles racontent exactement ce que le PAMI a
 décidé, et dans quel ordre.
@@ -490,14 +519,20 @@ décidé, et dans quel ordre.
 | Fonction | Ce qu'elle fait |
 |---|---|
 | `begin()` | Pas de signal : le servo ne bouge pas avant la défense |
-| `retract()` / `deploy()` | Bras replié (0°) / déployé (90°). **Seulement entre 5 s et 14,5 s** |
+| `retract()` | Bras en position de départ (0°), à l'arrivée dans la douve. **Seulement entre 5 s et 14,5 s** |
+| `defend(adversaireProche, nowMs)` | Appelé à chaque tour en `DEFEND` : attaque à 120°, tenue 3 s, retour à 0°, puis prêt pour une nouvelle attaque (`logic/arm_attack.h`, D021) |
+| `isAttacking()` | Vrai pendant une attaque (bras à 120°) |
 | `release()` | Coupe le signal pour toujours : le bras ne bouge plus |
 | `update()` | Coupe le signal dès la fin du temps, même si la machine à états l'oubliait |
 
 **Comment ça marche** : un servo attend une impulsion toutes les 20 ms. Sa largeur donne l'angle :
-500 µs = 0°, 2400 µs = 180°.
+500 µs = 0°, 2400 µs = 180° (calcul dans `logic/servo_pulse.h`, partagé avec le banc `test_bras`).
+La séquence d'attaque (`logic/arm_attack.h`) compte le temps avec `millis()`, sans attendre : prête →
+attaque (3 s) → retour (0,5 s laissées au servo) → prête. Une attaque commencée va au bout.
+⚠ Règles 2027, E.4 : l'attaque ne compte que si le bras touche l'adversaire **à la fin du match** (D021).
 
-**Logs** : `[ARM] Bras deploye.`, `[ARM] Servo coupe.` (s'affiche à chaque fin de match, même sans servo).
+**Logs** : `[ARM] Attaque 1 : bras a 120 deg pendant 3.0 s`, `[ARM] Retour a 0 deg`,
+`[ARM] Pret pour une nouvelle attaque`, `[ARM] Servo coupe (bras au repos).` (à chaque fin de match).
 
 ## 5. Le dossier `logic/` en un coup d'œil
 Calculs purs, sans matériel, testables sur PC.
@@ -507,7 +542,7 @@ Calculs purs, sans matériel, testables sur PC.
 | `pami_state.h` | Liste des états et leurs noms pour les logs | `state_machine`, `main` |
 | `wheel_command.h` | `WheelCommand` : pourcentage gauche et droit | `motion`, `safety` |
 | `match_clock.h` | `isMatchOver()`, `isInMovePhase()`, `elapsedSinceMs()` | `match_timer` |
-| `start_command.h` | `StartCommandDetector` : reconnaît « go » + Entrée, un seul départ | `match_timer` |
+| `start_command.h` | `StartCommandDetector` : reconnaît « go g » / « go d » + Entrée, donne le côté, un seul départ | `match_timer` |
 | `median3.h` | Médiane de 3 valeurs | `sensors` |
 | `rise_filter.h` | `RiseFilter` : une distance qui s'allonge d'un coup doit être confirmée | `sensors` |
 | `safety_filter.h` | `isObstacleAhead()`, `isTurnInPlace()`, `filterCommand()` | `safety` |
@@ -515,10 +550,12 @@ Calculs purs, sans matériel, testables sur PC.
 | `speed_controller.h` | `SpeedController` : vitesse voulue → PWM | `motion` |
 | `odometry.*` | `Odometry` : position (x, y, cap) ; `normalizeDeg()` | `motion`, `next_move` |
 | `mission_step.h` | Types d'étapes, côté de départ, miroir `forSide()` | `mission` |
-| `missions.h` | Les 4 missions, écrites pour un départ à gauche ; `fillMoatSteps()` | `mission` |
-| `nearest_moat.h` | `nearestMoatIndex()` : la douve la plus proche | `mission` |
+| `missions.h` | Les 4 missions, écrites pour un PAMI GAUCHE ; `gotoTablePoint()` (repère de la table → odométrie) | `mission`, banc `test_parcours` |
 | `next_move.h` | `decideNextMove()` : DONE, TURN ou DRIVE | `mission` |
 | `avoidance.h` | `chooseDetourSide()` : côté du détour, vers le centre de la table | `state_machine` |
+| `detour.h` | `Detour` : le contournement pas à pas (quart de tour, pas de côté, retour, regard, dépassement) | `state_machine`, banc `test_parcours` |
+| `arm_attack.h` | `ArmAttack` : séquence du bras (attaque 120°, tenue 3 s, retour, prêt) | `arm`, banc `test_bras` |
+| `servo_pulse.h` | `servoDutyForAngle()` : angle du servo → rapport cyclique PWM | `arm`, banc `test_bras` |
 
 ## 6. Trouver un bug soi-même
 
@@ -545,7 +582,7 @@ de `safety` ou de la machine à états.
 | Ce que tu vois | Module à regarder | Première vérification |
 |---|---|---|
 | Rien ne s'affiche au moniteur | — | `pio device monitor`, appui sur EN, `waiting for download` = BOOT enfoncé |
-| Reste en `WAIT_START` | `match_timer` (§ 4.7) | Moniteur connecté ? `go` puis Entrée ? Message `Commande inconnue` ? |
+| Reste en `WAIT_START` | `match_timer` (§ 4.7) | Moniteur connecté ? `go g` ou `go d` puis Entrée ? Message `Il manque le cote` ou `Commande inconnue` ? |
 | `FAULT` environ 1 s après l'allumage, `[SENS] PANNE ultrason` | `sensors` (§ 4.5) | Alim 5 V du HC-SR04, masse commune, pont sur ECHO |
 | `[MOT] PANNE` au début d'un mouvement | `motion` (§ 4.9) | Ticks avant la panne : 0 → moteurs non alimentés ; à l'envers → encodeur inversé ou croisé |
 | PWM affichée mais roues immobiles, LED du MDD3A éteintes | `motor_driver` (§ 4.3) | 5V0 ↔ GND du MDD3A : 5 V ? VB+ ↔ VB− : 6 V ? |

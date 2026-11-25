@@ -26,6 +26,8 @@ Phase actuelle : développement du PAMI (petit robot secondaire). Le robot princ
 ## Carte du projet (ne lis ces fichiers que quand la tâche en a besoin)
 - `docs/regles-jeu-2027.md` — règles du jeu 2027. Version BÊTA 0.4 : les points ne sont pas encore fixés.
 - `docs/reglement-general.md` — contraintes techniques, déroulement des matchs, pénalités.
+- `docs/douves-coordonnees.md` — positions des douves, des écuries et des obstacles (plan G.1, règlement 1.0),
+  repère du PAMI, sens de l'interrupteur gauche / droite.
 - `docs/pdf/` — les PDF officiels, à consulter pour une formulation exacte.
 - `docs/materiel.md` — inventaire, pièces manquantes, brochage de l'ESP32 (source de vérité pour les broches).
 - `docs/decisions.md` — journal des décisions techniques.

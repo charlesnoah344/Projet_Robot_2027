@@ -57,7 +57,7 @@ Le PC n'a plus internet tant qu'il y est connecté : c'est normal.
 | Voir les messages sans fil | `pio device monitor -e esp32dev_wifi` (Ctrl+C pour quitter) |
 | Un banc de test sans fil | `pio run -e test_odometrie_wifi -t upload`, puis `pio device monitor -e test_odometrie_wifi` |
 
-- **Le téléversement n'est accepté que PAMI immobile** : avant la commande de départ `go`, ou
+- **Le téléversement n'est accepté que PAMI immobile** : avant la commande de départ (`go g` / `go d`), ou
   après la fin (14,5 s) ; dans un banc, hors essai. Sinon PlatformIO affiche
   `No response from the ESP` : attendez l'arrêt, puis recommencez.
 - À la connexion, le moniteur affiche d'abord les messages gardés en mémoire, puis la suite en direct.
@@ -70,11 +70,11 @@ Le PC n'a plus internet tant qu'il y est connecté : c'est normal.
 - **Avant un match Eurobot** : `WIFI_ON_DURING_MATCH = false` dans `config.h` (règlement général F.6).
 
 ## 3. Câbler
-> **Depuis le PCB (D012, puis « Test PCB 2026 5EO », D015), les signaux sont câblés sur la carte.** Le tableau de câblage ci-dessous
-> décrit l'ancien montage sur plaque d'essai : ses broches ne sont plus à jour. Broches actuelles :
-> `docs/materiel.md`. Les capteurs IR, le bouton de départ et l'interrupteur de couleur n'existent plus ;
-> il y a 2 ultrasons (gauche, droit, TRIG commun) et un interrupteur de côté gauche / droite, à câbler
-> entre GPIO 27 et 3,3 V (il n'est pas sur le pinout du PCB).
+> **Depuis le PCB (D012, D015, puis le brochage du 25/11/2026, D018), les signaux sont câblés sur la carte.**
+> Le tableau de câblage ci-dessous décrit l'ancien montage sur plaque d'essai : ses broches ne sont plus
+> à jour. Broches actuelles : `docs/materiel.md`. Les capteurs IR, le bouton de départ, l'interrupteur de
+> couleur et l'interrupteur de côté n'existent plus ; il y a 2 ultrasons (gauche, droit, un TRIG chacun,
+> pont diviseur sur chaque ECHO). Le côté se choisit avec la commande de départ (`go g` / `go d`, D020).
 
 **Règle n° 1 : on câble hors tension (USB débranché, alimentation de labo éteinte), et on vérifie
 avant d'allumer.**
@@ -165,17 +165,16 @@ Notez ces mesures dans `docs/journal-tests.md`.
 Ordre des étapes et ce qu'il faut vérifier à chacune : `docs/plan-logiciel-pami.md`, § 6 et § 9.
 
 **Test de l'étape A** (PAMI sur cales, moniteur Wi-Fi ou USB ouvert, D013) :
-- [ ] Au démarrage : « Profil LABO (D007) », puis « Pret : tapez go puis Entree ».
-- [ ] Pendant 30 s sans rien taper, l'état reste `WAIT_START`.
-- [ ] Basculer l'interrupteur de côté affiche `[COTE] Depart a GAUCHE` / `DROITE` (D014).
+- [ ] Au démarrage : « Profil LABO (D007) », puis « Pret. » et l'aide « Pour le depart, tapez go g… ».
+- [ ] Pendant 30 s sans rien taper, l'état reste `WAIT_START`, `cote ?` dans la ligne `[MAIN]`.
 - [ ] `g` puis Entrée, puis `stop` puis Entrée : « Commande inconnue », aucun départ.
-- [ ] `go` puis Entrée affiche `DEPART !`, `Cote verrouille` et `WAIT_DELAY`. Lancez le chronomètre
-      en même temps.
+- [ ] `go` seul puis Entrée : « Il manque le cote », aucun départ (D020).
+- [ ] `go g` puis Entrée affiche `[COTE] GAUCHE (bord a gauche, centre a droite)`, `DEPART !` et
+      `WAIT_DELAY`. Lancez le chronomètre en même temps.
 - [ ] `MISSION` apparaît à 5,0 s (± 0,1 s) au chronomètre.
-- [ ] Un 2ᵉ `go` affiche « Depart deja donne : commande ignoree ».
-- [ ] Basculer l'interrupteur après le départ ne change plus le côté.
+- [ ] Un `go d` après le départ affiche « Depart deja donne : commande ignoree » : le côté reste GAUCHE.
 - [ ] `FIN` et `END` apparaissent à 14,5 s (± 0,1 s).
-- [ ] Redémarrage (appui sur EN) : aucun départ sans nouvelle commande `go`.
+- [ ] Redémarrage (appui sur EN) : aucun départ sans nouvelle commande. Refaire avec `go d` : `cote DROITE`.
 - [ ] Toujours au moins 1000 tours/s. Refaites le tout 3 fois.
 
 ## 6. Points d'attention sur la carte réelle

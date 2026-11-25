@@ -12,7 +12,7 @@ namespace sensors {
 namespace {
 
 // Tout ce qu'on sait d'un ultrason : sa broche ECHO, sa mesure en cours et son filtre.
-// Le TRIG est commun aux deux capteurs (PIN_US_TRIG, D015).
+// Chaque capteur a son TRIG (D018), mais on les déclenche toujours ensemble (voir trigger()).
 struct Ultrasound {
   Ultrasound(uint8_t echo, const char* displayName, const char* displayShortName)
       : echoPin(echo), name(displayName), shortName(displayShortName) {}
@@ -79,13 +79,19 @@ void IRAM_ATTR onRightEcho() {
   handleEchoChange(ultrasounds[static_cast<uint8_t>(UltrasoundId::RIGHT)]);
 }
 
-// Une impulsion sur le TRIG commun : les deux capteurs émettent en même temps.
+// Une impulsion sur les deux TRIG en même temps : les deux capteurs émettent ensemble.
+// Pourquoi ensemble, alors que chacun a son TRIG depuis D018 : c'est le fonctionnement déjà écrit et
+// réfléchi avec le TRIG commun (D015), et chaque capteur garde une mesure toutes les 60 ms.
+// Si le protocole 6 de test_ultrason montre qu'un capteur entend l'autre, on les fera émettre
+// chacun leur tour.
 void trigger() {
-  digitalWrite(PIN_US_TRIG, HIGH);
+  digitalWrite(PIN_US_LEFT_TRIG, HIGH);
+  digitalWrite(PIN_US_RIGHT_TRIG, HIGH);
   // 10 µs d'attente active : c'est la seule attente du programme, 1000 fois plus courte qu'un tour
   // de boucle qui compte. Elle ne gêne pas l'évitement.
   delayMicroseconds(US_TRIGGER_PULSE_US);
-  digitalWrite(PIN_US_TRIG, LOW);
+  digitalWrite(PIN_US_LEFT_TRIG, LOW);
+  digitalWrite(PIN_US_RIGHT_TRIG, LOW);
 }
 
 uint16_t echoToMm(uint32_t durationUs) {
@@ -138,7 +144,7 @@ void checkFault(Ultrasound& sensor, uint32_t nowMs) {
   }
 }
 
-// Les deux capteurs partagent leur TRIG (D015) : ils émettent ensemble, au plus toutes les
+// Les deux capteurs émettent ensemble (voir trigger()), au plus toutes les
 // US_PERIOD_MS, pour que le son précédent et ses échos aient disparu.
 // On attend aussi que les deux mesures précédentes soient finies (les deux ECHO à l'état bas) :
 // sinon on réessaie au tour de boucle suivant. Mais un ECHO bloqué à l'état haut ne doit pas
@@ -165,8 +171,10 @@ void triggerBoth(uint32_t nowMs) {
 
 void begin() {
   const uint32_t nowMs = millis();
-  pinMode(PIN_US_TRIG, OUTPUT);
-  digitalWrite(PIN_US_TRIG, LOW);
+  pinMode(PIN_US_LEFT_TRIG, OUTPUT);
+  digitalWrite(PIN_US_LEFT_TRIG, LOW);
+  pinMode(PIN_US_RIGHT_TRIG, OUTPUT);
+  digitalWrite(PIN_US_RIGHT_TRIG, LOW);
   for (Ultrasound& sensor : ultrasounds) {
     pinMode(sensor.echoPin, INPUT);  // ECHO passe par un pont diviseur 5 V -> 3,3 V
     sensor.lastValidMeasureMs = nowMs;

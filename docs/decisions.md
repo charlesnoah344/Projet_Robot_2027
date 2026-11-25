@@ -357,7 +357,9 @@
 
 ### D014 — Côté de départ gauche/droite, douve la plus proche par l'odométrie, détour vers le centre
 - **Date** : 18/11/2026
-- **Statut** : adoptée
+- **Statut** : adoptée, en partie remplacée par D017 (douve assignée au lieu de la plus proche, vraies
+  positions des douves, nouveau sens de l'interrupteur) et par D020 (plus d'interrupteur : le côté est
+  choisi avec la commande de départ). Le miroir et le détour vers le centre restent valables.
 - **Contexte** :
   - le PAMI peut partir du côté gauche ou du côté droit de la table (vu du public, règles 2027 D.2) ;
   - son but est d'atteindre une douve du château adverse (règles 2027, E.4) ;
@@ -389,7 +391,7 @@
 
 ### D015 — PCB « Test PCB 2026 5EO » : nouveau brochage, TRIG commun aux deux ultrasons
 - **Date** : 21/11/2026
-- **Statut** : adoptée
+- **Statut** : remplacée par D018 (brochage du 25/11/2026, un TRIG par ultrason)
 - **Contexte** :
   - l'équipe a un nouveau PCB, « Test PCB 2026 5EO ». Son pinout et le programme de test de l'équipe
     donnent de nouvelles broches pour les moteurs, les encodeurs et les ultrasons ;
@@ -423,3 +425,263 @@
   - le sens des moteurs et des encodeurs n'est pas connu pour ce PCB : à revérifier avec les bancs
     `test_moteurs` et `test_odometrie` (`MOTOR_*_INVERTED`, `ENCODER_*_INVERTED`) ;
   - le programme de test `Controller/` n'est plus dans le dépôt : seuls le pinout et cette entrée font foi.
+
+### D016 — Évitement prudent : attendre, contourner par le centre, dépasser, puis reprendre la mission
+- **Date** : 24/11/2026
+- **Statut** : adoptée
+- **Contexte** :
+  - avec le banc `test_parcours`, face à une boîte, le PAMI faisait son détour (quart de tour vers le
+    centre, 200 mm de côté) **puis s'arrêtait** au lieu de reprendre sa mission ;
+  - en cause : juste après le pas de côté, il visait aussitôt son point en diagonale, vers le coin de
+    l'obstacle qu'il n'avait pas dépassé. Il y avait donc un nouvel arrêt, de nouveaux détours tournant
+    tous dans le même sens, puis une attente sur place (3 détours au plus) ;
+  - le match utilisait exactement la même stratégie ;
+  - l'équipe veut une stratégie **prudente**, qui passe par le centre puis reprend la mission.
+- **Options envisagées** :
+  - attendre plus longtemps avant le détour : utile face à un obstacle qui bouge (PAMI adverse, robot
+    qui passe), inutile face à un obstacle fixe (pierre de 320 × 110 mm, robot arrêté). Et chaque seconde
+    coûte : 14,2 s de mouvement pour un PAMI à Eurobot, 9,5 s au labo ;
+  - viser un point de passage en diagonale, à côté de l'obstacle : rapide, mais la diagonale frôle le
+    coin de l'obstacle ;
+  - contourner en mouvements séparés, en regardant avant de repartir : plus long, mais le PAMI ne
+    repart vers son point qu'après avoir vérifié qu'il a dépassé l'obstacle.
+- **Décision** :
+  1. arrêt à 150 mm (inchangé) ;
+  2. attente de **1,5 s** (au lieu de 1 s) : un obstacle qui s'en va ne déclenche pas de contournement ;
+  3. contournement par le centre (`logic/detour.h`) : quart de tour vers le centre, 200 mm de côté,
+     quart de tour retour (parallèle à la route), pause de 0,3 s, puis regard. Voie libre sur plus de
+     300 mm : le PAMI avance de 300 mm pour dépasser l'obstacle, puis reprend sa mission (il vise de
+     nouveau son point). Sinon : un pas de côté de plus, **2 au plus** (400 mm de décalage) ;
+  4. obstacle pendant une ligne droite du contournement : arrêt, retour à l'étape 2 ;
+  5. **2 contournements par match au plus** ; ensuite, le PAMI reste arrêté et repart dès que la voie se
+     libère. Il ne force jamais le passage.
+- **Pourquoi** :
+  - prudence : le PAMI n'avance jamais sans avoir regardé dans la direction où il va. Chaque ligne
+    droite reste surveillée par l'évitement (règle d'or n° 1) ; les rotations sur place restent permises ;
+  - le retour parallèle et le regard corrigent la cause du défaut : on ne recoupe plus vers l'obstacle ;
+  - la même classe `Detour` sert au match (`state_machine.cpp`) et au banc `test_parcours` : ce que l'on
+    voit au banc est ce que fera le PAMI en match. Elle est en logique pure, testée sur PC
+    (`test/test_detour`).
+- **Conséquences** :
+  - un contournement dure environ 7 s aux vitesses actuelles : un seul tient dans la phase PAMI ;
+  - `AVOID_WAIT_MS = 1500`, `AVOID_MAX_DETOURS = 2`, nouveaux `DETOUR_LOOK_MS = 300`,
+    `DETOUR_PASS_MM = 300`, `DETOUR_MAX_SIDESTEPS = 2` (provisoires, à régler d'après les essais) ;
+  - limite connue : le côté du contournement est fixé dans le repère du PAMI (D014). Il reste juste tant
+    que le PAMI ne s'est pas retourné de plus de 90° par rapport à son cap de départ.
+
+### D017 — Chaque PAMI va à la douve de son côté, positions tirées du plan de la table
+- **Date** : 24/11/2026
+- **Statut** : adoptée. Le sens GAUCHE / DROITE reste valable ; le côté vient maintenant de la
+  commande de départ (D020), et la vitesse a été relevée (D019)
+- **Contexte** :
+  - la mission `MOAT` choisissait au départ la douve la plus proche (D014), parmi 3 positions de test ;
+  - avec plusieurs PAMI, cette règle peut envoyer deux PAMI vers la même douve. Ils se gêneraient
+    (ultrasons, évitement), et une douve ne compte qu'une fois (5 points) ;
+  - l'équipe a relevé les positions sur le plan coté G.1 du règlement 1.0 (`docs/douves-coordonnees.md`,
+    ± 5 mm). Dans le repère du PAMI (x = avance depuis notre petit bord, y = distance au grand bord côté
+    écurie), les valeurs sont **les mêmes pour les 4 écuries** ;
+  - le même document montre que notre définition de l'interrupteur (« côté de la table vu du public »)
+    était fausse : l'écurie jaune avant, par exemple, a le bord de la table à la droite du PAMI.
+- **Décision** :
+  - **douve assignée** : chaque PAMI va à la douve diagonale de son côté (`MOAT_NEAR_MM` = (2179, 429)).
+    Le PAMI DROITE va à la douve de droite, le PAMI GAUCHE à celle de gauche. Plus de calcul de la plus
+    proche : `logic/nearest_moat.h` est supprimé ;
+  - trajet conseillé par le document : tout droit à y = 210 mm jusqu'au point de virage (2000, 210),
+    virage d'environ 51° vers le centre, puis environ 283 mm jusqu'au centre de la douve. Mission
+    `MOAT_STEPS` (`logic/missions.h`) : 2 étapes GOTO, puis DEFEND ;
+  - les points sont écrits dans le repère de la table (`TablePoint`, `config.h`). `gotoTablePoint()` les
+    convertit dans le repère de l'odométrie pour GAUCHE, puis `forSide()` fait le miroir pour DROITE ;
+  - départ **provisoire** : milieu de l'essieu en (100, 210) dans l'écurie, cap vers l'adversaire ;
+  - sens de l'interrupteur : GAUCHE = bord de la table à la gauche du PAMI, regard vers l'adversaire,
+    donc le centre est à sa droite. DROITE = l'inverse. Les valeurs du code (`StartSide`,
+    `chooseDetourSide`) ne changent pas, seuls les commentaires et les messages `[COTE]` changent ;
+  - la douve centrale et la douve éloignée restent dans `config.h` (`MOAT_CENTER_MM`, `MOAT_FAR_MM`),
+    non assignées, pour plus tard (robot principal) ;
+  - le banc `test_parcours` reçoit la commande `d`, qui joue exactement `MOAT_STEPS`.
+- **Pourquoi** :
+  - avec deux écuries par équipe et des interrupteurs opposés, les deux PAMI visent toujours deux
+    douves différentes : pas de gêne mutuelle, et deux douves comptées ;
+  - le couloir à y = 210 passe entre les carrières de bord (y ≤ 110) et nos remparts (y ≥ 305), et
+    évite la carrière centrale ;
+  - le virage vers la douve et le détour d'évitement vont du même côté, vers le centre : le plus grand
+    virage fait environ 51°, donc la limite de D014 (pas plus de 90° par rapport au cap de départ) est
+    respectée.
+- **Limites** :
+  - valable avec **un PAMI par écurie**. Deux PAMI dans la même écurie avec le même réglage iraient à
+    la même douve : il faudrait un réglage de plus (douve centrale ou éloignée) ;
+  - les PAMI adverses peuvent emprunter le même couloir en sens inverse, au même moment ;
+  - positions relevées sur le plan : à vérifier sur une vraie table (règlement 1.0, D.1). Notre résumé
+    `docs/regles-jeu-2027.md` est encore en bêta 0.4 : il est à mettre à jour avec la version 1.0.
+- **Conséquences** :
+  - **vitesse** : le trajet fait environ 2,2 m. À 150 mm/s, il dure environ 16 s sans obstacle. Or le PAMI
+    n'a que 14,2 s pour bouger à Eurobot (85,3 → 99,5 s) et 9,5 s au labo. À 300 mm/s, il faudrait
+    environ 9,5 s. Relever la vitesse est l'étape suivante : `test_pid` à refaire, distance de freinage
+    à mesurer (elle fixe le seuil d'arrêt de 150 mm), étalonnage à revérifier ;
+  - `ACTIVE_MISSION` reste `STRAIGHT_LINE` : le firmware de match exige les 2 ultrasons (GPIO 2 ne
+    répond pas, T012), et le trajet ne tient pas encore dans le temps. Le trajet s'essaie avec le banc
+    `test_parcours`, commande `d` ;
+  - `START_POINT_MM` est à corriger quand la place du PAMI dans l'écurie sera fixée.
+
+### D018 — Brochage du 25/11/2026 : un TRIG par ultrason, presque celui du premier PCB
+- **Date** : 25/11/2026
+- **Statut** : adoptée
+- **Contexte** :
+  - l'équipe change de brochage. Un premier brochage proposé (programme « Controller ») mettait les
+    TRIG des ultrasons sur GPIO 25 et 5, déjà utilisées par les voies A des encodeurs. Une broche ne
+    peut pas être à la fois une entrée d'encodeur et une sortie TRIG : comptage faux, et la sortie de
+    l'ESP32 forcerait contre celle de l'encodeur. L'équipe a donc donné un autre brochage ;
+  - il n'y a que deux ultrasons, gauche et droit.
+- **Décision** :
+  - moteurs : gauche IN1 (A) 27 / IN2 (B) 26, droit IN1 (A) 16 / IN2 (B) 17 ;
+  - encodeurs : gauche A 33 / B 32, droit A 19 / B 18 ;
+  - ultrasons : gauche TRIG 25 / ECHO 35, droit TRIG 14 / ECHO 12, puis **TRIG 5 / ECHO 4** (correction du
+    25/11 après T016 : rien ne revenait sur 14 / 12, qui est le connecteur du bas) (« Sensor 1 » et « Sensor 2 » du
+    programme de l'équipe) ;
+  - servo : 13 (inchangé). Plus d'interrupteur de côté (D020), plus d'I2C ;
+  - les deux ultrasons ont chacun leur TRIG, mais le firmware les fait **toujours émettre ensemble**,
+    comme avec le TRIG commun (D015).
+- **Pourquoi** :
+  - émettre ensemble garde le fonctionnement déjà écrit et réfléchi (D015) : une mesure toutes les
+    60 ms pour chaque capteur. Les faire émettre chacun leur tour diviserait par deux le nombre de
+    mesures de chacun (le choix du premier PCB, D012) ;
+  - un capteur peut entendre l'autre : le protocole 6 de `test_ultrason` le vérifie. Si c'est le cas,
+    on passera à l'émission chacun son tour ;
+  - le mode de référence de `test_ultrason` déclenche maintenant un seul capteur à la fois : il permet
+    de séparer un problème de capteur d'un problème d'écoute croisée.
+- **Conséquences** :
+  - sens des moteurs et des encodeurs à revérifier (`test_moteurs`, `test_odometrie`) : les réglages
+    `*_INVERTED` sont gardés, mais rien ne garantit qu'ils sont encore justes ;
+  - gauche / droite des ultrasons à vérifier : une main devant le capteur gauche seul doit faire réagir G ;
+  - pont diviseur 1 kΩ / 2 kΩ obligatoire sur chaque ECHO (ECHO sort du 5 V) ;
+  - le banc `test_parcours` choisit son ultrason dans `config.h` (`TEST_BENCH_PARCOURS_USE_LEFT_US`) ;
+  - broches libres pour un cordon de départ (Eurobot) : de préférence 14, 21, 22 ou 23.
+
+### D019 — Vitesse de croisière 350 mm/s pour atteindre la douve dans les 9,5 s du labo
+- **Date** : 25/11/2026
+- **Statut** : adoptée, PROVISOIRE (à valider avec `test_pid`, `test_trajectoire` et `test_parcours`)
+- **Contexte** :
+  - le trajet de la douve (D017) fait environ 2,2 m. À 150 mm/s, il dure environ 16 s, alors que le
+    profil labo ne laisse que 9,5 s de mouvement (5 s → 14,5 s) ;
+  - d'après `config.h`, les FIT0450 sous 6 V font environ 400 mm/s au sol, au maximum.
+- **Options envisagées** (durées estimées du trajet sans obstacle) :
+
+  | Vitesse | Accélération | Durée |
+  |---|---|---|
+  | 150 mm/s (avant) | 400 mm/s² | environ 16 s |
+  | 300 mm/s | 400 mm/s² | environ 9,5 s : aucune marge |
+  | **350 mm/s** | **500 mm/s²** | **environ 8,5 s** |
+  | 400 mm/s | 500 mm/s² | environ 7,7 s, mais au maximum des moteurs : plus de marge pour la régulation |
+
+- **Décision** :
+  - `DRIVE_SPEED_MM_S` 150 → **350**, `MOTION_ACCEL_MM_S2` 400 → **500**, `TURN_SPEED_MM_S` inchangé (90) ;
+  - `OBSTACLE_STOP_DISTANCE_MM` 150 → **200** : le temps que la médiane des mesures confirme
+    l'obstacle (jusqu'à environ 120 ms), le PAMI parcourt environ 40 mm, puis il glisse en freinant ;
+  - banc `test_pid` : jusqu'à 400 mm/s, escalier à 100, 200, 300 et 350 mm/s (avant : 50 à 200),
+    1 s par palier, limite au sol 1000 mm (avant : 800).
+- **Pourquoi** : 350 mm/s fait tenir le trajet dans le temps du labo avec environ 1 s de marge, sans
+  aller jusqu'à la limite des moteurs.
+- **Conséquences** :
+  - l'anticipation n'a été mesurée que jusqu'à 200 mm/s (T004, T005) : refaire l'escalier de `test_pid` ;
+  - le glissement à l'arrêt grandit avec la vitesse : refaire l'étalonnage avec `test_trajectoire` ;
+  - mesurer la vraie distance d'arrêt devant un obstacle (`test_parcours`) et régler le seuil d'après elle ;
+  - revers du seuil de 200 mm : un ultrason voit plus tôt ce qui est sur le côté. Les carrières le long
+    du bord sont à environ 70 mm de l'axe du capteur sur le trajet de la douve : à surveiller au sol ;
+  - au labo, un seul contournement (plusieurs secondes) suffit à rater la douve : c'est le temps
+    disponible qui l'impose, pas le code ;
+  - avec la batterie (plus de 6 V), les vitesses réelles changeront : à revérifier.
+
+### D020 — Le côté GAUCHE / DROITE est choisi avec la commande de départ
+- **Date** : 25/11/2026
+- **Statut** : adoptée — **profil labo seulement** (comme D013)
+- **Contexte** :
+  - l'équipe n'a pas d'interrupteur de côté sur le PAMI ;
+  - au labo, le départ se donne sans fil, par une commande (D013), ce que l'enseignant autorise.
+- **Décision** :
+  - `go g` : départ, PAMI GAUCHE (bord de table à sa gauche, centre à sa droite) ;
+  - `go d` : départ, PAMI DROITE ;
+  - `go` seul est **refusé**, avec un message qui rappelle les deux commandes ;
+  - majuscules et espaces ne comptent pas (`GO G`, `gog`) ; un seul départ par allumage, le côté ne
+    change plus ensuite ;
+  - le module `side` ne lit plus de broche : il garde le côté donné par la commande. Le détecteur de
+    commande (`logic/start_command.h`) reste en logique pure, testé sur PC (`test_match_timer`) ;
+  - le banc `test_parcours` choisit son côté avec `c g` ou `c d`.
+- **Pourquoi** :
+  - choisir le côté au moment même du départ évite d'oublier de le régler ;
+  - refuser `go` seul : un PAMI parti du mauvais côté tournerait vers le bord au lieu de sa douve, et
+    contournerait les obstacles vers le bord. Le côté doit toujours être choisi exprès.
+- **Conséquences** :
+  - à Eurobot, le départ sans fil est interdit (règlement général F.6) : il faudra un cordon de départ
+    ET une autre façon de donner le côté (interrupteur, cavalier, ou le robot principal) ;
+  - sans commande, rien ne bouge : le PAMI attend toujours son départ.
+
+### D021 — Attaque du bras : 120°, tenue 3 s, retour à 0°
+- **Date** : 25/11/2026
+- **Statut** : adoptée, à confirmer avec le règlement (voir Limites)
+- **Contexte** :
+  - l'équipe veut que le servo tourne de 120° pour attaquer le PAMI adverse, reste 3 s, puis revienne
+    à sa position de départ ;
+  - avant, le bras se déployait à 90° et restait déployé.
+- **Décision** :
+  - séquence en logique pure (`logic/arm_attack.h`, testée dans `test/test_arm_attack`) :
+    prêt → attaque (`ARM_ATTACK_DEG` = 120°, `ARM_ATTACK_HOLD_MS` = 3000) → retour (`ARM_REST_DEG` = 0°,
+    `ARM_RETURN_MS` = 500 laissés au servo) → prêt ;
+  - déclenchement inchangé : dans la douve (état DEFEND), objet vu à moins de `ARM_TRIGGER_DISTANCE_MM`
+    (60 mm). Une fois revenu, le bras attaque de nouveau si l'adversaire est toujours là ;
+  - l'attaque commencée va au bout, même si l'adversaire s'éloigne ;
+  - le calcul de l'impulsion du servo passe dans `logic/servo_pulse.h`, partagé par le match et le
+    nouveau banc `test_bras` ;
+  - inchangé : le bras ne bouge que pendant la période de mouvement, et le servo est coupé à la fin
+    (il reste alors où il est, sans force).
+- **Pourquoi** : la séquence demandée, écrite sans attente bloquante (règle d'or n° 4), et testable sur PC.
+- **Limites** :
+  - **règles 2027, E.4 (bêta 0.4)** : l'attaque ne compte que si l'actionneur **touche le PAMI adverse
+    à la fin du match**. Un bras revenu à 0° à la fin ne rapporte rien. Avec cette séquence, l'attaque
+    ne compte que si elle a lieu dans les 3 dernières secondes ;
+  - question pour la FAQ (www.eurobot.org/faq) : « Pour les points d'attaque d'un PAMI adverse, l'actionneur
+    doit-il être en contact avec le PAMI adverse au moment exact de la fin du match, ou suffit-il d'avoir
+    touché le PAMI adverse pendant la phase d'attaque ? » ;
+  - le règlement interdit d'endommager le PAMI adverse : à vérifier avec le vrai bras ;
+  - périmètre bras à 120° : ≤ 700 mm (règlement général F.7), à mesurer avec `test_bras`.
+
+### D022 — Encodeurs comptés par le compteur matériel de l'ESP32 (PCNT), avec filtre anti-parasites
+- **Date** : 25/11/2026
+- **Statut** : adoptée, **validée par T022** (les deux roues tournent pareil à 350 mm/s ; dérive au sol
+  identique à 100 et 350 mm/s)
+- **Contexte** :
+  - le PAMI dérivait vers la droite : 53 mm sur 800 mm à 100 mm/s, 340 mm à 350 mm/s (T020), alors
+    que l'odométrie croyait aller droit ;
+  - roues en l'air, à vitesse annoncée égale, une roue demandait 14 à 24 points de PWM de plus que
+    l'autre (T018, T021) ;
+  - vidéo des roues sur cales à 350 mm/s (T021) : la roue droite tournait **32 % plus vite** que la
+    gauche alors que les encodeurs les annonçaient égales. L'un comptait trop, l'autre pas assez ;
+  - échanger les voies A et B ne faisait que déplacer le défaut d'une roue à l'autre (T021). Moteurs
+    arrêtés, roues tournées à la main, le comptage était presque juste (T019) ;
+  - l'ancien code comptait par interruption : à chaque front de A, il lisait B pour connaître le sens.
+    Un parasite très court venu des moteurs, ou une interruption en retard (Wi-Fi), faisait compter un
+    tick en trop ou à l'envers.
+- **Options envisagées** :
+  - choisir la « bonne » voie pour l'interruption : écarté, aucune ne compte juste (T021) ;
+  - interruptions sur A et B (décodage x4 par logiciel) : toujours sensible au retard et aux parasites ;
+  - **compteur matériel PCNT** : un circuit de l'ESP32 fait le décodage lui-même, sans retard, avec un
+    filtre qui ignore les impulsions trop courtes.
+- **Décision** :
+  - `encoders.cpp` utilise les unités PCNT 0 (gauche) et 1 (droite), en décodage « x2 » identique à
+    l'ancien (fronts de A, sens donné par B) : toujours 1920 ticks par tour, les étalonnages et
+    `ENCODER_*_INVERTED` (T014) restent valables. Les fonctions `begin()` et `read()` ne changent pas ;
+  - filtre anti-parasites `ENCODER_GLITCH_FILTER_NS = 5000` (5 µs). Un vrai front arrive au plus vite
+    toutes les 278 µs à 350 mm/s ;
+  - le PCNT compte sur 16 bits (`ENCODER_PCNT_LIMIT_TICKS = 30000`) : un minuteur de l'ESP32 ajoute
+    toutes les 10 ms (`ENCODER_COLLECT_PERIOD_MS`) ce qu'il a compté à un total sur 32 bits, même si
+    personne n'appelle `read()` ;
+  - retour aux voies A / B du programme de l'équipe (l'échange de l'essai T021 est abandonné).
+- **Pourquoi** : la régulation de vitesse, la ligne droite et l'odométrie reposent entièrement sur les
+  ticks. Un comptage faux à grande vitesse rend tout le reste faux, et aucun réglage du régulateur ne
+  peut le corriger.
+- **Conséquences** :
+  - côté matériel, réduire les parasites à la source (`docs/materiel.md`) : 4,7 kΩ entre chaque fil
+    d'encodeur et le 3,3 V, 100 nF entre les bornes de chaque moteur, fils séparés et torsadés ;
+  - à vérifier : sens à la main, vidéo sur cales à 350 mm/s (les deux roues doivent tourner pareil),
+    puis dérive au sol à 100 et 350 mm/s ;
+  - il restera l'écart de 1,2 % de ticks par tour entre les roues (T019), à corriger par roue ;
+  - si le défaut persistait malgré le PCNT, la piste suivante serait la forme des signaux A / B
+    (déphasage réel, à voir à l'oscilloscope).

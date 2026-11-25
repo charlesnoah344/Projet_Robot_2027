@@ -24,7 +24,7 @@
 //   (banc test_odometrie, protocole 1).
 //
 // SÉCURITÉ
-// - Au démarrage, rien ne bouge. Mode AU SOL par défaut : chaque essai s'arrête après 800 mm.
+// - Au démarrage, rien ne bouge. Mode AU SOL par défaut : chaque essai s'arrête après 1000 mm.
 // - Premiers essais SUR CALES (touche k), roues en l'air.
 // - Au sol : BAU câblé obligatoire (règle d'or n° 2), 1,5 m dégagé devant.
 // - Pendant un essai, N'IMPORTE QUELLE touche = STOP.
@@ -33,7 +33,7 @@
 // COMMANDES : des lettres seulement (sur un clavier AZERTY, les chiffres demandent Maj)
 //   g / d / a : roue gauche seule, roue droite seule, les deux roues
 //   e : échelon      0 -> V pendant 3 s           (temps de montée, dépassement, erreur)
-//   s : escalier     50, 100, 150, 200 mm/s       (mesure l'anticipation de chaque roue)
+//   s : escalier     100, 200, 300, 350 mm/s      (mesure l'anticipation de chaque roue)
 //   c : constante    V pendant 8 s                (freiner la roue au doigt : l'intégrale compense)
 //   p / m (ou + / -) : V plus ou moins 25 mm/s     n : sens avant / arrière
 //   k : AU SOL / SUR CALES   v : courbes CSV   i : réglages   h : aide
@@ -53,7 +53,7 @@
 //   Le régulateur, lui, reçoit la mesure brute de chaque cycle, comme en match.
 //
 // PROTOCOLE
-//  1. Sur cales (k), « a » puis « e » : échelon à 150 mm/s. Puis « g » « e », et « d » « e ».
+//  1. Sur cales (k), « a » puis « e » : échelon à la vitesse de croisière (350 mm/s, D019). Puis « g » « e », et « d » « e ».
 //  2. Sur cales, « c » : freiner LÉGÈREMENT une roue au doigt. La correction monte et la vitesse
 //     revient vers la consigne ; au relâchement, petit dépassement puis retour. Ne pas bloquer la
 //     roue plus de 0,6 s : le banc coupe (c'est voulu).
@@ -68,7 +68,7 @@
 //     - erreur qui reste : augmenter SPEED_KI_PCT_PER_MM.
 //  6. « n » : refaire 1 en marche arrière, sur cales.
 //
-// CRITÈRES DE RÉUSSITE (au sol, échelon à 150 mm/s, chaque roue)
+// CRITÈRES DE RÉUSSITE (au sol, échelon à la vitesse de croisière, chaque roue)
 // - montée à 90 % de la consigne en 300 ms au plus ;
 // - dépassement de 15 % au plus ;
 // - erreur moyenne en régime établi de 5 mm/s au plus ;
@@ -158,7 +158,7 @@ const char* selectionName() {
 }
 
 const char* modeName() {
-  return onStands ? "SUR CALES" : "AU SOL (800 mm max par essai)";
+  return onStands ? "SUR CALES" : "AU SOL (1000 mm max par essai)";
 }
 
 float smoothedMmS(const WheelState& w) {
@@ -210,7 +210,7 @@ void printHelp() {
   Console.println("[BANC]   k = au sol / sur cales   v = courbes CSV   i = reglages   h = aide");
   Console.println("[BANC] LANCER UN ESSAI (les roues tournent) :");
   Console.println("[BANC]   e = echelon 0 -> V pendant 3 s (montee, depassement, erreur)");
-  Console.println("[BANC]   s = escalier 50, 100, 150, 200 mm/s (mesure l'anticipation, AU SOL)");
+  Console.println("[BANC]   s = escalier 100, 200, 300, 350 mm/s (mesure l'anticipation, AU SOL)");
   Console.println("[BANC]   c = vitesse constante V pendant 8 s (freiner la roue au doigt)");
   Console.println("[BANC] Pendant un essai : N'IMPORTE QUELLE touche = STOP.");
 }
@@ -521,7 +521,7 @@ void runCycle(uint32_t nowMs) {
     }
     const float travelledMm = fabsf((ticks[i] - w.startTicks) * MM_PER_TICK);
     if (!onStands && travelledMm >= TEST_BENCH_PID_FLOOR_MAX_DISTANCE_MM) {
-      stopTest("800 mm parcourus au sol", nowMs);
+      stopTest("distance maximale au sol parcourue", nowMs);
       return;
     }
   }

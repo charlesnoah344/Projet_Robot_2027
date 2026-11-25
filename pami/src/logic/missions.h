@@ -1,7 +1,8 @@
-// Les missions du PAMI, écrites pour un départ à GAUCHE de la table (logique pure).
+// Les missions du PAMI, écrites pour un PAMI GAUCHE : bord de table à sa gauche, centre à sa droite
+// (logique pure, D017).
 //
 // Repère : départ en (0, 0), regard vers +x, y positif à gauche.
-// Pour un départ à droite, chaque étape passe par forSide() (logic/mission_step.h).
+// Pour un PAMI DROITE, chaque étape passe par forSide() (logic/mission_step.h).
 // Les dimensions sont dans config.h.
 #pragma once
 
@@ -34,18 +35,27 @@ constexpr MissionStep SQUARE_STEPS[] = {
     turnTo(0.0f),
 };
 
-// Douve la plus proche (D014) : 2 étapes, « aller à la douve » puis « y rester, bras prêt ».
-// Le point dépend de la douve choisie au départ (logic/nearest_moat.h) : ces étapes sont remplies
-// par mission.cpp, pas écrites ici.
-// Plus de capteurs de sol (D012) : le PAMI s'arrête quand l'odométrie dit qu'il est arrivé, à moins
-// de GOTO_REACHED_TOLERANCE_MM du point. La précision vient de l'étalonnage (banc test_trajectoire).
-constexpr uint8_t MOAT_STEP_COUNT = 2;
-inline void fillMoatSteps(const MoatPoint& moat, MissionStep steps[MOAT_STEP_COUNT]) {
-  steps[0] = gotoPoint(moat.xMm, moat.yMm);
-  steps[1] = defend();
+// Convertit un point du repère de la table (config.h, docs/douves-coordonnees.md) dans le repère de
+// l'odométrie, pour un départ à GAUCHE :
+//   - x : on retire la position de départ ;
+//   - y : à GAUCHE, le centre de la table (y de la table qui grandit) est à la DROITE du PAMI,
+//     donc du côté des y négatifs de l'odométrie.
+// Pour DROITE, forSide() change ensuite le signe de y.
+constexpr MissionStep gotoTablePoint(TablePoint point) {
+  return gotoPoint(point.xMm - START_POINT_MM.xMm, -(point.yMm - START_POINT_MM.yMm));
 }
 
-// Liste des étapes d'une mission écrite d'avance et leur nombre (0 pour MOAT, voir plus haut).
+// Douve de son côté (D017) : ligne droite jusqu'au point de virage, virage vers le centre, entrée dans
+// la douve, puis « y rester, bras prêt ». Pour GAUCHE : (1900, 0), puis (2079, -219).
+// Plus de capteurs de sol (D012) : le PAMI s'arrête quand l'odométrie dit qu'il est arrivé, à moins
+// de GOTO_REACHED_TOLERANCE_MM du point. La précision vient de l'étalonnage (banc test_trajectoire).
+constexpr MissionStep MOAT_STEPS[] = {
+    gotoTablePoint(MOAT_WAYPOINT_MM),
+    gotoTablePoint(MOAT_NEAR_MM),
+    defend(),
+};
+
+// Liste des étapes d'une mission et leur nombre.
 inline const MissionStep* missionSteps(MissionId id, uint8_t& count) {
   switch (id) {
     case MissionId::STRAIGHT_LINE:
@@ -58,7 +68,8 @@ inline const MissionStep* missionSteps(MissionId id, uint8_t& count) {
       count = sizeof(SQUARE_STEPS) / sizeof(MissionStep);
       return SQUARE_STEPS;
     case MissionId::MOAT:
-      break;  // dépend de la douve choisie au départ : remplie par mission.cpp (fillMoatSteps)
+      count = sizeof(MOAT_STEPS) / sizeof(MissionStep);
+      return MOAT_STEPS;
   }
   count = 0;
   return nullptr;
