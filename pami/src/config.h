@@ -114,8 +114,20 @@ constexpr int32_t ENCODER_TICKS_PER_WHEEL_TURN = 1920;
 // Les 7,6 mm perdus à chaque ligne, quelle que soit sa longueur, ne viennent pas du diamètre :
 // voir T006 dans docs/journal-tests.md.
 constexpr float WHEEL_DIAMETER_MM = 59.4f;  // T006
-// Distance parcourue par la roue pour un tick : périmètre de la roue / ticks par tour.
-constexpr float MM_PER_TICK = 3.14159265f * WHEEL_DIAMETER_MM / ENCODER_TICKS_PER_WHEEL_TURN;
+// Rapport des diamètres effectifs droite / gauche (D023). Les deux roues n'avancent pas exactement
+// de la même distance pour un tick (pneus, et 1948 / 1939 ticks par tour mesurés à la main, T022) :
+// à ticks égaux, le PAMI tournait d'un côté. > 1 : la roue droite avance plus que la gauche par tick.
+// Réglage : ligne droite avec test_trajectoire, puis « e » et l'écart réel sur le côté ; le banc
+// calcule la valeur (docs/reglage-regulation.md, § 8).
+// 1,0079 : 25 mm vers la gauche sur 800 mm, à 100 comme à 350 mm/s (T022) : 1 + 2 × 101,6 × 25 / 800².
+constexpr float WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO = 1.0079f;  // T022
+// Diamètre de chaque roue : leur moyenne reste WHEEL_DIAMETER_MM, donc l'étalonnage des distances
+// (T006) ne change pas. Seul l'écart entre les roues change.
+constexpr float LEFT_WHEEL_DIAMETER_MM = 2.0f * WHEEL_DIAMETER_MM / (1.0f + WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO);
+constexpr float RIGHT_WHEEL_DIAMETER_MM = LEFT_WHEEL_DIAMETER_MM * WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO;
+// Distance parcourue par chaque roue pour un tick : périmètre de la roue / ticks par tour.
+constexpr float LEFT_MM_PER_TICK = 3.14159265f * LEFT_WHEEL_DIAMETER_MM / ENCODER_TICKS_PER_WHEEL_TURN;
+constexpr float RIGHT_MM_PER_TICK = 3.14159265f * RIGHT_WHEEL_DIAMETER_MM / ENCODER_TICKS_PER_WHEEL_TURN;
 // true depuis le premier PCB (D012), comme dans le programme de test de l'équipe.
 // Sans risque si la sortie de l'encodeur est déjà en 0 / 3,3 V (mesure de l'équipe, montage d'avant) ;
 // indispensable si le PCB laisse la sortie « en l'air » à l'état haut.
@@ -169,7 +181,10 @@ constexpr float DRIVE_SPEED_MM_S = 350.0f;
 constexpr float TURN_SPEED_MM_S = 90.0f;
 // Accélération et freinage : progressifs, pour ne pas patiner ni créer de pic de courant.
 // 400 -> 500 mm/s² (D019) : on gagne environ 0,3 s sur le trajet de la douve. PROVISOIRE.
-constexpr float MOTION_ACCEL_MM_S2 = 200.0f;
+// Passée à 200 par l'équipe pendant les essais du 25/11, remise à 500 le 26/11 pour la mission douve :
+// à 200, le trajet dure environ 10,4 s, plus que les 9,5 s de mouvement du labo (arrêt avant la douve).
+// Si les roues patinent au démarrage, essayer 400.
+constexpr float MOTION_ACCEL_MM_S2 = 500.0f;
 // En dessous de cette vitesse, les moteurs risquent de caler (zone morte) : on ne descend pas plus bas.
 constexpr float MOTION_MIN_SPEED_MM_S = 40.0f;
 // On considère la cible atteinte à moins de 3 mm (ligne droite) ou 2 mm d'arc de roue (rotation).
@@ -219,10 +234,10 @@ enum class MissionId {
 };
 // La mission jouée. Pour en changer : modifier cette ligne, puis recompiler et téléverser.
 // Ordre conseillé pour les tests : STRAIGHT_LINE, ROTATION, SQUARE, puis MOAT.
-// Pas MOAT pour l'instant : le firmware de match exige les 2 ultrasons (celui de GPIO 2 ne répond pas),
-// et à 150 mm/s le trajet (environ 16 s) ne tient pas dans les 9,5 s de mouvement (D017).
-// En attendant, le trajet s'essaie avec le banc test_parcours (commande « d »).
-constexpr MissionId ACTIVE_MISSION = MissionId::STRAIGHT_LINE;
+// MOAT depuis le 26/11 : les 2 ultrasons marchent (T016, T024) et, à 350 mm/s avec 500 mm/s²,
+// le trajet (environ 8,5 s) tient dans les 9,5 s de mouvement du labo (D019).
+// Il faut environ 2,2 m de place : 1,9 m tout droit, virage d'environ 51° vers le centre, 28 cm.
+constexpr MissionId ACTIVE_MISSION = MissionId::MOAT;
 
 // Il n'y a que 9,5 s de mouvement (de 5 s à 14,5 s) : chaque mission doit tenir dedans,
 // avec de la marge pour un détour. PROVISOIRE : à ajuster d'après les vitesses réelles.
@@ -455,6 +470,9 @@ constexpr uint32_t TEST_BENCH_TRAJ_TIMEOUT_MARGIN_MS = 5000;
 // Critères (repris de test_odometrie) : distance à 1 % près (5 mm sur 500 mm), angle à 5° près
 // par tour, carré refermé à moins de 30 mm. En dessous, l'étalonnage est bon : rien à changer.
 constexpr float TEST_BENCH_TRAJ_DISTANCE_TOLERANCE_PCT = 1.0f;
+// Écart entre les roues accepté sans corriger WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO (commande « e ») :
+// 0,2 % donne environ 9 mm sur une ligne de 950 mm, et 36 mm sur les 1900 mm de la ligne de la douve.
+constexpr float TEST_BENCH_TRAJ_WHEEL_RATIO_TOLERANCE_PCT = 0.2f;
 constexpr float TEST_BENCH_TRAJ_ANGLE_TOLERANCE_DEG_PER_TURN = 5.0f;
 constexpr float TEST_BENCH_TRAJ_SQUARE_CLOSURE_MAX_MM = 30.0f;
 // Au-delà, les essais répétés ne se ressemblent pas assez : patinage ou mécanique à régler

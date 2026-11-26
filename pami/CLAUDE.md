@@ -76,7 +76,8 @@ test_bench/         programmes de test isolés par composant (voir la skill banc
   ne sont pas identiques.
 - Ligne droite : l'écart entre les distances parcourues par la roue gauche et la roue droite indique
   que le PAMI tourne. On corrige les consignes des deux roues pour annuler cet écart.
-- Distances mesurées : ticks × `MM_PER_TICK`.
+- Distances mesurées : ticks × `LEFT_MM_PER_TICK` ou `RIGHT_MM_PER_TICK` : chaque roue a son
+  diamètre effectif, sinon le PAMI dérive en ligne droite sans le voir (D023).
 - Angles mesurés : (distance droite − distance gauche) / `WHEEL_BASE_MM`.
 - Rampes d'accélération : pas de patinage, pas de pic de courant.
 - Détection de blocage : une roue commandée qui ne tourne pas signale une panne (FAULT).

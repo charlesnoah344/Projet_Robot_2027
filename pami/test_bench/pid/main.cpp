@@ -18,8 +18,8 @@
 // Pour le comportement complet en déplacement (trapèze, cap) : banc test_odometrie.
 //
 // MATÉRIEL ET MONTAGE
-// - Comme test_odometrie, sur le PCB 2026 5EO (D015) : MDD3A, M1A/M1B sur GPIO 32/33, M2A/M2B sur
-//   GPIO 19/18 ; encodeurs, gauche A/B sur GPIO 25/26, droit sur 5/17 ; alim de labo à 6 V sur VB+/VB-.
+// - Comme test_odometrie, brochage du 25/11/2026 (D018, broches dans config.h) : MDD3A, deux moteurs,
+//   encodeurs comptés par le PCNT (D022) ; alim de labo à 6 V sur VB+/VB-.
 // - Avant tout : chaque roue tournée à la main vers l'avant fait monter son compteur
 //   (banc test_odometrie, protocole 1).
 //
@@ -48,7 +48,7 @@
 //     ondulation (min et max), PWM moyenne et part de la correction P + I dans cette PWM ;
 //   - escalier : la PWM de chaque palier, puis la zone morte et la pente mesurées, à reporter
 //     dans config.h.
-// - Mesure de vitesse : 1 tick = 0,1 mm. Sur un cycle de 20 ms, 1 tick d'écart = 5 mm/s.
+// - Mesure de vitesse : 1 tick = environ 0,1 mm. Sur un cycle de 20 ms, 1 tick d'écart = 5 mm/s.
 //   L'affichage et le bilan utilisent donc la moyenne des 3 dernières mesures (60 ms).
 //   Le régulateur, lui, reçoit la mesure brute de chaque cycle, comme en match.
 //
@@ -93,6 +93,8 @@ constexpr int STAIR_COUNT =
     sizeof(TEST_BENCH_PID_STAIR_SPEEDS_MM_S) / sizeof(TEST_BENCH_PID_STAIR_SPEEDS_MM_S[0]);
 
 const char* const WHEEL_NAMES[2] = {"gauche", "droite"};
+// Chaque roue avec son propre nombre de mm par tick (D023).
+constexpr float WHEEL_MM_PER_TICK[2] = {LEFT_MM_PER_TICK, RIGHT_MM_PER_TICK};
 const float DEADBAND_PCT[2] = {LEFT_MOTOR_DEADBAND_PCT, RIGHT_MOTOR_DEADBAND_PCT};
 const float PCT_PER_MM_S[2] = {LEFT_MOTOR_PCT_PER_MM_S, RIGHT_MOTOR_PCT_PER_MM_S};
 const char* const DEADBAND_NAMES[2] = {"LEFT_MOTOR_DEADBAND_PCT", "RIGHT_MOTOR_DEADBAND_PCT"};
@@ -481,7 +483,7 @@ void runCycle(uint32_t nowMs) {
   encoders::read(ticks[LEFT], ticks[RIGHT]);
   for (int i = 0; i < 2; i++) {
     WheelState& w = wheels[i];
-    w.measuredMmS = (dtS > 0.0f) ? (ticks[i] - w.lastTicks) * MM_PER_TICK / dtS : 0.0f;
+    w.measuredMmS = (dtS > 0.0f) ? (ticks[i] - w.lastTicks) * WHEEL_MM_PER_TICK[i] / dtS : 0.0f;
     w.lastTicks = ticks[i];
     w.history[w.historyIndex] = w.measuredMmS;
     w.historyIndex = (w.historyIndex + 1) % 3;
@@ -519,7 +521,7 @@ void runCycle(uint32_t nowMs) {
       Console.println("[BANC] Roue bloquee ou encodeur inverse : verifiez (roues a la main), puis EN.");
       return;
     }
-    const float travelledMm = fabsf((ticks[i] - w.startTicks) * MM_PER_TICK);
+    const float travelledMm = fabsf((ticks[i] - w.startTicks) * WHEEL_MM_PER_TICK[i]);
     if (!onStands && travelledMm >= TEST_BENCH_PID_FLOOR_MAX_DISTANCE_MM) {
       stopTest("distance maximale au sol parcourue", nowMs);
       return;

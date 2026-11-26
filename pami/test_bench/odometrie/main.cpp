@@ -85,8 +85,10 @@ void printResetReason() {
 }
 
 void printSettings() {
-  Console.printf("[BANC] Reglages : roue %.1f mm, entraxe %.1f mm, %ld ticks/tour, %.4f mm/tick\n",
-                 WHEEL_DIAMETER_MM, WHEEL_BASE_MM, (long)ENCODER_TICKS_PER_WHEEL_TURN, MM_PER_TICK);
+  Console.printf("[BANC] Reglages : roue %.1f mm (G %.2f / D %.2f), entraxe %.1f mm, %ld ticks/tour,"
+                 " G %.4f / D %.4f mm/tick\n",
+                 WHEEL_DIAMETER_MM, LEFT_WHEEL_DIAMETER_MM, RIGHT_WHEEL_DIAMETER_MM, WHEEL_BASE_MM,
+                 (long)ENCODER_TICKS_PER_WHEEL_TURN, LEFT_MM_PER_TICK, RIGHT_MM_PER_TICK);
   Console.printf("[BANC] Vitesse : %.0f mm/s en ligne droite, %.0f mm/s par roue en rotation\n",
                  DRIVE_SPEED_MM_S, TURN_SPEED_MM_S);
 }
@@ -111,8 +113,8 @@ void logMeasures(uint32_t nowMs) {
   float leftMmS = 0.0f;
   float rightMmS = 0.0f;
   if (dtS > 0.0f) {
-    leftMmS = (leftTicks - lastLogLeftTicks) * MM_PER_TICK / dtS;
-    rightMmS = (rightTicks - lastLogRightTicks) * MM_PER_TICK / dtS;
+    leftMmS = (leftTicks - lastLogLeftTicks) * LEFT_MM_PER_TICK / dtS;
+    rightMmS = (rightTicks - lastLogRightTicks) * RIGHT_MM_PER_TICK / dtS;
   }
   lastLogMs = nowMs;
   lastLogLeftTicks = leftTicks;

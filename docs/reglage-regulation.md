@@ -88,8 +88,10 @@ puis `pio device monitor -e test_pid_wifi`. Les touches g / d / a **choisissent*
     l'échelon est bon, le régulateur n'est pas en cause : chercher du côté de l'étalonnage.
 
 **L'escalier (`s`, au sol) : « quelle PWM faut-il à chaque roue pour chaque vitesse ? »**
-- 4 paliers de 1,5 s : 50, 100, 150 et 200 mm/s. Le banc relève la PWM qu'il a fallu à chaque palier,
-  et trace la droite « PWM = zone morte + pente × vitesse » de chaque roue.
+- 4 paliers de 1 s : 100, 200, 300 et 350 mm/s (D019, avant : 50 à 200 mm/s), environ 950 mm en tout.
+  Le banc relève la PWM qu'il a fallu à chaque palier (la première demi-seconde de chaque palier est
+  ignorée, le temps que la roue s'établisse), et trace la droite « PWM = zone morte + pente × vitesse »
+  de chaque roue.
 - Il affiche les valeurs à recopier : `LEFT_MOTOR_DEADBAND_PCT`, `LEFT_MOTOR_PCT_PER_MM_S`, et de même
   pour la droite.
 - **Sa plus-value** : c'est le réglage le plus rentable.
@@ -130,8 +132,9 @@ On tape une commande, puis Entrée (chiffres : pavé numérique, ou Maj sur un c
 | `l 1000` | ligne droite de 1000 mm (50 à 2000) |
 | `r 360`, `r -90` | rotation sur place ; positif = vers la gauche |
 | `c 300`, `c -300` | carré de 300 mm ; positif = en tournant à gauche |
-| `v 100` | vitesse des lignes droites (40 à 150 mm/s) |
+| `v 100` | vitesse des lignes droites (40 à `DRIVE_SPEED_MM_S`) |
 | `m 1003` | **mesure réelle** du dernier essai : mm, ou degrés pour une rotation |
+| `e 25`, `e -8` | **écart réel sur le côté** à la fin d'une ligne, avec signe (+ à gauche, − à droite) : donne `WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO` (D023) |
 | Entrée seule | refaire le même essai |
 | `n`, `z`, `i`, `h` | nouvelle série de mesures, position à zéro, réglages, aide |
 
@@ -162,7 +165,8 @@ On ne règle pas un étage tant que celui du dessous n'est pas bon. Après chaqu
 | 0. Câblage, encodeurs | PDF de câblage, page 7 ; roue à la main | 1 tour de roue ≈ 1920 ticks, le bon compteur monte | le câblage |
 | 1. Anticipation | `test_pid`, au sol : `a` puis `s`, 3 fois | valeurs stables à ±10 % | `LEFT_/RIGHT_MOTOR_DEADBAND_PCT`, `..._PCT_PER_MM_S` |
 | 2. Régulateur | `test_pid`, au sol : `a` puis `e` ; sur cales : `c` | montée ≤ 300 ms, dépassement ≤ 15 %, erreur ≤ 5 mm/s, correction P+I < 5 % | KP, KI (§ 7), seulement si besoin |
-| 3. Diamètre | `test_trajectoire` : `l 1000`, mesurer, `m …`, 3 à 5 fois | distance à 1 % près ; écart latéral réel < 10 mm sur 500 mm | `WHEEL_DIAMETER_MM` |
+| 3. Diamètre | `test_trajectoire` : `l 1000`, mesurer, `m …`, 3 à 5 fois | distance à 1 % près | `WHEEL_DIAMETER_MM` |
+| 3 bis. Écart entre les roues | mêmes lignes : écart sur le côté, `e …`, 3 à 5 fois, à la vitesse du match | écart entre les roues < 0,2 % (environ 9 mm sur 950 mm) | `WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO` |
 | 4. Entraxe (après le diamètre : l'angle en dépend) | `r 360`, puis `r -360`, 3 à 5 fois chacun | 5° près par tour | `WHEEL_BASE_MM` |
 | 5. Carrés | `c 300` et `c -300`, 5 fois chacun | retour à moins de 30 mm, dans les deux sens | § 8 |
 | 6. Marges | lire « PWM max » à la fin des essais ; refaire 2 et 3 batterie presque vide | PWM max ≤ 70 % en croisière | vitesse, batterie |
@@ -235,9 +239,17 @@ Lecture :
 - les deux sens finissent **du même côté** du départ : les deux roues n'ont pas le même diamètre ;
 - ils finissent **de côtés opposés** : l'entraxe est faux (refaire l'étape 4).
 
-Le code n'a pas encore de correction gauche/droite du diamètre : on l'ajoutera **si les mesures le
-demandent** (écart latéral > 10 mm sur 500 mm, ou carrés > 30 mm alors que diamètre et entraxe sont
-bons). Apportez les mesures des 10 carrés : on fera le calcul ensemble.
+La correction gauche / droite du diamètre existe depuis D023 : `WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO`.
+La façon la plus simple de la régler est la ligne droite (étape 3 bis) :
+1. une bande de scotch au sol dans l'axe de départ du PAMI ; `l 950` à la vitesse du match ;
+2. à l'arrivée, mesurer l'écart entre le centre du PAMI et la bande, puis `e 25` s'il finit à 25 mm
+   **à gauche**, `e -25` à **droite** (vu de derrière le PAMI) ;
+3. 3 à 5 fois. Le banc calcule l'écart entre les roues : sur une ligne de L mm, un écart e sur le côté
+   vient d'un écart ε = 2 × entraxe × e / L² entre les roues (`logic/wheel_ratio.h`). Il donne le
+   rapport conseillé, à reporter dans `config.h`, puis on vérifie.
+Faire la mesure à la vitesse du match : depuis le comptage par PCNT (D022), la dérive est la même à
+100 et 350 mm/s (T022). Si elle changeait avec la vitesse, ce ne serait plus un écart de diamètre
+mais un patinage ou un comptage faux (voir T020, T021).
 
 ## 9. S'assurer que la régulation n'est pas limitante
 

@@ -34,6 +34,14 @@ void logStatus(uint32_t nowMs) {
   static uint32_t loopCount = 0;
   static uint32_t lastLogMs = 0;
 
+  // Rien avant le départ : on peut taper « go g » ou « go d » dans le moniteur sans que des lignes
+  // défilent pendant qu'on écrit. Le comptage repart au départ : la première ligne est juste.
+  if (!matchTimer::isStarted()) {
+    loopCount = 0;
+    lastLogMs = nowMs;
+    return;
+  }
+
   loopCount++;
   if (nowMs - lastLogMs < STATUS_LOG_PERIOD_MS) {
     return;

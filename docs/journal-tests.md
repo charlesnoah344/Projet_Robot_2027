@@ -733,3 +733,35 @@
   de ticks de plus par tour que la droite, donc à ticks égaux elle avance moins et le PAMI tourne à gauche.
 - **Suite** : correction par roue (rapport des ticks par tour), puis anticipation (`test_pid`, escalier
   au sol) et étalonnage du diamètre moyen (`test_trajectoire`) à refaire avec le nouveau comptage.
+
+### T023 — Lignes de 800 mm à 350 mm/s avec le rapport droite / gauche 1,0079 (banc test_trajectoire)
+- **Date** : 26/11/2026
+- **Testeurs** : l'équipe
+- **Programme** : `test_trajectoire`, PCNT (D022), `WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO = 1.0079` (D023),
+  `MOTION_ACCEL_MM_S2 = 200`. `v 350`, `l 800`, 4 fois.
+- **Mesures** :
+  - écart réel sur le côté : **25, 25 et 24 mm à gauche** (une ligne sans mesure). Le banc conseille 1,0159 ;
+  - distances tapées `m 78`, `m 80`, `m 79` : des **centimètres** au lieu de millimètres, donc
+    inutilisables (le banc en déduisait un diamètre de 5,8 mm). Garde-fou ajouté au banc depuis ;
+  - les deux roues demandent la même PWM (79-81 % en croisière), le cap calculé reste entre −0,3° et
+    +0,5° : la régulation se comporte pareil des deux côtés.
+- **Analyse** : la correction de 0,79 % devait faire disparaître environ 25 mm de dérive sur 800 mm.
+  L'écart n'a **pas changé** (25 mm avant, T022 ; 25 mm après). Il ne vient donc probablement pas
+  d'un écart de diamètre entre les roues, mais d'une cause qui ne dépend ni de la vitesse ni des roues :
+  la plus probable est l'**alignement du PAMI au départ** (1,8° de travers donne 25 mm sur 800 mm).
+- **À faire** : ne pas reporter 1,0159. Départ guidé contre une règle posée au sol, puis `l 400` et `l 800`.
+  Un PAMI mal aligné donne un écart 2 fois plus grand à 800 qu'à 400 mm ; un écart de roues, 4 fois.
+
+### T024 — Firmware de match, départ `go d`, mission ligne droite (moniteur Wi-Fi)
+- **Date** : 26/11/2026
+- **Testeurs** : l'équipe
+- **Programme** : firmware `esp32dev_wifi`, `ACTIVE_MISSION = STRAIGHT_LINE` (250 mm), profil labo 5 s / 14,5 s,
+  PCNT (D022), rapport droite / gauche 1,0079 (D023), affichage d'état seulement après le départ.
+- **Résultat** : conforme à ce qui était programmé.
+  - moniteur calme avant le départ ; `go d` -> `[COTE] DROITE`, `[TIME] DEPART !`, puis `WAIT_DELAY` ;
+  - mouvement autorisé à t = 5,0 s ; ligne droite faite : x = 248 mm, y = 0 mm, cap −0,1° ;
+    `[MISS] Mission terminee` ; ticks G 2572 / D 2552 (rapport 1,0078 : la correction par roue s'applique) ;
+  - `[TIME] FIN (14.5 s)`, état `END`, servo coupé ; environ 19 000 tours de boucle par seconde ;
+  - les deux ultrasons mesurent (distances qui changent quand on passe devant).
+- **Remarque** : l'équipe pensait que le PAMI s'arrêtait trop tôt : c'était la fin normale de la mission
+  de test (250 mm). Le temps (5 s, 14,5 s) est lu dans le journal, pas encore vérifié au chronomètre.

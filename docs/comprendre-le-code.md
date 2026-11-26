@@ -125,14 +125,16 @@ L'ordre compte : le minuteur passe en premier, pour que la fin du temps soit vue
   2. ouverture du port série et messages de démarrage ;
   3. `begin()` de chaque module.
 - **`loop()`** : voir § 2.1.
-- **`logStatus()`** : une ligne par seconde.
+- **`logStatus()`** : une ligne par seconde, **seulement après le départ**. Avant, le moniteur reste
+  calme pour qu'on puisse taper `go g` ou `go d` sans que des lignes défilent (les messages `[SAFE]`
+  attendent aussi le départ ; la détection d'obstacle, elle, marche tout le temps).
   ```
-  [MAIN] 180000 tours/s | etat WAIT_START | t = 0.0 s | cote GAUCHE | US G 2000 D 2000 mm | ticks G 0 D 0
+  [MAIN] 180000 tours/s | etat WAIT_DELAY | t = 1.0 s | cote GAUCHE | US G 2000 D 2000 mm | ticks G 0 D 0
   ```
   - `tours/s` : santé de la boucle (doit rester au-dessus de 1 000) ;
   - `etat` : l'état de la machine à états ;
   - `t` : le temps depuis le départ ;
-  - `cote` : le côté donné par la commande de départ (GAUCHE ou DROITE ; `?` avant le départ) ;
+  - `cote` : le côté donné par la commande de départ (GAUCHE ou DROITE) ;
   - `US G / D` : la distance filtrée vue par chaque ultrason (2000 = rien dans la portée,
     0 = pas encore mesuré) ;
   - `ticks G / D` : les compteurs des encodeurs.
@@ -149,9 +151,10 @@ Les constantes qui changent le plus souvent le comportement :
 | Constante | Effet | Valeur au 13/10 |
 |---|---|---|
 | `ACTIVE_MISSION` | La mission jouée par le firmware de match | `STRAIGHT_LINE` |
-| `WHEEL_DIAMETER_MM` | Distance pour 1 tick → toutes les distances | 60 |
-| `WHEEL_BASE_MM` | Écart entre les roues → tous les angles | 100 |
-| `ENCODER_LEFT_INVERTED` / `ENCODER_RIGHT_INVERTED` | Sens de comptage de chaque encodeur | `false` / `true` |
+| `WHEEL_DIAMETER_MM` | Diamètre moyen des roues : distance pour 1 tick → toutes les distances | 59,4 (T006) |
+| `WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO` | Écart entre les deux roues : sans lui, le PAMI dérive en ligne droite (D023) | 1,0079 (T022) |
+| `WHEEL_BASE_MM` | Écart entre les roues → tous les angles | 101,6 (T007) |
+| `ENCODER_LEFT_INVERTED` / `ENCODER_RIGHT_INVERTED` | Sens de comptage de chaque encodeur | `true` / `false` (T014) |
 | `MOTOR_LEFT_INVERTED` / `MOTOR_RIGHT_INVERTED` | Sens de rotation de chaque moteur | `true` / `true` |
 | `DRIVE_SPEED_MM_S`, `TURN_SPEED_MM_S` | Vitesses de croisière | 150, 90 |
 | `OBSTACLE_STOP_DISTANCE_MM` | Distance d'arrêt devant un obstacle | 150 |
@@ -221,7 +224,9 @@ Les constantes qui changent le plus souvent le comportement :
   fait au plus quelques dizaines de ticks : un saut de plus de 15 000 veut dire que le compteur est
   reparti de 0, et on le corrige.
 - 960 impulsions par tour de roue, 2 fronts comptés → **1 920 ticks par tour**.
-  1 tick = π × 60 / 1920 ≈ **0,098 mm**.
+  1 tick ≈ π × 59,4 / 1920 ≈ **0,097 mm**, un peu différent pour chaque roue (`LEFT_MM_PER_TICK`,
+  `RIGHT_MM_PER_TICK`) : les deux roues n'avancent pas exactement autant par tick (D023). Sans cette
+  correction, à ticks égaux, le PAMI décrivait un grand arc de cercle sans le voir (T022).
 - Les compteurs partent de 0 à l'allumage et ne sont jamais remis à zéro : `motion` travaille avec des
   différences.
 
@@ -368,7 +373,7 @@ grâce aux encodeurs, et suivre la position du PAMI (odométrie).
 | `update(nowMs, bloqué)` | Le calcul, toutes les 20 ms |
 
 **Ce que fait `update()` toutes les 20 ms** :
-1. **Mesure** : lit les ticks, calcule la vitesse de chaque roue (ticks × 0,098 mm / 0,02 s).
+1. **Mesure** : lit les ticks, calcule la vitesse de chaque roue (ticks × mm par tick de cette roue / 0,02 s).
 2. **Odométrie** : met à jour la position, même à l'arrêt (si on pousse le PAMI, sa position change).
 3. Si aucun mouvement n'est demandé, ou en panne : commande nulle.
 4. **Si `safety` a bloqué la commande** (obstacle, temps) : tout repart de zéro. Quand la voie se
@@ -634,7 +639,7 @@ remettre le firmware : `pio run -t upload`.
 - **Section critique** : moment où les interruptions ne peuvent pas modifier une variable partagée.
 - **Quadrature** : deux signaux A et B décalés d'un quart de période ; l'ordre de leurs fronts donne le
   sens de rotation.
-- **Tick** : un front compté sur la voie A d'un encodeur (environ 0,098 mm de roue).
+- **Tick** : un front compté sur la voie A d'un encodeur (environ 0,097 mm de roue).
 - **Odométrie** : calcul de la position à partir des distances parcourues par chaque roue.
 - **Régulateur** : calcul qui corrige la commande pour que la vitesse mesurée rejoigne la vitesse voulue.
 - **Anticipation** : la part de la commande calculée directement à partir de la vitesse voulue, sans

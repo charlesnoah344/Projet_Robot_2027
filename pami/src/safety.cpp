@@ -19,10 +19,12 @@ bool blockedByObstacle = false;
 bool blocking = false;
 
 // Obstacle devant UN capteur, avec une marge de libération. Message quand ça change.
+// La détection marche tout le temps ; seul le message attend le départ, pour ne pas gêner la saisie
+// de « go g » ou « go d » pendant qu'on pose le PAMI (les mains passent devant les capteurs).
 bool updateBlocked(bool wasBlocked, sensors::UltrasoundId id) {
   const uint16_t distanceMm = sensors::distanceMm(id);
   const bool blocked = isObstacleAhead(wasBlocked, distanceMm);
-  if (DEBUG_LOGS && blocked != wasBlocked) {
+  if (DEBUG_LOGS && blocked != wasBlocked && matchTimer::isStarted()) {
     Console.printf("[SAFE] US %s : %s (%u mm)\n", sensors::shortName(id),
                    blocked ? "obstacle devant" : "voie libre", distanceMm);
   }

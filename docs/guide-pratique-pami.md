@@ -166,7 +166,8 @@ Ordre des étapes et ce qu'il faut vérifier à chacune : `docs/plan-logiciel-pa
 
 **Test de l'étape A** (PAMI sur cales, moniteur Wi-Fi ou USB ouvert, D013) :
 - [ ] Au démarrage : « Profil LABO (D007) », puis « Pret. » et l'aide « Pour le depart, tapez go g… ».
-- [ ] Pendant 30 s sans rien taper, l'état reste `WAIT_START`, `cote ?` dans la ligne `[MAIN]`.
+- [ ] Pendant 30 s sans rien taper, rien ne bouge et le moniteur reste calme (les lignes `[MAIN]`
+      n'apparaissent qu'après le départ).
 - [ ] `g` puis Entrée, puis `stop` puis Entrée : « Commande inconnue », aucun départ.
 - [ ] `go` seul puis Entrée : « Il manque le cote », aucun départ (D020).
 - [ ] `go g` puis Entrée affiche `[COTE] GAUCHE (bord a gauche, centre a droite)`, `DEPART !` et

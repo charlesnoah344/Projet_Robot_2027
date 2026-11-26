@@ -43,12 +43,17 @@
 //   m 503    MESURE réelle du dernier essai : calcule la correction. Ligne : distance en mm (positive).
 //            Rotation : angle en degrés, signe libre (m 358 = m -358). Carré : écart au départ en mm,
 //            AVEC SIGNE : + si le PAMI s'arrête à gauche du départ, - à droite, 0 si pile dessus.
+//   e 25     ÉCART RÉEL SUR LE CÔTÉ à la fin d'une ligne droite, en mm, AVEC SIGNE : + si le PAMI
+//            finit à gauche de la ligne visée, - à droite. Calcule le rapport des diamètres
+//            droite / gauche (WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO, D023).
 //   Entrée seule : refaire le même essai (pratique pour répéter 3 à 5 fois)
 //   n : nouvelle série de mesures   z : position à zéro   i : réglages   h : aide
 //
 // PROTOCOLE (détails dans docs/reglage-regulation.md)
 //  1. Diamètre des roues : « l 1000 », mesurer la distance réelle, « m ... ». 3 à 5 fois.
 //     Le banc donne WHEEL_DIAMETER_MM conseillé. Le reporter dans config.h, téléverser.
+//     Sur les mêmes lignes, mesurer aussi l'écart sur le côté (bande de scotch au sol), « e ... ».
+//     Le banc donne WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO conseillé (le PAMI ne doit plus tourner).
 //  2. Entraxe, SEULEMENT APRÈS le diamètre (l'angle mesuré en dépend) : « r 360 », mesurer
 //     l'angle réel, « m ... ». 3 à 5 fois, puis « r -360 ». WHEEL_BASE_MM conseillé : config.h.
 //  3. Carrés dans les deux sens : « c 300 » puis « c -300 », 5 fois chacun, en mesurant l'écart
@@ -66,6 +71,7 @@
 #include "config.h"
 #include "console.h"
 #include "encoders.h"
+#include "logic/wheel_ratio.h"
 #include "motion.h"
 #include "motor_driver.h"
 #include "wireless.h"
@@ -127,12 +133,14 @@ RunKind lastRun = RunKind::NONE;     // pour « Entrée seule = refaire »
 RunKind measurableRun = RunKind::NONE;  // NONE si l'essai a été interrompu
 float believedValue = 0.0f;  // mm (ligne), degrés (rotation), écart au départ en mm (carré)
 float lastSquareSideMm = 0.0f;
+bool lateralMeasurable = false;  // une ligne vient de finir : on peut taper son écart latéral (« e »)
 
 // --- Séries de mesures ---
 Series lineRatios;    // réel / cru, pour le diamètre des roues
 Series turnRatios;    // cru / réel, pour l'entraxe
 Series squaresLeft;   // écart réel au départ, carrés en tournant à gauche (mm)
 Series squaresRight;  // idem, en tournant à droite
+Series wheelRatioErrors;  // écart relatif entre les roues, déduit de l'écart latéral des lignes
 
 // --- Ligne de commande tapée ---
 char line[32];
@@ -166,6 +174,7 @@ void printHelp() {
                  DRIVE_SPEED_MM_S);
   Console.println("[TRAJ]   m 503    MESURE reelle du dernier essai : mm (ligne), deg (rotation, signe libre),");
   Console.println("[TRAJ]            mm avec signe pour un carre (+ arrete a gauche du depart, - a droite)");
+  Console.println("[TRAJ]   e 25     ECART REEL SUR LE COTE apres une ligne, mm avec signe (+ a gauche, - a droite)");
   Console.println("[TRAJ]   Entree seule : refaire le meme essai    n : nouvelle serie de mesures");
   Console.println("[TRAJ]   z : position a zero    i : reglages    h : aide");
   Console.println("[TRAJ] Chiffres : pave numerique, ou Maj + touche sur un clavier AZERTY.");
@@ -173,8 +182,10 @@ void printHelp() {
 }
 
 void printSettings() {
-  Console.printf("[TRAJ] Etalonnage : roue %.2f mm, entraxe %.1f mm, %ld ticks/tour (%.4f mm/tick)\n",
-                 WHEEL_DIAMETER_MM, WHEEL_BASE_MM, (long)ENCODER_TICKS_PER_WHEEL_TURN, MM_PER_TICK);
+  Console.printf("[TRAJ] Etalonnage : roue %.2f mm (G %.2f / D %.2f, rapport D/G %.4f), entraxe %.1f mm,"
+                 " %ld ticks/tour\n",
+                 WHEEL_DIAMETER_MM, LEFT_WHEEL_DIAMETER_MM, RIGHT_WHEEL_DIAMETER_MM,
+                 WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO, WHEEL_BASE_MM, (long)ENCODER_TICKS_PER_WHEEL_TURN);
   Console.printf("[TRAJ] Vitesses : ligne %.0f mm/s, rotation %.0f mm/s par roue, acceleration %.0f mm/s2\n",
                  lineSpeedMmS, TURN_SPEED_MM_S, MOTION_ACCEL_MM_S2);
   Console.printf("[TRAJ] Regulateur : KP %.3f, KI %.3f | anticipation G %.1f %% + %.3f, D %.1f %% + %.3f\n",
@@ -190,8 +201,8 @@ void wheelDistancesMm(float& leftMm, float& rightMm) {
   int32_t leftTicks = 0;
   int32_t rightTicks = 0;
   encoders::read(leftTicks, rightTicks);
-  leftMm = (leftTicks - startLeftTicks) * MM_PER_TICK;
-  rightMm = (rightTicks - startRightTicks) * MM_PER_TICK;
+  leftMm = (leftTicks - startLeftTicks) * LEFT_MM_PER_TICK;
+  rightMm = (rightTicks - startRightTicks) * RIGHT_MM_PER_TICK;
 }
 
 // Distance parcourue : moyenne des deux roues.
@@ -264,6 +275,7 @@ void startRun(RunKind kind, uint32_t nowMs) {
   running = kind;
   lastRun = kind;
   measurableRun = RunKind::NONE;
+  lateralMeasurable = false;
   stepIndex = 0;
   runStartMs = nowMs;
   runTimeoutMs = 2 * expectedDurationMs() + TEST_BENCH_TRAJ_TIMEOUT_MARGIN_MS;
@@ -295,7 +307,9 @@ void finishRun(uint32_t nowMs) {
     printWheelMargin();
     Console.println("[TRAJ] -> Mesurez la distance REELLE (meme repere sur le PAMI au depart et a l'arrivee),");
     Console.println("[TRAJ]    puis tapez m et la distance en mm, par exemple : m 947");
-    Console.println("[TRAJ]    Notez aussi l'ecart lateral reel (moins de 10 mm sur 500 mm).");
+    Console.println("[TRAJ] -> Mesurez aussi l'ecart REEL SUR LE COTE par rapport a la ligne visee, puis tapez e");
+    Console.println("[TRAJ]    et l'ecart en mm : + s'il finit a GAUCHE, - a DROITE. Exemples : e 25, e -8, e 0.");
+    lateralMeasurable = true;
   } else if (finished == RunKind::TURN) {
     believedValue = believedAngleDeg();
     Console.printf("[TRAJ] ===== Rotation de %.0f deg terminee en %.1f s =====\n", fabsf(turnAngleDeg), seconds);
@@ -323,6 +337,7 @@ void stopRun(const char* reason) {
   motion::stop();
   running = RunKind::NONE;
   measurableRun = RunKind::NONE;  // essai incomplet : pas de mesure possible
+  lateralMeasurable = false;
   motorDriver::brake();
   const Pose pose = motion::pose();
   Console.printf("[TRAJ] STOP (%s). Position calculee : x = %.0f mm, y = %.0f mm, cap = %.1f deg.\n", reason,
@@ -383,6 +398,14 @@ bool measureLine(float realMm) {
   }
   const float atRestMm = believedDistanceMm();
   const float ratio = realMm / atRestMm;
+  // Garde-fou : un écart de plus de 20 % n'est pas un défaut d'étalonnage, c'est une erreur de
+  // mesure ou d'unité (le 26/11/2026, « m 78 » pour 78 cm donnait un diamètre de 5,8 mm).
+  if (ratio < 0.8f || ratio > 1.2f) {
+    Console.printf("[TRAJ] Mesure refusee : %.0f mm pour %.0f mm crus. La distance se tape en MILLIMETRES"
+                   " (78 cm = m 780). Retapez m et la bonne valeur.\n",
+                   realMm, atRestMm);
+    return false;
+  }
   lineRatios.add(ratio);
   Console.printf("[TRAJ] Mesure : reel %.0f mm, le PAMI croyait %.1f mm a l'arret (%+.2f %%).\n", realMm,
                  atRestMm, (ratio - 1.0f) * 100.0f);
@@ -489,6 +512,45 @@ bool measureSquare(float signedGapMm) {
                     " (refaire les rotations r 360 / r -360).");
   }
   return true;
+}
+
+// Écart latéral réel à la fin d'une ligne droite, AVEC SIGNE (+ à gauche, - à droite, comme y dans
+// l'odométrie). Il vient d'un écart entre les deux roues : à ticks égaux, l'une avance un peu plus
+// que l'autre, et le PAMI décrit un grand arc de cercle sans le voir (logic/wheel_ratio.h, D023).
+void measureLateral(bool hasValue, float lateralMm) {
+  if (!hasValue) {
+    Console.println("[TRAJ] Tapez l'ecart sur le cote en mm, avec signe : e 25 (a gauche), e -8 (a droite), e 0");
+    return;
+  }
+  if (!lateralMeasurable) {
+    Console.println("[TRAJ] L'ecart sur le cote se mesure juste apres une ligne droite terminee (l ...).");
+    return;
+  }
+  const float lineMm = believedDistanceMm();
+  const float error = wheelRatioError(lateralMm, lineMm, WHEEL_BASE_MM);
+  wheelRatioErrors.add(error);
+  lateralMeasurable = false;  // une seule mesure par ligne
+  Console.printf("[TRAJ] Mesure : %.0f mm %s sur %.0f mm, soit %+.2f %% d'ecart entre les roues.\n",
+                 fabsf(lateralMm), gapSideName(lateralMm), lineMm, error * 100.0f);
+  const float meanError = wheelRatioErrors.mean();
+  // Ce que donnerait cet écart sur la ligne droite de la douve (1,9 m) : c'est ce qui compte en match.
+  const float moatLineMm = MOAT_WAYPOINT_MM.xMm - START_POINT_MM.xMm;
+  Console.printf("[TRAJ] Serie de %lu lignes : ecart moyen %+.2f %% entre les roues, soit environ %.0f mm %s"
+                 " sur les %.0f mm de la ligne de la douve.\n",
+                 (unsigned long)wheelRatioErrors.count, meanError * 100.0f,
+                 fabsf(meanError) * moatLineMm * moatLineMm / (2.0f * WHEEL_BASE_MM),
+                 gapSideName(meanError), moatLineMm);
+  if (wheelRatioErrors.count < 3) {
+    Console.println("[TRAJ] Refaites la ligne (Entree seule) : 3 a 5 mesures donnent une moyenne fiable.");
+  }
+  if (fabsf(meanError) * 100.0f <= TEST_BENCH_TRAJ_WHEEL_RATIO_TOLERANCE_PCT) {
+    Console.printf("[TRAJ] Moins de %.1f %% : WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO n'a pas besoin de changer.\n",
+                   TEST_BENCH_TRAJ_WHEEL_RATIO_TOLERANCE_PCT);
+  } else {
+    Console.printf("[TRAJ] Rapport conseille : WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO = %.4ff;  (actuel %.4f) // Txxx\n",
+                   correctedWheelRatio(WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO, meanError),
+                   WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO);
+  }
 }
 
 void handleMeasure(bool hasValue, float value) {
@@ -610,11 +672,15 @@ void executeLine(uint32_t nowMs) {
     case 'm':
       handleMeasure(hasValue, value);
       break;
+    case 'e':
+      measureLateral(hasValue, value);
+      break;
     case 'n':
       lineRatios = Series();
       turnRatios = Series();
       squaresLeft = Series();
       squaresRight = Series();
+      wheelRatioErrors = Series();
       Console.println("[TRAJ] Nouvelle serie : mesures precedentes oubliees.");
       break;
     case 'z':

@@ -17,9 +17,9 @@ void Odometry::update(int32_t leftTicks, int32_t rightTicks) {
     lastRightTicks_ = rightTicks;
     return;
   }
-  // Distance parcourue par chaque roue depuis le dernier appel.
-  const float leftMm = (leftTicks - lastLeftTicks_) * MM_PER_TICK;
-  const float rightMm = (rightTicks - lastRightTicks_) * MM_PER_TICK;
+  // Distance parcourue par chaque roue depuis le dernier appel, chacune avec son diamètre (D023).
+  const float leftMm = (leftTicks - lastLeftTicks_) * LEFT_MM_PER_TICK;
+  const float rightMm = (rightTicks - lastRightTicks_) * RIGHT_MM_PER_TICK;
   lastLeftTicks_ = leftTicks;
   lastRightTicks_ = rightTicks;
 

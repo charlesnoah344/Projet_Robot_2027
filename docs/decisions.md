@@ -685,3 +685,37 @@
   - il restera l'écart de 1,2 % de ticks par tour entre les roues (T019), à corriger par roue ;
   - si le défaut persistait malgré le PCNT, la piste suivante serait la forme des signaux A / B
     (déphasage réel, à voir à l'oscilloscope).
+
+### D023 — Un diamètre effectif par roue (rapport droite / gauche) pour rouler droit
+- **Date** : 26/11/2026
+- **Statut** : adoptée, valeur à confirmer au sol (`test_trajectoire`, commande `e`)
+- **Contexte** :
+  - depuis le comptage par PCNT (D022), la dérive en ligne droite ne dépend plus de la vitesse : environ
+    **25 mm vers la gauche sur 800 mm, à 100 comme à 350 mm/s** (T022), alors que l'odométrie croit
+    aller droit ;
+  - dix tours à la main : 1947,7 ticks par tour à gauche, 1938,5 à droite (T022). Les deux roues
+    n'avancent donc pas exactement de la même distance par tick (comptage et pneus) ;
+  - le code n'avait qu'un seul `MM_PER_TICK` pour les deux roues.
+- **Décision** :
+  - nouveau réglage `WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO` dans `config.h`, d'où sortent
+    `LEFT_WHEEL_DIAMETER_MM`, `RIGHT_WHEEL_DIAMETER_MM`, `LEFT_MM_PER_TICK` et `RIGHT_MM_PER_TICK`.
+    La moyenne des deux diamètres reste `WHEEL_DIAMETER_MM` : l'étalonnage des distances (T006) ne
+    change pas. `MM_PER_TICK` est supprimé, pour que le compilateur trouve chaque usage ;
+  - `motion` (vitesse de chaque roue, correction de cap) et l'odométrie utilisent le nombre de mm par
+    tick de chaque roue. La correction de cap égalise alors les distances **réelles** des deux roues ;
+  - valeur de départ **1,0079**, calculée avec T022 : sur une ligne de L mm, un écart e sur le côté
+    vient d'un écart ε = 2 × entraxe × e / L² entre les roues, soit 2 × 101,6 × 25 / 800² = 0,79 % ;
+  - `test_trajectoire` : nouvelle commande `e` (écart réel sur le côté après une ligne, avec signe) ;
+    le banc calcule le rapport conseillé et ce que donnerait l'écart restant sur la ligne de la douve.
+    Calcul en logique pure (`logic/wheel_ratio.h`), testé dans `test/test_wheel_ratio`.
+- **Pourquoi** :
+  - aucun réglage du régulateur ne peut corriger une erreur que les encodeurs ne voient pas : il faut
+    dire au programme quelle distance chaque roue parcourt vraiment pour un tick ;
+  - l'enjeu est la douve : 0,79 % d'écart entre les roues donnerait environ 140 mm de dérive sur les
+    1900 mm de la ligne droite de la douve.
+- **Conséquences** :
+  - à vérifier : `l 950` à la vitesse du match, 3 à 5 fois, avec `e` ; objectif moins de 0,2 % (environ
+    9 mm sur 950 mm, 36 mm sur la ligne de la douve) ;
+  - le rapport dépend des pneus : à remesurer si on change de roues ou de pneus, ou s'ils s'usent ;
+  - avec le nouveau comptage (D022), l'anticipation (`test_pid`, escalier au sol) et le diamètre moyen
+    (`l 950` puis `m`) sont aussi à remesurer.

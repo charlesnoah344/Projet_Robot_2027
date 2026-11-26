@@ -107,8 +107,9 @@ void update(uint32_t nowMs, bool commandBlocked) {
   int32_t leftTicks = 0;
   int32_t rightTicks = 0;
   encoders::read(leftTicks, rightTicks);
-  const float leftMeasuredMmS = (leftTicks - lastLeftTicks) * MM_PER_TICK / dtS;
-  const float rightMeasuredMmS = (rightTicks - lastRightTicks) * MM_PER_TICK / dtS;
+  // Chaque roue avec son propre nombre de mm par tick (D023).
+  const float leftMeasuredMmS = (leftTicks - lastLeftTicks) * LEFT_MM_PER_TICK / dtS;
+  const float rightMeasuredMmS = (rightTicks - lastRightTicks) * RIGHT_MM_PER_TICK / dtS;
   lastLeftTicks = leftTicks;
   lastRightTicks = rightTicks;
   // Même à l'arrêt : si on pousse le PAMI, sa position change.
@@ -126,9 +127,10 @@ void update(uint32_t nowMs, bool commandBlocked) {
     return;
   }
 
-  // Distance parcourue par chaque roue depuis le début du mouvement.
-  const float leftMm = (leftTicks - startLeftTicks) * MM_PER_TICK;
-  const float rightMm = (rightTicks - startRightTicks) * MM_PER_TICK;
+  // Distance parcourue par chaque roue depuis le début du mouvement. La correction de cap égalise
+  // ces deux distances : avec le bon diamètre de chaque roue, elles sont égales en vrai (D023).
+  const float leftMm = (leftTicks - startLeftTicks) * LEFT_MM_PER_TICK;
+  const float rightMm = (rightTicks - startRightTicks) * RIGHT_MM_PER_TICK;
 
   float leftTargetMmS = 0.0f;
   float rightTargetMmS = 0.0f;
