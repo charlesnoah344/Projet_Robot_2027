@@ -80,6 +80,8 @@ test_bench/         programmes de test isolés par composant (voir la skill banc
   diamètre effectif, sinon le PAMI dérive en ligne droite sans le voir (D023).
 - Angles mesurés : (distance droite − distance gauche) / `WHEEL_BASE_MM`.
 - Rampes d'accélération : pas de patinage, pas de pic de courant.
+- Arrêt complet entre deux mouvements (D024) : cible atteinte, frein, puis `isDone()` seulement quand
+  les deux roues sont arrêtées. Une rotation qui démarre pendant une glissade se bloque (T027).
 - Détection de blocage : une roue commandée qui ne tourne pas signale une panne (FAULT).
 - Gyroscope : optionnel, plus tard.
 

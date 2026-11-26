@@ -36,6 +36,8 @@ void turnAngle(float angleDeg);
 void stop();
 
 // Vrai quand le dernier mouvement demandé est terminé (ou qu'il n'y en a pas).
+// « Terminé » = cible atteinte ET PAMI vraiment arrêté (D024) : le mouvement suivant démarre à l'arrêt.
+// Après stop(), c'est vrai tout de suite.
 bool isDone();
 
 // Vrai pendant une ligne droite (pas pendant une rotation sur place).

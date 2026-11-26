@@ -12,7 +12,8 @@ namespace motion {
 
 namespace {
 
-enum class Mode { IDLE, DRIVE, TURN };
+// SETTLE : cible atteinte, frein, on attend que le PAMI soit vraiment arrêté (D024).
+enum class Mode { IDLE, DRIVE, TURN, SETTLE };
 
 Mode mode = Mode::IDLE;
 bool done = true;
@@ -37,6 +38,7 @@ SpeedController rightController(RIGHT_MOTOR_DEADBAND_PCT, RIGHT_MOTOR_PCT_PER_MM
 WheelCommand requested;  // {0, 0} : arrêt
 
 uint32_t stallStartMs = 0;  // début d'une suspicion de roue bloquée (0 = aucune)
+uint32_t stillSinceMs = 0;  // SETTLE : début de l'immobilité des roues (0 = elles bougent encore)
 
 Odometry odometry;
 
@@ -59,6 +61,31 @@ void finishMove() {
   mode = Mode::IDLE;
   done = true;
   resetRegulation();
+}
+
+// Cible atteinte : on freine, mais le mouvement n'est fini qu'une fois le PAMI vraiment arrêté (D024).
+// Pourquoi : à 350 mm/s, le PAMI glisse encore d'environ 10 mm après la fin d'une ligne droite. Si la
+// rotation suivante démarrait pendant cette glissade, elle voulait l'annuler en faisant reculer les
+// deux roues ; safety refusait (pas de marche arrière), et le PAMI restait bloqué (T027).
+void brakeAndSettle() {
+  mode = Mode::SETTLE;
+  resetRegulation();  // commande {0, 0} : frein
+  stillSinceMs = 0;
+}
+
+// Vrai quand les deux roues sont restées presque immobiles pendant MOTION_SETTLE_TIME_MS.
+bool hasSettled(float leftMeasuredMmS, float rightMeasuredMmS, uint32_t nowMs) {
+  const bool still = fabsf(leftMeasuredMmS) < MOTION_STOPPED_SPEED_MM_S &&
+                     fabsf(rightMeasuredMmS) < MOTION_STOPPED_SPEED_MM_S;
+  if (!still) {
+    stillSinceMs = 0;  // une roue bouge encore : on recommence à compter
+    return false;
+  }
+  if (stillSinceMs == 0) {
+    stillSinceMs = nowMs;
+    return false;
+  }
+  return nowMs - stillSinceMs >= MOTION_SETTLE_TIME_MS;
 }
 
 // Une roue qui reçoit beaucoup de PWM mais n'avance pas dans le bon sens, pendant trop longtemps.
@@ -120,6 +147,16 @@ void update(uint32_t nowMs, bool commandBlocked) {
     return;
   }
 
+  // Cible atteinte : la commande reste {0, 0} (frein) jusqu'à l'arrêt complet. Pas de délai bloquant :
+  // on regarde la vitesse des roues à chaque cycle. Si on pousse le PAMI, il attend ; le minuteur
+  // garde le dernier mot (règle d'or n° 3).
+  if (mode == Mode::SETTLE) {
+    if (hasSettled(leftMeasuredMmS, rightMeasuredMmS, nowMs)) {
+      finishMove();
+    }
+    return;
+  }
+
   // safety a bloqué la dernière commande (obstacle, temps) : on repart de zéro quand la voie se
   // libère, avec une nouvelle accélération progressive. Pas de suspicion de blocage pendant ce temps.
   if (commandBlocked) {
@@ -138,7 +175,7 @@ void update(uint32_t nowMs, bool commandBlocked) {
   if (mode == Mode::DRIVE) {
     const float remainingMm = targetMm - (leftMm + rightMm) / 2.0f;
     if (remainingMm <= DRIVE_TOLERANCE_MM) {
-      finishMove();
+      brakeAndSettle();
       return;
     }
     profileSpeedMmS = nextProfileSpeed(profileSpeedMmS, remainingMm, cruiseSpeedMmS, dtS);
@@ -154,7 +191,7 @@ void update(uint32_t nowMs, bool commandBlocked) {
     const float arcDoneMm = turnSign * (rightMm - leftMm) / 2.0f;
     const float remainingMm = targetMm - arcDoneMm;
     if (remainingMm <= TURN_TOLERANCE_MM) {
-      finishMove();
+      brakeAndSettle();
       return;
     }
     profileSpeedMmS = nextProfileSpeed(profileSpeedMmS, remainingMm, TURN_SPEED_MM_S, dtS);

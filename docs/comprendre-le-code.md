@@ -366,7 +366,7 @@ grâce aux encodeurs, et suivre la position du PAMI (odométrie).
 | `driveDistance(mm, vitesse)` | Commence une ligne droite (jamais en arrière, jamais plus vite que `DRIVE_SPEED_MM_S`) |
 | `turnAngle(deg)` | Commence une rotation sur place. Positif = vers la gauche |
 | `stop()` | Arrête le mouvement en cours (frein) |
-| `isDone()` / `isDriving()` | Le mouvement est fini / on est en ligne droite |
+| `isDone()` / `isDriving()` | Le mouvement est fini / on est en ligne droite. « Fini » = cible atteinte **et** PAMI vraiment arrêté : après la cible, `motion` freine et attend que les deux roues restent sous 10 mm/s pendant 100 ms (D024). Sans ça, à 350 mm/s, la rotation démarrait pendant la glissade de fin de ligne et se bloquait (T027) |
 | `isFaulty()` | Une roue est bloquée ou un encodeur compte à l'envers. **Reste vrai jusqu'au redémarrage** |
 | `pose()` / `resetPose()` | Position (x, y, cap) / remise à (0, 0, 0°) |
 | `command()` | La commande calculée pour les roues, que `safety` va contrôler |

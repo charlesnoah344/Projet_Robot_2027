@@ -197,6 +197,12 @@ constexpr float MOTION_MIN_SPEED_MM_S = 40.0f;
 // On considère la cible atteinte à moins de 3 mm (ligne droite) ou 2 mm d'arc de roue (rotation).
 constexpr float DRIVE_TOLERANCE_MM = 3.0f;
 constexpr float TURN_TOLERANCE_MM = 2.0f;
+// Arrêt complet (D024) : une fois la cible atteinte, le PAMI freine, et le mouvement n'est fini que
+// quand les deux roues restent sous MOTION_STOPPED_SPEED_MM_S pendant MOTION_SETTLE_TIME_MS.
+// Sans cette attente, la rotation démarrait pendant la glissade de fin de ligne et se bloquait (T027).
+// 10 mm/s = moins de 2 ticks par cycle de 20 ms. 100 ms = 5 cycles de suite.
+constexpr float MOTION_STOPPED_SPEED_MM_S = 10.0f;
+constexpr uint32_t MOTION_SETTLE_TIME_MS = 100;
 
 // Régulateur de vitesse de chaque roue : PWM = anticipation + correction proportionnelle + intégrale.
 // Anticipation : PWM nécessaire pour décoller (zone morte) + PWM par mm/s voulu.
@@ -347,7 +353,7 @@ constexpr float DETOUR_PASS_MM = 300.0f;
 constexpr uint8_t DETOUR_MAX_SIDESTEPS = 2;
 // Au plus 2 contournements par match (environ 7 s chacun). Ensuite, le PAMI reste arrêté et repart
 // dès que la voie se libère : il ne force jamais le passage.
-constexpr uint8_t AVOID_MAX_DETOURS = 2;
+constexpr uint8_t AVOID_MAX_DETOURS = 3;
 
 // ---------------------------------------------------------------------------
 // Bras du PAMI (servo SG90, D008)

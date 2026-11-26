@@ -721,3 +721,34 @@
   - le rapport dépend des pneus : à remesurer si on change de roues ou de pneus, ou s'ils s'usent ;
   - avec le nouveau comptage (D022), l'anticipation (`test_pid`, escalier au sol) et le diamètre moyen
     (`l 950` puis `m`) sont aussi à remesurer.
+
+### D024 — Un mouvement n'est fini que quand le PAMI est vraiment arrêté
+- **Date** : 26/11/2026
+- **Statut** : adoptée, à valider sur le vrai PAMI (mission douve, `go d` puis `go g`)
+- **Contexte** (T027) :
+  - mission douve : la ligne droite de 1900 mm est réussie, mais le PAMI ne fait jamais la rotation
+    d'environ 50° vers la douve. Il reste immobile jusqu'à la fin du temps, sans aucun message ;
+  - à 350 mm/s, le PAMI glisse encore d'environ 10 mm après la fin annoncée d'une ligne droite, et la
+    rotation démarrait aussitôt, pendant cette glissade ;
+  - pendant une rotation, `motion` surveille que le PAMI reste sur place (somme des distances des
+    roues). Il voyait les 10 mm de glissade et demandait aux deux roues de reculer d'environ 50 mm/s,
+    plus que la vitesse de départ de la rotation (40 mm/s) ;
+  - `safety` refuse une marche arrière qui n'est pas une rotation sur place (aucun capteur derrière) :
+    il freinait, `motion` repartait de zéro et redemandait la même chose, sans fin ;
+  - à 150 mm/s (carrés T009 à T011), la glissade était trop petite pour déclencher ce blocage.
+- **Décision** :
+  - nouvelle phase `SETTLE` dans `motion.cpp`. Quand une ligne droite ou une rotation atteint sa
+    cible, la commande passe à {0, 0} (frein). `isDone()` ne devient vrai que lorsque les deux roues
+    restent sous `MOTION_STOPPED_SPEED_MM_S` (10 mm/s) pendant `MOTION_SETTLE_TIME_MS` (100 ms) ;
+  - aucun délai bloquant : la vitesse des roues est regardée à chaque cycle de 20 ms (règle d'or n° 4) ;
+  - pas de durée maximale : si on pousse le PAMI, il attend. Le minuteur coupe tout à la fin du temps,
+    quel que soit l'état (règle d'or n° 3) ;
+  - `stop()` ne change pas : il arrête tout de suite (obstacle, fin du temps, panne).
+- **Pourquoi** :
+  - le mouvement suivant démarre toujours à l'arrêt : une rotation n'a plus de glissade à corriger ;
+  - la mission, le contournement et les bancs attendent tous `isDone()` : ils sont corrigés en même temps ;
+  - bonus : la mission calcule l'angle vers la douve depuis la position finale, après la glissade.
+- **Conséquences** :
+  - environ 0,2 s de plus par mouvement, soit environ 0,6 s sur le trajet de la douve (fin estimée vers
+    13 s au labo, avant l'arrêt à 14,5 s) ;
+  - `safety` et l'évitement ne changent pas : pendant `SETTLE`, la commande est « frein ».
