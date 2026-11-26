@@ -765,3 +765,92 @@
   - les deux ultrasons mesurent (distances qui changent quand on passe devant).
 - **Remarque** : l'équipe pensait que le PAMI s'arrêtait trop tôt : c'était la fin normale de la mission
   de test (250 mm). Le temps (5 s, 14,5 s) est lu dans le journal, pas encore vérifié au chronomètre.
+
+### T025 — Dérive et distance en ligne droite sur la surface de compétition (banc test_trajectoire)
+- **Date** : 26/11/2026
+- **Testeurs** : l'équipe
+- **Programme** : `test_trajectoire`, PCNT (D022), `WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO = 1.0079` (D023),
+  `MOTION_ACCEL_MM_S2 = 500`. Vitesse : celle du banc, 350 mm/s par défaut (à confirmer). Départ posé à la main.
+- **Mesures** (écart sur le côté vers la **droite**, d'après l'équipe ; distance réelle mesurée) :
+
+  | Distance crue | Écarts sur le côté | Moyenne | Distances réelles |
+  |---|---|---|---|
+  | 1000 mm | 61, 31, 51 mm | 48 mm | 1000, 1000, 1000 mm |
+  | 500 mm | 22, 18, 9 mm | 16 mm | 500, 510, 510 mm |
+
+- **Analyse** :
+  - **distance** : 1000 mm crus = 1000 mm réels. `WHEEL_DIAMETER_MM = 59.4` reste bon sur cette surface
+    (les 7 mm de plus à 500 mm sont de l'ordre de la précision de la mesure) ;
+  - **dérive** : un écart 2,9 fois plus grand à 1000 qu'à 500 mm, entre « angle de départ » (×2) et
+    « virage régulier » (×4). Si on la sépare en deux parties : environ 1,0° d'angle de départ et un
+    virage de 30 mm sur 1000 mm ;
+  - le rapport 1,0079, réglé sur le sol du labo, fait à lui seul tourner le PAMI d'environ 39 mm vers
+    la droite sur 1000 mm. C'est l'essentiel de la dérive mesurée ici ;
+  - écart prévu au bout des 1900 mm de la ligne de la douve selon le rapport :
+
+    | Rapport | Si les deux parties (calcul ci-dessus) | Si seulement un virage | Si seulement un angle de départ |
+    |---|---|---|---|
+    | 1,0079 (avant) | 142 mm à droite | 176 mm à droite | 85 mm à droite |
+    | **1,0000 (retenu)** | **2 mm** | 36 mm à droite | 56 mm à gauche |
+    | 0,9981 (calculé sur 1000 mm seulement) | 32 mm à gauche | 2 mm | 89 mm à gauche |
+
+    1,0000 donne le plus petit écart dans le pire des cas. La marge dans la douve est de ±100 mm
+    (`docs/douves-coordonnees.md`) ;
+  - l'écart entre deux essais identiques (31 à 61 mm sur 1000 mm) est plus grand que ce qui reste à
+    corriger. Il vient sans doute de la pose à la main : 1° de travers donne 33 mm sur 1900 mm.
+- **Décision** : `WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO = 1.0000` (D023).
+- **Conséquence** : sur le sol du labo, le PAMI devrait maintenant partir à gauche (environ 50 mm sur
+  800 mm, d'après T023). C'est attendu : on règle pour la surface du match.
+- **À faire** :
+  - vérifier sur la surface de compétition : 3 lignes de 1000 mm, puis la vraie ligne de la douve
+    (`l 1900` ou le banc `test_parcours`, commande `d`), écart mesuré au bout ;
+  - un gabarit de pose dans l'écurie, pour réduire l'écart d'un essai à l'autre.
+
+### T026 — Vérification du rapport 1,0000 sur la surface de compétition (banc test_trajectoire)
+- **Date** : 26/11/2026
+- **Testeurs** : l'équipe
+- **Programme** : `test_trajectoire`, `WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO = 1.0000` (T025), mêmes réglages
+  que T025. Départ posé à la main.
+- **Mesures** (écart sur le côté avec signe, tel que noté par l'équipe ; distance réelle) :
+
+  | Distance crue | Écarts sur le côté | Moyenne | Écart-type | Distances réelles |
+  |---|---|---|---|---|
+  | 1000 mm | +10, +7, −5 mm | +4 mm | 8 mm | 1000, 1000, 1000 mm |
+  | 500 mm | +4, +1, −5 mm | 0 mm | 5 mm | 500, 500, 500 mm |
+
+- **Résultat** : **réussi**. La dérive régulière a disparu : 48 mm (T025), puis 4 mm sur 1000 mm.
+  - Distances justes à 500 comme à 1000 mm : le diamètre moyen (59,4 mm) est bon sur cette surface.
+  - Les 4 mm de moyenne sont plus petits que l'incertitude sur cette moyenne (±5 mm avec 3 essais).
+    Ils correspondent à 0,08 % d'écart entre les roues, sous le seuil de 0,2 % du banc : rien à corriger.
+    Même si c'était un vrai défaut, il donnerait environ 14 mm sur la ligne de la douve (1900 mm).
+  - Il reste un écart **d'un essai à l'autre** (−5 à +10 mm sur 1000 mm). Il ne vient pas d'un réglage :
+    il change de sens d'un essai à l'autre, et aucune constante du code ne peut l'annuler.
+- **Décision** : on garde 1,0000. Le changer encore reviendrait à corriger du hasard, ce qui augmente
+  l'écart d'un essai à l'autre au lieu de le réduire.
+- **Pour aller plus loin** : réduire l'écart d'un essai à l'autre (pose au départ, appui avant), puis
+  vérifier sur la vraie ligne de la douve (`l 1900`, 3 à 5 fois, avec `e`).
+
+### T027 — Firmware de match, mission douve, côté DROITE : pas de virage vers la douve (moniteur Wi-Fi)
+- **Date** : 26/11/2026
+- **Testeurs** : l'équipe
+- **Programme** : firmware `esp32dev_wifi`, `ACTIVE_MISSION = MOAT`, 350 mm/s, accélération 500 mm/s²,
+  rapport droite / gauche 1,0000 (T025), profil labo 5 s / 14,5 s. Départ `go d`, 2 essais.
+- **Mesures** (les 2 essais sont identiques) :
+  - `[MISS] Debut : 3 etapes, depart a DROITE` : la bonne mission est chargée ;
+  - première étape réussie, finie entre 10 et 11 s : `x = 1898 mm, y = 1 mm, cap = -0.1 deg`
+    (2e essai : y = 2 mm, cap −0,2°) ;
+  - ensuite, les ticks ne bougent presque plus (G 19 637 → 19 639, D 19 634 → 19 636) jusqu'à
+    `[TIME] FIN (14.5 s)` : pas de rotation (environ 50° attendus), pas de `[SAFE]`, pas de `[MOT] PANNE`,
+    état `MISSION` jusqu'à la fin.
+- **Analyse** (cause trouvée dans le code) :
+  - à la fin de la ligne droite, le PAMI glisse encore d'environ 10 mm (1898 mm annoncés, 19 637 ticks
+    = 1909 mm à la fin), mais la rotation démarre aussitôt, pendant ce glissement ;
+  - la rotation surveille que le PAMI reste sur place (somme des distances des roues). Les 10 mm de
+    glissement lui font demander aux deux roues de **reculer** d'environ 50 mm/s, plus que sa vitesse
+    de départ (40 mm/s) : les deux roues sont commandées en arrière ;
+  - `safety` refuse toute marche arrière qui n'est pas une rotation sur place : il freine. `motion`
+    repart alors de zéro, redemande la même chose, se fait refuser… sans fin. Le PAMI reste bloqué
+    jusqu'à la fin du temps, sans message ;
+  - ce blocage arrive dès que le glissement dépasse environ 4 mm. À 150 mm/s (carrés T009 à T011), le
+    glissement était plus petit : c'est pour ça que les rotations marchaient jusqu'ici.
+- **Suite** : attendre que le PAMI soit vraiment arrêté avant de lancer le mouvement suivant (D024).

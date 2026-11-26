@@ -688,7 +688,9 @@
 
 ### D023 — Un diamètre effectif par roue (rapport droite / gauche) pour rouler droit
 - **Date** : 26/11/2026
-- **Statut** : adoptée, valeur à confirmer au sol (`test_trajectoire`, commande `e`)
+- **Statut** : adoptée. Valeur **1,0000** mesurée sur la surface de compétition (T025), à la place de
+  1,0079 (sol du labo, T022), et **confirmée par T026** (4 mm sur 1000 mm, sous l'incertitude de mesure).
+  Leçon : la dérive dépend du sol, ce réglage se fait sur la surface du match.
 - **Contexte** :
   - depuis le comptage par PCNT (D022), la dérive en ligne droite ne dépend plus de la vitesse : environ
     **25 mm vers la gauche sur 800 mm, à 100 comme à 350 mm/s** (T022), alors que l'odométrie croit

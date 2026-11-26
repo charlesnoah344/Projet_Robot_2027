@@ -119,8 +119,15 @@ constexpr float WHEEL_DIAMETER_MM = 59.4f;  // T006
 // à ticks égaux, le PAMI tournait d'un côté. > 1 : la roue droite avance plus que la gauche par tick.
 // Réglage : ligne droite avec test_trajectoire, puis « e » et l'écart réel sur le côté ; le banc
 // calcule la valeur (docs/reglage-regulation.md, § 8).
-// 1,0079 : 25 mm vers la gauche sur 800 mm, à 100 comme à 350 mm/s (T022) : 1 + 2 × 101,6 × 25 / 800².
-constexpr float WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO = 1.0079f;  // T022
+// À RÉGLER SUR LA SURFACE DU MATCH : la dérive change d'un sol à l'autre (T023 / T025).
+// Historique :
+// - 1,0079 (T022, sol du labo) : 25 mm vers la gauche sur 800 mm. Sur la surface de compétition, cette
+//   valeur faisait tourner le PAMI à droite : 48 mm sur 1000 mm, 16 mm sur 500 mm (T025) ;
+// - 1,0079 ajoutait à lui seul environ 39 mm de virage à droite sur 1000 mm. Une fois retiré, il reste
+//   environ 8 mm sur 1000 mm, moins que l'écart d'un essai à l'autre (31 à 61 mm), dû au placement.
+//   Valeur choisie pour que l'écart soit le plus petit possible au bout des 1900 mm de la ligne de la
+//   douve (calcul dans T025).
+constexpr float WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO = 1.0000f;  // T025
 // Diamètre de chaque roue : leur moyenne reste WHEEL_DIAMETER_MM, donc l'étalonnage des distances
 // (T006) ne change pas. Seul l'écart entre les roues change.
 constexpr float LEFT_WHEEL_DIAMETER_MM = 2.0f * WHEEL_DIAMETER_MM / (1.0f + WHEEL_DIAMETER_RIGHT_TO_LEFT_RATIO);
